@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { api } from "./api";
 import { Profile } from "./components/Profile";
-import { Stats } from "./components/Stats";
 import { BookModal } from "./components/BookModal";
 import { RequestModal } from "./components/RequestModal";
 import { ToastContainer } from "./components/common/Toast";
@@ -70,19 +69,6 @@ export default function App() {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
-
-
-useEffect(() => {
-  axios
-    .get("http://localhost:8080/api/quote/today")
-    .then((response) => {
-      setDailyThought(response.data);
-      console.log(response);
-    })
-    .catch((error) => {
-      console.log(error);
-    });
-}, []);
 
 
   useEffect(() => {

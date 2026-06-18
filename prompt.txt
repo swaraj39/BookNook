@@ -124,3 +124,6 @@ export default HowItWorks;
 9. Add pagination to the now browse page , by default the limit is 20
 10. change my book to my shelf
 11. make subtl UI improvements for better user experience
+
+
+
