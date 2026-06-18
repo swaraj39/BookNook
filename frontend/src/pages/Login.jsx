@@ -106,7 +106,7 @@ export function Login({ onLogin }) {
 
           {error && <div className="error-box">{error}</div>}
 
-          <button type="submit" className="btn primary full" disabled={loading}>
+          <button type="submit" className="btn btn-primary full" disabled={loading}>
             {loading ? (isRegister ? "Creating account..." : "Signing in...") : (
               isRegister ? <><UserPlus size={18} /> Create Account</> : <><LogIn size={18} /> Sign In</>
             )}

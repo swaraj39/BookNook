@@ -8,10 +8,10 @@ import { label, toBookForm } from "../utils/helpers";
 export function MyBooks({ page, onPageChange, setBookModal, deleteBook, openDetails }) {
   if (page.content.length === 0) {
     return (
-      <Panel title="My Shared Books">
+      <Panel title="My Shelf">
         <EmptyState 
           icon="BookPlus" 
-          title="Your library is empty" 
+          title="Your shelf is empty" 
           message="You haven't shared any books with the community yet. Start by adding your first book!" 
           actionLabel="Add your first book"
           onAction={() => setBookModal({ title: "", author: "", genreId: "", condition: "good", exchangeLocation: "", defaultLoanDays: 14, description: "" })}
@@ -21,7 +21,7 @@ export function MyBooks({ page, onPageChange, setBookModal, deleteBook, openDeta
   }
 
   return (
-    <Panel title="My Shared Books" badge={`${page.totalElements} records`}>
+    <Panel title="My Shelf" badge={`${page.totalElements} books`}>
       <Table headers={["Book", "Genre", "Status", "Actions"]}>
         {page.content.map((book) => (
           <tr key={book.id}>

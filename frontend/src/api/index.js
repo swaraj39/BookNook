@@ -51,7 +51,10 @@ export const api = {
   me: () => request("/me"),
   dashboard: () => request("/dashboard"),
   genres: () => request("/genres"),
-  books: (params) => request(`/books?${new URLSearchParams(params)}`),
+  books: (params) => {
+    const query = new URLSearchParams({ size: 20, ...params });
+    return request(`/books?${query}`);
+  },
   myBooks: (page = 0, size = 20) => request(`/books/mine?page=${page}&size=${size}`),
   book: (id) => request(`/books/${id}`),
   bookHistory: (id, page = 0, size = 20) => request(`/books/${id}/history?page=${page}&size=${size}`),

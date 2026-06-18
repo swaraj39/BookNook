@@ -11,6 +11,14 @@ export function Catalog({
 }) {
   return (
     <section>
+      <div className="topbar">
+        <div className="page-title">
+          <div className="page-kicker">Discovery</div>
+          <h2>Browse the Library</h2>
+          <p>Find your next read from our shared community collection.</p>
+        </div>
+      </div>
+
       <div className="toolbar">
         <div className="search-wrap">
           <Search size={17} />

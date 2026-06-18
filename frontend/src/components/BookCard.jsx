@@ -36,9 +36,9 @@ export function BookCard({ book, me, openDetails, setRequestModal, setBookModal,
           <span><strong>Duration:</strong> {book.defaultLoanDays} days{book.dueAt ? `, due ${dateText(book.dueAt)}` : ""}</span>
         </div>
         <div className="card-actions">
-          <button className="btn" onClick={() => openDetails(book)}>Details</button>
-          {!ownedByMe && book.availabilityStatus === "available" && <button className="btn primary" onClick={() => setRequestModal(book)}>Request</button>}
-          {(ownedByMe || isAdmin) && <button className="btn" onClick={() => setBookModal(toBookForm(book))}>Edit</button>}
+          <button className="btn btn-outline" onClick={() => openDetails(book)}>Details</button>
+          {!ownedByMe && book.availabilityStatus === "available" && <button className="btn btn-primary" onClick={() => setRequestModal(book)}>Request</button>}
+          {(ownedByMe || isAdmin) && <button className="btn btn-outline" onClick={() => setBookModal(toBookForm(book))}>Edit</button>}
           {borrowedByMe && <button className="btn warn" onClick={() => returnBook(book.activeLoanId)}>Return</button>}
         </div>
       </div>

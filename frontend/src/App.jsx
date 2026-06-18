@@ -9,7 +9,11 @@ import {
   Plus,
   RotateCcw,
   Sun,
-  Undo2
+  Undo2,
+  Home as HomeIcon,
+  Search,
+  User as UserIcon,
+  ChevronDown
 } from "lucide-react";
 import { api } from "./api";
 import { Profile } from "./components/Profile";
@@ -24,6 +28,8 @@ import { MyBooks } from "./pages/MyBooks";
 import { Borrowed } from "./pages/Borrowed";
 import { LoanHistory } from "./pages/LoanHistory";
 import { Details } from "./pages/Details";
+import { Home } from "./pages/Home";
+import { initials } from "./utils/helpers";
 
 const blankBook = {
   title: "",
@@ -37,7 +43,7 @@ const blankBook = {
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem("bn_token"));
-  const [view, setView] = useState("catalog");
+  const [view, setView] = useState("home");
   const [darkMode, setDarkMode] = useState(localStorage.getItem("bn_theme") === "dark");
   const [me, setMe] = useState(null);
   const [stats, setStats] = useState(null);
@@ -58,6 +64,7 @@ export default function App() {
   const [requestModal, setRequestModal] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
@@ -88,6 +95,7 @@ export default function App() {
     setMe(user);
     setIsAuthenticated(true);
     notify("Welcome back, " + user.fullName + "!");
+    setView("home");
   }
 
   function handleLogout() {
@@ -242,22 +250,13 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }
 
-  const navSections = [
-    {
-      label: "Discovery",
-      items: [
-        ["catalog", "Catalog", BookOpen]
-      ]
-    },
-    {
-      label: "Your Activity",
-      items: [
-        ["requests", "Requests", CheckSquare, stats?.pendingApprovals],
-        ["myBooks", "My Books", LibraryBig],
-        ["borrowed", "Currently Reading", Undo2, stats?.activeBorrowed],
-        ["history", "History", History]
-      ]
-    }
+  const navItems = [
+    { id: "home", label: "Home", Icon: HomeIcon },
+    { id: "catalog", label: "Browse", Icon: Search },
+    { id: "myBooks", label: "My Shelf", Icon: LibraryBig },
+    { id: "requests", label: "Requests", Icon: CheckSquare, badge: stats?.pendingApprovals },
+    { id: "borrowed", label: "Reading", Icon: Undo2 },
+    { id: "history", label: "History", Icon: History },
   ];
 
   if (!isAuthenticated) {
@@ -271,61 +270,68 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">BN</div>
-          <div>
-            <h1>Book Nook</h1>
-            <p>BA reading community</p>
-          </div>
-        </div>
-
-        {me && <Profile user={me} />}
-        
-        <nav className="nav">
-          {navSections.map((section) => (
-            <div key={section.label} className="nav-section">
-              <div className="nav-label">{section.label}</div>
-              {section.items.map(([id, label, Icon, badge]) => (
-                <button key={id} className={`nav-item ${view === id ? "active" : ""}`} onClick={() => setView(id)}>
-                  <div className="nav-item-content">
-                    <Icon size={18} />
-                    <span>{label}</span>
-                  </div>
-                  {badge > 0 && <span className="nav-badge">{badge}</span>}
-                </button>
-              ))}
+      <header className="header">
+        <div className="header-container">
+          <button className="brand btn-link" onClick={() => setView("home")}>
+            <div className="brand-mark">BN</div>
+            <div className="brand-text">
+              <h1>Book Nook</h1>
             </div>
-          ))}
-        </nav>
-
-        <div className="sidebar-footer">
-          <button className="logout-btn" onClick={handleLogout}>
-            <LogOut size={18} />
-            <span>Sign Out</span>
           </button>
-        </div>
-      </aside>
 
-      <main className="main">
-        <section className="topbar">
-          <div className="page-title">
-            <div className="page-kicker">Community library tracker</div>
-            <h2>BA Reading Community Tracker</h2>
-            <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
-          </div>
-          <div className="actions">
-            <button className="btn primary" onClick={() => setBookModal({ ...blankBook })}><Plus size={17} /> Add book</button>
-            <button className="btn" onClick={refresh}><RotateCcw size={17} /> Refresh</button>
+          <nav className="top-nav">
+            {navItems.map(({ id, label, Icon, badge }) => (
+              <button 
+                key={id} 
+                className={`nav-link ${view === id ? "active" : ""}`}
+                onClick={() => setView(id)}
+              >
+                <Icon size={18} />
+                <span>{label}</span>
+                {badge > 0 && <span className="nav-badge">{badge}</span>}
+              </button>
+            ))}
+          </nav>
+
+          <div className="header-right">
             <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
+            
+            <div className="profile-dropdown-container" style={{ position: "relative" }}>
+              <button className="user-profile-trigger" onClick={() => setShowProfileDropdown(!showProfileDropdown)}>
+                <div className="user-avatar-small">
+                  {me ? (me.avatarInitials || initials(me.fullName)) : "?"}
+                </div>
+                <ChevronDown size={14} color="var(--muted)" />
+              </button>
+              
+              {showProfileDropdown && (
+                <div className="card" style={{ 
+                  position: "absolute", 
+                  top: "100%", 
+                  right: 0, 
+                  marginTop: "8px", 
+                  minWidth: "240px", 
+                  zIndex: 200, 
+                  padding: "16px" 
+                }}>
+                  {me && <Profile user={me} />}
+                  <hr style={{ margin: "16px 0", border: "0", borderTop: "1px solid var(--line)" }} />
+                  <button className="logout-btn" onClick={handleLogout}>
+                    <LogOut size={18} />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        </section>
+        </div>
+      </header>
 
-        {stats && <Stats stats={stats} setView={setView} setFilters={setFilters} />}
-        {loading && view !== "catalog" && <div className="panel empty">Loading Book Nook...</div>}
-
+      <main className="main">
+        {view === "home" && <Home stats={stats} setView={setView} setBookModal={setBookModal} />}
+        
         {view === "catalog" && (
           <Catalog
             page={booksPage}
@@ -359,6 +365,19 @@ export default function App() {
           />
         )}
       </main>
+
+      <nav className="mobile-nav">
+        {navItems.slice(0, 5).map(({ id, label, Icon }) => (
+          <button 
+            key={id} 
+            className={`mobile-nav-item ${view === id ? "active" : ""}`}
+            onClick={() => setView(id)}
+          >
+            <Icon size={24} />
+            <span>{label}</span>
+          </button>
+        ))}
+      </nav>
 
       {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
       {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
