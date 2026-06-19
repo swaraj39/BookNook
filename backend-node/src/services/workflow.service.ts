@@ -102,42 +102,48 @@ export class WorkflowService {
     if (book.ownerId === userId) throw new Error("You cannot request your own book.");
     if (book.availabilityStatus !== "available") throw new Error("This book is not available.");
 
-    const request = await prisma.$transaction(async (tx) => {
-      const req = await tx.borrowRequest.create({
-        data: {
-          bookId: payload.bookId,
-          requesterId: userId,
-          ownerId: book.ownerId,
-          status: "pending",
-          requestedLoanDays,
-          borrowerNote: payload.borrowerNote,
-          requestedAt: new Date(),
-        },
-        include: {
-          requester: true,
-          book: true,
-          owner: true,
-        },
-      });
-
-      await tx.book.update({
-        where: { id: payload.bookId },
-        data: { availabilityStatus: "request_pending" },
-      });
-
-      await tx.bookHistory.create({
-        data: {
-          bookId: book.id,
-          actorId: userId,
-          eventType: "request_created",
-          eventTitle: "Borrow request created",
-          eventMessage: `${req.requester.fullName} requested ${book.title}.`,
-          borrowRequestId: req.id,
-        },
-      });
-
-      return req;
+    const request = await prisma.$transaction(
+  async (tx) => {
+    const req = await tx.borrowRequest.create({
+      data: {
+        bookId: payload.bookId,
+        requesterId: userId,
+        ownerId: book.ownerId,
+        status: "pending",
+        requestedLoanDays,
+        borrowerNote: payload.borrowerNote,
+        requestedAt: new Date(),
+      },
+      include: {
+        requester: true,
+        book: true,
+        owner: true,
+      },
     });
+
+    await tx.book.update({
+      where: { id: payload.bookId },
+      data: { availabilityStatus: "request_pending" },
+    });
+
+    await tx.bookHistory.create({
+      data: {
+        bookId: book.id,
+        actorId: userId,
+        eventType: "request_created",
+        eventTitle: "Borrow request created",
+        eventMessage: `${req.requester.fullName} requested ${book.title}.`,
+        borrowRequestId: req.id,
+      },
+    });
+
+    return req;
+  },
+  {
+    timeout: 15000,
+    maxWait: 10000,
+  }
+);
 
     return this.mapRequest(request);
   }
