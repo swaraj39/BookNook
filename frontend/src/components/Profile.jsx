@@ -1,7 +1,7 @@
 import React from "react";
-import { UserRound } from "lucide-react";
+import { UserRound, LogOut } from "lucide-react";
 import { initials } from "../utils/helpers";
-export function Profile({ user }) {
+export function Profile({ user, onLogout }) {
   return (
     <div className="profile-box">
       <div className="profile-top">
@@ -16,6 +16,12 @@ export function Profile({ user }) {
         </div>
       </div>
       <div className="profile-role" title="Capability"><UserRound size={13} /> {user.team}</div>
+      {onLogout && (
+        <button className="logout-btn" onClick={onLogout} title="Sign Out">
+          <LogOut size={16} />
+          <span>Sign Out</span>
+        </button>
+      )}
     </div>
   );
 }

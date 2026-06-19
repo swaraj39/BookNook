@@ -321,11 +321,22 @@ export default function App() {
           ))}
         </nav>
         <div className="top-nav-actions">
-          {me && <Profile user={me} />}
-          <button className="logout-btn" onClick={handleLogout} title="Sign Out">
-            <LogOut size={18} />
-            <span>Sign Out</span>
-          </button>
+          {me && (
+            <div className="profile-dropdown-container" style={{ position: "relative" }}>
+              <button className="user-profile-trigger" onClick={() => setShowProfileDropdown(!showProfileDropdown)}>
+                <div className="user-avatar-small">
+                  {me.avatarInitials || initials(me.fullName)}
+                </div>
+                <ChevronDown size={14} color="var(--muted)" />
+              </button>
+              
+              {showProfileDropdown && (
+                <div className="profile-dropdown-card">
+                  <Profile user={me} onLogout={handleLogout} />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </aside>
       <main className="main">
@@ -343,33 +354,7 @@ export default function App() {
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             
-            <div className="profile-dropdown-container" style={{ position: "relative" }}>
-              <button className="user-profile-trigger" onClick={() => setShowProfileDropdown(!showProfileDropdown)}>
-                <div className="user-avatar-small">
-                  {me ? (me.avatarInitials || initials(me.fullName)) : "?"}
-                </div>
-                <ChevronDown size={14} color="var(--muted)" />
-              </button>
-              
-              {showProfileDropdown && (
-                <div className="card" style={{ 
-                  position: "absolute", 
-                  top: "100%", 
-                  right: 0, 
-                  marginTop: "8px", 
-                  minWidth: "240px", 
-                  zIndex: 200, 
-                  padding: "16px" 
-                }}>
-                  {me && <Profile user={me} />}
-                  <hr style={{ margin: "16px 0", border: "0", borderTop: "1px solid var(--line)" }} />
-                  <button className="logout-btn" onClick={handleLogout}>
-                    <LogOut size={18} />
-                    <span>Sign Out</span>
-                  </button>
-                </div>
-              )}
-            </div>
+
           </div>
         </section>
         {view === "home" && (
