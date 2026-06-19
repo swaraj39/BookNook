@@ -25,6 +25,7 @@ import { MyBooks } from "./pages/MyBooks";
 import { Borrowed } from "./pages/Borrowed";
 import { LoanHistory } from "./pages/LoanHistory";
 import { Details } from "./pages/Details";
+import logo from "./styles/blue_altair_logo-removebg-preview.png";
 const blankBook = {
   title: "",
   author: "",
@@ -94,14 +95,14 @@ export default function App() {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
-useEffect(() => {
-  fetch("http://localhost:8080/api/quote/today")
-    .then((response) => response.ok ? response.json() : null)
-    .then((quote) => {
-      if (quote) setDailyThought(quote);
-    })
-    .catch(() => {});
-}, []);
+  useEffect(() => {
+    fetch("http://localhost:8080/api/quote/today")
+      .then((response) => response.ok ? response.json() : null)
+      .then((quote) => {
+        if (quote) setDailyThought(quote);
+      })
+      .catch(() => { });
+  }, []);
   useEffect(() => {
     if (isAuthenticated) {
       loadBootstrap();
@@ -289,7 +290,8 @@ useEffect(() => {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">BN</div>
+          
+          <img className ="brand-mark"  src={logo} alt="Book Nook Logo" />
           <div>
             <h1>Book Nook</h1>
             <p>BA reading community</p>
@@ -328,7 +330,7 @@ useEffect(() => {
           </div>
           <div className="actions">
             <button className="btn primary" onClick={() => setBookModal({ ...blankBook })}><Plus size={17} /> Add book</button>
-            
+
             {/* <button className="btn" onClick={refresh}><RotateCcw size={17} /> Refresh</button> */}
             <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
