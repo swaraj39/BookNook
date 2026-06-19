@@ -39,12 +39,12 @@ export function Details({ book, historyPage, onPageChange, me, setView, setBookM
           {borrowedByMe && <button className="btn warn" onClick={() => returnBook(book.activeLoanId)}>Return this book</button>}
           {(ownedByMe || isAdmin) && <button className="btn" onClick={() => setBookModal(toBookForm(book))}>Edit book</button>}
         </div>
-        <div className="timeline">
+        {/* <div className="timeline">
           <h3>Activity</h3>
           {historyPage.content.length === 0 && <div className="timeline-item">No borrowing activity yet.</div>}
           {historyPage.content.map((item) => <div className="timeline-item" key={item.id}><strong>{item.title}</strong><span>{dateText(item.createdAt)}</span><br /><span>{item.message}</span></div>)}
           <Pagination page={historyPage.page} totalPages={historyPage.totalPages} totalElements={historyPage.totalElements} onPageChange={onPageChange} />
-        </div>
+        </div> */}
       </div>
     </div>
   );
