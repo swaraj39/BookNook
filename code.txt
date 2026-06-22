@@ -8,6 +8,7 @@
   src/App.jsx
   src/components/BookCard.jsx
   src/components/BookModal.jsx
+  src/components/common/ConfirmDialog.jsx
   src/components/common/EmptyState.jsx
   src/components/common/FormInput.jsx
   src/components/common/Modal.jsx
@@ -100,7 +101,7 @@ CMD ["nginx", "-g", "daemon off;"]
 </file>
 
 <file path="src/api/index.js">
-const API_URL = "https://booknook-gfb8.onrender.com/api";
+const API_URL = "http://localhost:8080/api";
 async function request(path, options = {}) {
   const token = localStorage.getItem("bn_token");
   const headers = {
@@ -197,6 +198,7 @@ import { Borrowed } from "./pages/Borrowed";
 import { LoanHistory } from "./pages/LoanHistory";
 import { Details } from "./pages/Details";
 import { initials } from "./utils/helpers";
+import { ConfirmDialog } from "./components/common/ConfirmDialog";
 import logo from "./styles/blue_altair_logo-removebg-preview.png";
 const blankBook = {
   title: "",
@@ -263,6 +265,7 @@ export default function App() {
   const [dailyThought, setDailyThought] = useState(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
+  const [confirm, setConfirm] = useState(null); // { message, onConfirm }
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
@@ -361,6 +364,13 @@ export default function App() {
       setLoading(false);
     }
   }
+  function askConfirm(message, onConfirm) {
+  setConfirm({ message, onConfirm });
+  }
+  function resolveConfirm(confirmed) {
+    if (confirmed && confirm?.onConfirm) confirm.onConfirm();
+    setConfirm(null);
+  }
   async function loadRequests(page) {
     try { setRequestsPage(await api.requests(page)); } catch (e) { notify(e.message, "error"); }
   }
@@ -394,14 +404,16 @@ export default function App() {
     }
   }
   async function deleteBook(id) {
-    if (!window.confirm("Are you sure you want to remove this book from the library?")) return;
-    try {
-      await api.deleteBook(id);
-      notify("Book deleted.");
-      await refresh();
-    } catch (error) {
-      notify(error.message, "error");
-    }
+    askConfirm("Are you sure you want to remove this book from the library? This cannot be undone.", async () => {
+      try {
+        await api.deleteBook(id);
+        notify("Book deleted.");
+        await refresh();
+      } catch (error) {
+        notify(error.message, "error");
+      }
+    });
+    return;
   }
   async function sendRequest(payload) {
     try {
@@ -423,23 +435,27 @@ export default function App() {
     }
   }
   async function reject(id) {
-    if (!window.confirm("Are you sure you want to reject this request?")) return;
-    try {
-      await api.reject(id);
-      notify("Request rejected.");
-      await refresh();
-    } catch (error) {
-      notify(error.message, "error");
-    }
+    askConfirm("Are you sure you want to reject this request?", async () => {
+      try {
+        await api.reject(id);
+        notify("Request rejected.");
+        await refresh();
+      } catch (error) {
+        notify(error.message, "error");
+      }
+    });
+    return;
   }
-  async function returnBook(id) {
-    try {
-      await api.returnBook(id);
-      notify("Book marked as returned.");
-      await refresh();
-    } catch (error) {
-      notify(error.message, "error");
-    }
+  async function returnBook(id, bookTitle) {
+    askConfirm(`Return "${bookTitle}"? This will mark the book as returned.`, async () => {
+      try {
+        await api.returnBook(id);
+        notify("Book marked as returned.");
+        await refresh();
+      } catch (error) {
+        notify(error.message, "error");
+      }
+    });
   }
   function notify(message, type = "success") {
     const id = Math.random().toString(36).substring(2, 9);
@@ -477,13 +493,13 @@ export default function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand">
+        <button className="brand" onClick={() => setView("home")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
           <img className="brand-mark" src={logo} alt="Book Nook Logo" />
           <div>
             <h1>Book Nook</h1>
             <p>BA Reading Community</p>
           </div>
-        </div>
+        </button>
         <nav className="nav">
           {navSections.map((section) => (
             <div key={section.label} className="nav-section">
@@ -581,6 +597,11 @@ export default function App() {
       </main>
       {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
       {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
+        <ConfirmDialog
+        message={confirm?.message}
+        onConfirm={() => resolveConfirm(true)}
+        onCancel={() => resolveConfirm(false)}
+      />
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );
@@ -693,6 +714,29 @@ export function BookModal({ book, genres, onClose, onSave }) {
       <FormInput label="Cover image URL" value={form.coverUrl} onChange={(v) => setForm({ ...form, coverUrl: v })} />
       <label className="field full"><span>Description</span><textarea className="textarea" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />{errors.description && <small>{errors.description}</small>}</label>
     </Modal>
+  );
+}
+</file>
+
+<file path="src/components/common/ConfirmDialog.jsx">
+import React from "react";
+export function ConfirmDialog({ message, onConfirm, onCancel }) {
+  if (!message) return null;
+  return (
+    <div className="modal-backdrop open" onClick={onCancel}>
+      <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h3>Are you sure?</h3>
+        </div>
+        <div className="confirm-body">
+          <p>{message}</p>
+        </div>
+        <div className="modal-foot">
+          <button className="btn" onClick={onCancel}>Cancel</button>
+          <button className="btn danger" onClick={onConfirm}>Confirm</button>
+        </div>
+      </div>
+    </div>
   );
 }
 </file>
@@ -1070,7 +1114,8 @@ export function Borrowed({ page, onPageChange, returnBook, openDetails }) {
             <td>{dateText(loan.borrowedAt)}</td>
             <td>{dateText(loan.dueAt)}</td>
             <td><span className={`chip ${loan.status}`}>{label(loan.status)}</span></td>
-            <td><div className="row-actions"><button className="btn warn" onClick={() => returnBook(loan.id)}>Return</button><button className="btn" onClick={() => openDetails(loan.book)}>Details</button></div></td>
+            <td><div className="row-actions"><button className="btn warn" onClick={() => returnBook(loan.id, loan.book.title)}>Return</button>
+              <button className="btn" onClick={() => openDetails(loan.book)}>Details</button></div></td>
           </tr>
         ))}
       </Table>
@@ -1217,7 +1262,7 @@ export function Details({ book, historyPage, onPageChange, me, setView, setBookM
 </div>
         <div className="card-actions detail-actions">
           {!ownedByMe && book.availabilityStatus === "available" && <button className="btn primary" onClick={() => setRequestModal(book)}>Request this book</button>}
-          {borrowedByMe && <button className="btn warn" onClick={() => returnBook(book.activeLoanId)}>Return this book</button>}
+          {borrowedByMe && <button className="btn warn" onClick={() => returnBook(book.activeLoanId, book.title)}>Return this book</button>}
           {(ownedByMe || isAdmin) && <button className="btn" onClick={() => setBookModal(toBookForm(book))}>Edit book</button>}
         </div>
         {
@@ -1783,11 +1828,12 @@ button { cursor: pointer; }
 }
 .nav-item.active::before {
   position: absolute;
-  left: -18px;
-  top: 8px;
-  bottom: 8px;
-  width: 4px;
-  border-radius: 0 4px 4px 0;
+  bottom: -2px;
+  left: 8px;
+  right: 8px;
+  height: 3px;
+  width: auto;
+  border-radius: 3px 3px 0 0;
   background: var(--brand-dark);
   content: "";
 }
@@ -2369,6 +2415,18 @@ tr:last-child td { border-bottom: 0; }
   background: var(--panel);
   border: 1px solid var(--line);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.15);
+}
+.confirm-modal {
+  width: min(420px, 100%);
+}
+.confirm-body {
+  padding: 24px;
+  font-size: 15px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.confirm-body p {
+  margin: 0;
 }
 /* Header */
 .modal-head {
@@ -4309,8 +4367,8 @@ export class WorkflowService {
     };
   }
   static async history(userId: string, isAdmin: boolean, page = 0, size = 20) {
-    const where = isAdmin ? {} : {
-      OR: [{ borrowerId: userId }, { ownerId: userId }]
+    const where = {
+      borrowerId: userId
     };
     const [totalElements, content] = await Promise.all([
       prisma.loan.count({ where }),
@@ -4348,44 +4406,44 @@ export class WorkflowService {
     if (book.ownerId === userId) throw new Error("You cannot request your own book.");
     if (book.availabilityStatus !== "available") throw new Error("This book is not available.");
     const request = await prisma.$transaction(
-  async (tx) => {
-    const req = await tx.borrowRequest.create({
-      data: {
-        bookId: payload.bookId,
-        requesterId: userId,
-        ownerId: book.ownerId,
-        status: "pending",
-        requestedLoanDays,
-        borrowerNote: payload.borrowerNote,
-        requestedAt: new Date(),
+      async (tx) => {
+        const req = await tx.borrowRequest.create({
+          data: {
+            bookId: payload.bookId,
+            requesterId: userId,
+            ownerId: book.ownerId,
+            status: "pending",
+            requestedLoanDays,
+            borrowerNote: payload.borrowerNote,
+            requestedAt: new Date(),
+          },
+          include: {
+            requester: true,
+            book: true,
+            owner: true,
+          },
+        });
+        await tx.book.update({
+          where: { id: payload.bookId },
+          data: { availabilityStatus: "request_pending" },
+        });
+        await tx.bookHistory.create({
+          data: {
+            bookId: book.id,
+            actorId: userId,
+            eventType: "request_created",
+            eventTitle: "Borrow request created",
+            eventMessage: `${req.requester.fullName} requested ${book.title}.`,
+            borrowRequestId: req.id,
+          },
+        });
+        return req;
       },
-      include: {
-        requester: true,
-        book: true,
-        owner: true,
-      },
-    });
-    await tx.book.update({
-      where: { id: payload.bookId },
-      data: { availabilityStatus: "request_pending" },
-    });
-    await tx.bookHistory.create({
-      data: {
-        bookId: book.id,
-        actorId: userId,
-        eventType: "request_created",
-        eventTitle: "Borrow request created",
-        eventMessage: `${req.requester.fullName} requested ${book.title}.`,
-        borrowRequestId: req.id,
-      },
-    });
-    return req;
-  },
-  {
-    timeout: 15000,
-    maxWait: 10000,
-  }
-);
+      {
+        timeout: 15000,
+        maxWait: 10000,
+      }
+    );
     return this.mapRequest(request);
   }
   static async approve(userId: string, requestId: string, isAdmin: boolean) {
@@ -4406,75 +4464,75 @@ export class WorkflowService {
     const now = new Date();
     const dueAt = new Date(now.getTime() + request.requestedLoanDays * 24 * 60 * 60 * 1000);
     const loan = await prisma.$transaction(
-  async (tx) => {
-    await tx.borrowRequest.update({
-      where: { id: requestId },
-      data: {
-        status: "converted_to_loan",
-        respondedAt: now,
+      async (tx) => {
+        await tx.borrowRequest.update({
+          where: { id: requestId },
+          data: {
+            status: "converted_to_loan",
+            respondedAt: now,
+          },
+        });
+        const ln = await tx.loan.create({
+          data: {
+            bookId: request.bookId,
+            borrowRequestId: request.id,
+            borrowerId: request.requesterId,
+            ownerId: request.ownerId,
+            status: "active",
+            borrowedAt: now,
+            dueAt,
+            returnConfirmedByOwner: false,
+          },
+          include: {
+            book: { include: { owner: true } },
+            borrower: true,
+            owner: true,
+          },
+        });
+        await tx.book.update({
+          where: { id: request.bookId },
+          data: { availabilityStatus: "borrowed" },
+        });
+        await tx.borrowRequest.updateMany({
+          where: {
+            bookId: request.bookId,
+            status: "pending",
+            id: { not: requestId },
+          },
+          data: {
+            status: "expired",
+            respondedAt: now,
+          },
+        });
+        await tx.bookHistory.create({
+          data: {
+            bookId: request.bookId,
+            actorId: userId,
+            eventType: "request_approved",
+            eventTitle: "Request approved",
+            eventMessage: `${request.owner.fullName} approved ${request.requester.fullName}'s request.`,
+            borrowRequestId: request.id,
+            loanId: ln.id,
+          },
+        });
+        await tx.bookHistory.create({
+          data: {
+            bookId: request.bookId,
+            actorId: userId,
+            eventType: "loan_started",
+            eventTitle: "Loan started",
+            eventMessage: `${request.book.title} is due on ${dueAt.toISOString().split("T")[0]}.`,
+            borrowRequestId: request.id,
+            loanId: ln.id,
+          },
+        });
+        return ln;
       },
-    });
-    const ln = await tx.loan.create({
-      data: {
-        bookId: request.bookId,
-        borrowRequestId: request.id,
-        borrowerId: request.requesterId,
-        ownerId: request.ownerId,
-        status: "active",
-        borrowedAt: now,
-        dueAt,
-        returnConfirmedByOwner: false,
-      },
-      include: {
-        book: { include: { owner: true } },
-        borrower: true,
-        owner: true,
-      },
-    });
-    await tx.book.update({
-      where: { id: request.bookId },
-      data: { availabilityStatus: "borrowed" },
-    });
-    await tx.borrowRequest.updateMany({
-      where: {
-        bookId: request.bookId,
-        status: "pending",
-        id: { not: requestId },
-      },
-      data: {
-        status: "expired",
-        respondedAt: now,
-      },
-    });
-    await tx.bookHistory.create({
-      data: {
-        bookId: request.bookId,
-        actorId: userId,
-        eventType: "request_approved",
-        eventTitle: "Request approved",
-        eventMessage: `${request.owner.fullName} approved ${request.requester.fullName}'s request.`,
-        borrowRequestId: request.id,
-        loanId: ln.id,
-      },
-    });
-    await tx.bookHistory.create({
-      data: {
-        bookId: request.bookId,
-        actorId: userId,
-        eventType: "loan_started",
-        eventTitle: "Loan started",
-        eventMessage: `${request.book.title} is due on ${dueAt.toISOString().split("T")[0]}.`,
-        borrowRequestId: request.id,
-        loanId: ln.id,
-      },
-    });
-    return ln;
-  },
-  {
-    timeout: 30000,
-    maxWait: 10000,
-  }
-);
+      {
+        timeout: 30000,
+        maxWait: 10000,
+      }
+    );
     return this.mapLoan(loan);
   }
   static async reject(userId: string, requestId: string, isAdmin: boolean) {
@@ -4734,90 +4792,90 @@ export const verifyToken = (token: string): any => {
 }
 </file>
 
+<file path="package.json">
+{
+  "name": "backend-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "prisma:generate": "prisma generate"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "prisma": "^6.2.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.5.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^6.0.3"
+  }
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "backend-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "prisma:generate": "prisma generate"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "prisma": "^6.2.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.5.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^6.0.3"
+  }
+}
+</file>
+
 <file path=".gitignore">
 node_modules
 # Keep environment variables out of version control
 .env
 
 /generated/prisma
-</file>
-
-<file path="package.json">
-{
-  "name": "backend-node",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "ts-node src/index.ts",
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
-    "prisma:generate": "prisma generate"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "@prisma/client": "^6.2.1",
-    "bcryptjs": "^3.0.3",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "prisma": "^6.2.1",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^25.9.3",
-    "eslint": "^10.5.0",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^6.0.3"
-  }
-}
-</file>
-
-<file path="package.json">
-{
-  "name": "backend-node",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "ts-node src/index.ts",
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
-    "prisma:generate": "prisma generate"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "@prisma/client": "^6.2.1",
-    "bcryptjs": "^3.0.3",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "prisma": "^6.2.1",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^25.9.3",
-    "eslint": "^10.5.0",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^6.0.3"
-  }
-}
 </file>
 
 </files>
