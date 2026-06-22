@@ -29,6 +29,7 @@ import { Borrowed } from "./pages/Borrowed";
 import { LoanHistory } from "./pages/LoanHistory";
 import { Details } from "./pages/Details";
 import { initials } from "./utils/helpers";
+import { ConfirmDialog } from "./components/common/ConfirmDialog";
 import logo from "./styles/blue_altair_logo-removebg-preview.png";
 const blankBook = {
   title: "",
@@ -97,6 +98,8 @@ export default function App() {
   const [dailyThought, setDailyThought] = useState(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
+  const [confirm, setConfirm] = useState(null); // { message, onConfirm }
+
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
@@ -198,6 +201,14 @@ export default function App() {
       setLoading(false);
     }
   }
+
+  function askConfirm(message, onConfirm) {
+  setConfirm({ message, onConfirm });
+  }
+  function resolveConfirm(confirmed) {
+    if (confirmed && confirm?.onConfirm) confirm.onConfirm();
+    setConfirm(null);
+  }
   async function loadRequests(page) {
     try { setRequestsPage(await api.requests(page)); } catch (e) { notify(e.message, "error"); }
   }
@@ -231,14 +242,23 @@ export default function App() {
     }
   }
   async function deleteBook(id) {
-    if (!window.confirm("Are you sure you want to remove this book from the library?")) return;
-    try {
-      await api.deleteBook(id);
-      notify("Book deleted.");
-      await refresh();
-    } catch (error) {
-      notify(error.message, "error");
-    }
+    askConfirm("Are you sure you want to remove this book from the library? This cannot be undone.", async () => {
+      try {
+        await api.deleteBook(id);
+        notify("Book deleted.");
+        await refresh();
+      } catch (error) {
+        notify(error.message, "error");
+      }
+    });
+    return;
+    // try {
+    //   await api.deleteBook(id);
+    //   notify("Book deleted.");
+    //   await refresh();
+    // } catch (error) {
+    //   notify(error.message, "error");
+    // }
   }
   async function sendRequest(payload) {
     try {
@@ -260,23 +280,27 @@ export default function App() {
     }
   }
   async function reject(id) {
-    if (!window.confirm("Are you sure you want to reject this request?")) return;
-    try {
-      await api.reject(id);
-      notify("Request rejected.");
-      await refresh();
-    } catch (error) {
-      notify(error.message, "error");
-    }
+    askConfirm("Are you sure you want to reject this request?", async () => {
+      try {
+        await api.reject(id);
+        notify("Request rejected.");
+        await refresh();
+      } catch (error) {
+        notify(error.message, "error");
+      }
+    });
+    return;
   }
-  async function returnBook(id) {
-    try {
-      await api.returnBook(id);
-      notify("Book marked as returned.");
-      await refresh();
-    } catch (error) {
-      notify(error.message, "error");
-    }
+  async function returnBook(id, bookTitle) {
+    askConfirm(`Return "${bookTitle}"? This will mark the book as returned.`, async () => {
+      try {
+        await api.returnBook(id);
+        notify("Book marked as returned.");
+        await refresh();
+      } catch (error) {
+        notify(error.message, "error");
+      }
+    });
   }
   function notify(message, type = "success") {
     const id = Math.random().toString(36).substring(2, 9);
@@ -314,14 +338,13 @@ export default function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand">
-
+        <button className="brand" onClick={() => setView("home")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
           <img className="brand-mark" src={logo} alt="Book Nook Logo" />
           <div>
             <h1>Book Nook</h1>
             <p>BA Reading Community</p>
           </div>
-        </div>
+        </button>
         <nav className="nav">
           {navSections.map((section) => (
             <div key={section.label} className="nav-section">
@@ -423,6 +446,11 @@ export default function App() {
       </main>
       {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
       {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
+        <ConfirmDialog
+        message={confirm?.message}
+        onConfirm={() => resolveConfirm(true)}
+        onCancel={() => resolveConfirm(false)}
+      /> 
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );

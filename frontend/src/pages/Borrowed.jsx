@@ -26,7 +26,9 @@ export function Borrowed({ page, onPageChange, returnBook, openDetails }) {
             <td>{dateText(loan.borrowedAt)}</td>
             <td>{dateText(loan.dueAt)}</td>
             <td><span className={`chip ${loan.status}`}>{label(loan.status)}</span></td>
-            <td><div className="row-actions"><button className="btn warn" onClick={() => returnBook(loan.id)}>Return</button><button className="btn" onClick={() => openDetails(loan.book)}>Details</button></div></td>
+            <td><div className="row-actions"><button className="btn warn" onClick={() => returnBook(loan.id, loan.book.title)}>Return</button>
+
+              <button className="btn" onClick={() => openDetails(loan.book)}>Details</button></div></td>
           </tr>
         ))}
       </Table>

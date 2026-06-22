@@ -5,6 +5,4 @@ target/
 .vscode/
 *.log
 .env
-code.txt
-frontend.txt
-prompt.txt
+*.txt

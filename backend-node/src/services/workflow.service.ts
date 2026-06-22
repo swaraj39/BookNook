@@ -57,7 +57,9 @@ export class WorkflowService {
   }
 
   static async history(userId: string, isAdmin: boolean, page = 0, size = 20) {
-    const where = { borrowerId: userId };
+    const where = {
+      borrowerId: userId
+    };
 
     const [totalElements, content] = await Promise.all([
       prisma.loan.count({ where }),
