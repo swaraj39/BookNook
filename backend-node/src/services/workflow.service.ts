@@ -57,9 +57,7 @@ export class WorkflowService {
   }
 
   static async history(userId: string, isAdmin: boolean, page = 0, size = 20) {
-    const where = isAdmin ? {} : {
-      OR: [{ borrowerId: userId }, { ownerId: userId }]
-    };
+    const where = { borrowerId: userId };
 
     const [totalElements, content] = await Promise.all([
       prisma.loan.count({ where }),
@@ -103,47 +101,47 @@ export class WorkflowService {
     if (book.availabilityStatus !== "available") throw new Error("This book is not available.");
 
     const request = await prisma.$transaction(
-  async (tx) => {
-    const req = await tx.borrowRequest.create({
-      data: {
-        bookId: payload.bookId,
-        requesterId: userId,
-        ownerId: book.ownerId,
-        status: "pending",
-        requestedLoanDays,
-        borrowerNote: payload.borrowerNote,
-        requestedAt: new Date(),
-      },
-      include: {
-        requester: true,
-        book: true,
-        owner: true,
-      },
-    });
+      async (tx) => {
+        const req = await tx.borrowRequest.create({
+          data: {
+            bookId: payload.bookId,
+            requesterId: userId,
+            ownerId: book.ownerId,
+            status: "pending",
+            requestedLoanDays,
+            borrowerNote: payload.borrowerNote,
+            requestedAt: new Date(),
+          },
+          include: {
+            requester: true,
+            book: true,
+            owner: true,
+          },
+        });
 
-    await tx.book.update({
-      where: { id: payload.bookId },
-      data: { availabilityStatus: "request_pending" },
-    });
+        await tx.book.update({
+          where: { id: payload.bookId },
+          data: { availabilityStatus: "request_pending" },
+        });
 
-    await tx.bookHistory.create({
-      data: {
-        bookId: book.id,
-        actorId: userId,
-        eventType: "request_created",
-        eventTitle: "Borrow request created",
-        eventMessage: `${req.requester.fullName} requested ${book.title}.`,
-        borrowRequestId: req.id,
+        await tx.bookHistory.create({
+          data: {
+            bookId: book.id,
+            actorId: userId,
+            eventType: "request_created",
+            eventTitle: "Borrow request created",
+            eventMessage: `${req.requester.fullName} requested ${book.title}.`,
+            borrowRequestId: req.id,
+          },
+        });
+
+        return req;
       },
-    });
-
-    return req;
-  },
-  {
-    timeout: 15000,
-    maxWait: 10000,
-  }
-);
+      {
+        timeout: 15000,
+        maxWait: 10000,
+      }
+    );
 
     return this.mapRequest(request);
   }
@@ -171,81 +169,81 @@ export class WorkflowService {
     const dueAt = new Date(now.getTime() + request.requestedLoanDays * 24 * 60 * 60 * 1000);
 
     const loan = await prisma.$transaction(
-  async (tx) => {
-    await tx.borrowRequest.update({
-      where: { id: requestId },
-      data: {
-        status: "converted_to_loan",
-        respondedAt: now,
-      },
-    });
+      async (tx) => {
+        await tx.borrowRequest.update({
+          where: { id: requestId },
+          data: {
+            status: "converted_to_loan",
+            respondedAt: now,
+          },
+        });
 
-    const ln = await tx.loan.create({
-      data: {
-        bookId: request.bookId,
-        borrowRequestId: request.id,
-        borrowerId: request.requesterId,
-        ownerId: request.ownerId,
-        status: "active",
-        borrowedAt: now,
-        dueAt,
-        returnConfirmedByOwner: false,
-      },
-      include: {
-        book: { include: { owner: true } },
-        borrower: true,
-        owner: true,
-      },
-    });
+        const ln = await tx.loan.create({
+          data: {
+            bookId: request.bookId,
+            borrowRequestId: request.id,
+            borrowerId: request.requesterId,
+            ownerId: request.ownerId,
+            status: "active",
+            borrowedAt: now,
+            dueAt,
+            returnConfirmedByOwner: false,
+          },
+          include: {
+            book: { include: { owner: true } },
+            borrower: true,
+            owner: true,
+          },
+        });
 
-    await tx.book.update({
-      where: { id: request.bookId },
-      data: { availabilityStatus: "borrowed" },
-    });
+        await tx.book.update({
+          where: { id: request.bookId },
+          data: { availabilityStatus: "borrowed" },
+        });
 
-    await tx.borrowRequest.updateMany({
-      where: {
-        bookId: request.bookId,
-        status: "pending",
-        id: { not: requestId },
-      },
-      data: {
-        status: "expired",
-        respondedAt: now,
-      },
-    });
+        await tx.borrowRequest.updateMany({
+          where: {
+            bookId: request.bookId,
+            status: "pending",
+            id: { not: requestId },
+          },
+          data: {
+            status: "expired",
+            respondedAt: now,
+          },
+        });
 
-    await tx.bookHistory.create({
-      data: {
-        bookId: request.bookId,
-        actorId: userId,
-        eventType: "request_approved",
-        eventTitle: "Request approved",
-        eventMessage: `${request.owner.fullName} approved ${request.requester.fullName}'s request.`,
-        borrowRequestId: request.id,
-        loanId: ln.id,
-      },
-    });
+        await tx.bookHistory.create({
+          data: {
+            bookId: request.bookId,
+            actorId: userId,
+            eventType: "request_approved",
+            eventTitle: "Request approved",
+            eventMessage: `${request.owner.fullName} approved ${request.requester.fullName}'s request.`,
+            borrowRequestId: request.id,
+            loanId: ln.id,
+          },
+        });
 
-    await tx.bookHistory.create({
-      data: {
-        bookId: request.bookId,
-        actorId: userId,
-        eventType: "loan_started",
-        eventTitle: "Loan started",
-        eventMessage: `${request.book.title} is due on ${dueAt.toISOString().split("T")[0]}.`,
-        borrowRequestId: request.id,
-        loanId: ln.id,
-      },
-    });
+        await tx.bookHistory.create({
+          data: {
+            bookId: request.bookId,
+            actorId: userId,
+            eventType: "loan_started",
+            eventTitle: "Loan started",
+            eventMessage: `${request.book.title} is due on ${dueAt.toISOString().split("T")[0]}.`,
+            borrowRequestId: request.id,
+            loanId: ln.id,
+          },
+        });
 
-    return ln;
-  },
-  {
-    timeout: 30000,
-    maxWait: 10000,
-  }
-);
+        return ln;
+      },
+      {
+        timeout: 30000,
+        maxWait: 10000,
+      }
+    );
 
     return this.mapLoan(loan);
   }
