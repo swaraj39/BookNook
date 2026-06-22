@@ -19,7 +19,7 @@ export function MyBooks({ page, onPageChange, setBookModal, deleteBook, openDeta
     );
   }
   return (
-    <Panel title="My Shelf" badge={`${page.totalElements} records`}>
+    <Panel title="My Shelf" >
       <Table headers={["Book", "Genre", "Status", "Actions"]}>
         {page.content.map((book) => (
           <tr key={book.id}>

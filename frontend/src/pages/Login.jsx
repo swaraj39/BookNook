@@ -69,6 +69,7 @@ export function Login({ onLogin }) {
                   <option value="DM">DM</option>
                   <option value="AI">AI</option>
                   <option value="SF">SF</option>
+                  <option value="CS">CS</option>
                 </select>
               </label>
             </>
@@ -81,7 +82,7 @@ export function Login({ onLogin }) {
               value={form.email}
               onChange={(e) => updateForm("email", e.target.value)}
               required
-              placeholder="gaurav.choudhary@booknook.com"
+              placeholder="Email"
             />
           </label>
           <label className="field full">
@@ -92,7 +93,7 @@ export function Login({ onLogin }) {
               value={form.password}
               onChange={(e) => updateForm("password", e.target.value)}
               required
-              placeholder="••••••••"
+              placeholder="Password"
             />
           </label>
           {error && <div className="error-box">{error}</div>}
@@ -110,11 +111,7 @@ export function Login({ onLogin }) {
             {isRegister ? "Already have an account? Sign in" : "Don't have an account? Sign up"}
           </button>
         </div>
-        {!isRegister && (
-          <div className="login-footer">
-            <p>Mock Credentials: <strong>password</strong></p>
-          </div>
-        )}
+        
       </div>
     </div>
   );

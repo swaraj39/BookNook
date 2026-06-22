@@ -5,7 +5,7 @@ import { Pagination } from "../components/common/Pagination";
 import { label, dateText } from "../utils/helpers";
 export function LoanHistory({ page, onPageChange }) {
   return (
-    <Panel title="Borrowing History" badge={`${page.totalElements} records`}>
+    <Panel title="Borrowing History">
       <Table headers={["Book", "Borrower", "Owner", "Status", "Opened", "Closed"]}>
         {page.content.map((row) => (
           <tr key={row.id}>

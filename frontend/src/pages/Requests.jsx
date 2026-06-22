@@ -18,7 +18,7 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails 
     );
   }
   return (
-    <Panel title="Borrow Requests" badge={`${page.totalElements} records`}>
+    <Panel title="Borrow Requests" >
       <Table headers={["Book", "Borrower", "Owner", "Status", "Requested", "Actions"]}>
         {page.content.map((row) => (
           <tr key={row.id}>

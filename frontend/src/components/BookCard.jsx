@@ -22,7 +22,7 @@ export function BookCard({ book, me, openDetails, setRequestModal, setBookModal,
           <div className="author">{book.author}</div>
           <div className="chips">
             <span className={`chip ${book.availabilityStatus}`}>{label(book.availabilityStatus)}</span>
-            <span className="chip">{book.genre?.name}</span>
+            
             {borrowedByMe && <span className="chip returned">Borrowed by you</span>}
           </div>
         </div>
@@ -30,9 +30,31 @@ export function BookCard({ book, me, openDetails, setRequestModal, setBookModal,
       <div className="book-body">
         <p className="book-desc">{book.description}</p>
         <div className="mini-meta">
-          <span><strong>Owner:</strong> {book.owner.fullName}</span>
-          <span><strong>Duration:</strong> {book.defaultLoanDays} days{book.dueAt ? `, due ${dateText(book.dueAt)}` : ""}</span>
-        </div>
+  <span>
+    <strong>Owner:</strong> {book.owner.fullName}
+  </span>
+
+  <span>
+    <strong>Genre:</strong> {book.genre?.name || "N/A"}
+  </span>
+
+  <span>
+    <strong>Condition:</strong>{" "}
+    {book.condition
+      ?.replace("_", " ")
+      .replace(/\b\w/g, c => c.toUpperCase())}
+  </span>
+
+  <span>
+    <strong>Reading Duration:</strong> {book.defaultLoanDays} days
+  </span>
+
+  {book.dueAt && (
+    <span>
+      <strong>Due Date:</strong> {dateText(book.dueAt)}
+    </span>
+  )}
+</div>
         <div className="card-actions">
           <button className="btn btn-outline" onClick={() => openDetails(book)}>Details</button>
           {!ownedByMe && book.availabilityStatus === "available" && <button className="btn btn-primary" onClick={() => setRequestModal(book)}>Request</button>}

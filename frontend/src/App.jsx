@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   BookOpen,
   CheckSquare,
@@ -96,6 +96,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [dailyThought, setDailyThought] = useState(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const profileDropdownRef = useRef(null);
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
@@ -107,6 +108,23 @@ export default function App() {
         if (quote) setDailyThought(quote);
       })
       .catch(() => { });
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (
+        profileDropdownRef.current &&
+        !profileDropdownRef.current.contains(event.target)
+      ) {
+        setShowProfileDropdown(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, []);
   useEffect(() => {
     if (isAuthenticated) {
@@ -128,16 +146,16 @@ export default function App() {
     localStorage.setItem("bn_token", token);
     setMe(user);
     setIsAuthenticated(true);
-    notify("Welcome back, " + user.fullName + "!");
+    notify("Welcome , " + user.fullName + "!");
     setView("home");
   }
   function handleLogout() {
-  setShowProfileDropdown(false);
-  localStorage.removeItem("bn_token");
-  setIsAuthenticated(false);
-  setMe(null);
-  notify("Logged out successfully.");
-}
+    setShowProfileDropdown(false);
+    localStorage.removeItem("bn_token");
+    setIsAuthenticated(false);
+    setMe(null);
+    notify("Logged out successfully.");
+  }
   async function loadBootstrap() {
     try {
       setLoading(true);
@@ -297,11 +315,11 @@ export default function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          
-          <img className ="brand-mark"  src={logo} alt="Book Nook Logo" />
+
+          <img className="brand-mark" src={logo} alt="Book Nook Logo" />
           <div>
             <h1>Book Nook</h1>
-            <p>BA reading community</p>
+            <p>BA Reading Community</p>
           </div>
         </div>
         <nav className="nav">
@@ -322,14 +340,17 @@ export default function App() {
         </nav>
         <div className="top-nav-actions">
           {me && (
-            <div className="profile-dropdown-container" style={{ position: "relative" }}>
-              <button className="user-profile-trigger" onClick={() => setShowProfileDropdown(!showProfileDropdown)}>
+            <div
+              ref={profileDropdownRef}
+              className="profile-dropdown-container"
+              style={{ position: "relative" }}
+            >              <button className="user-profile-trigger" onClick={() => setShowProfileDropdown(!showProfileDropdown)}>
                 <div className="user-avatar-small">
                   {me.avatarInitials || initials(me.fullName)}
                 </div>
                 <ChevronDown size={14} color="var(--muted)" />
               </button>
-              
+
               {showProfileDropdown && (
                 <div className="profile-dropdown-card">
                   <Profile user={me} onLogout={handleLogout} />
@@ -353,7 +374,7 @@ export default function App() {
             <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            
+
 
           </div>
         </section>

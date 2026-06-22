@@ -17,7 +17,7 @@ export function Borrowed({ page, onPageChange, returnBook, openDetails }) {
     );
   }
   return (
-    <Panel title="Borrow Status" badge={`${page.totalElements} active`}>
+    <Panel title="Borrow Status" >
       <Table headers={["Book", "Owner", "Borrowed", "Due", "Status", "Actions"]}>
         {page.content.map((loan) => (
           <tr key={loan.id}>

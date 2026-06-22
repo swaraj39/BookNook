@@ -25,15 +25,35 @@ export function Details({ book, historyPage, onPageChange, me, setView, setBookM
         <div className="author">{book.author}</div>
         <div className="chips">
           <span className={`chip ${book.availabilityStatus}`}>{label(book.availabilityStatus)}</span>
-          <span className="chip">{book.genre?.name}</span>
-          <span className="chip">{label(book.condition)}</span>
+          
         </div>
         <p>{book.description}</p>
-        <div className="mini-meta">
-          <span><strong>Owner:</strong> {book.owner.fullName}</span>
-          <span><strong>Reading duration:</strong> {book.defaultLoanDays} days</span>
-          {book.dueAt && <span><strong>Return date:</strong> {dateText(book.dueAt)}</span>}
-        </div>
+       <div className="mini-meta">
+  <span>
+    <strong>Owner:</strong> {book.owner.fullName}
+  </span>
+
+  <span>
+    <strong>Genre:</strong> {book.genre?.name || "N/A"}
+  </span>
+
+  <span>
+    <strong>Condition:</strong>{" "}
+    {book.condition
+      ?.replace("_", " ")
+      .replace(/\b\w/g, c => c.toUpperCase())}
+  </span>
+
+  <span>
+    <strong>Reading Duration:</strong> {book.defaultLoanDays} days
+  </span>
+
+  {book.dueAt && (
+    <span>
+      <strong>Due Date:</strong> {dateText(book.dueAt)}
+    </span>
+  )}
+</div>
         <div className="card-actions detail-actions">
           {!ownedByMe && book.availabilityStatus === "available" && <button className="btn primary" onClick={() => setRequestModal(book)}>Request this book</button>}
           {borrowedByMe && <button className="btn warn" onClick={() => returnBook(book.activeLoanId)}>Return this book</button>}

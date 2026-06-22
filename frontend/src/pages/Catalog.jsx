@@ -15,7 +15,6 @@ export function Catalog({
           <p className="page-kicker">Browse</p>
           <h3>Books on the shelf</h3>
         </div>
-        <span className="chip">20 per page</span>
       </div>
       <div className="toolbar">
         <div className="search-wrap">
