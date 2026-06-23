@@ -1,4 +1,4 @@
-const API_URL = "https://booknook-gfb8.onrender.com/api";
+const API_URL = "http://localhost:8080/api";
 async function request(path, options = {}) {
   const token = localStorage.getItem("bn_token");
   const headers = {
@@ -13,9 +13,12 @@ async function request(path, options = {}) {
     headers
   });
   if (response.status === 401) {
-    localStorage.removeItem("bn_token");
-    window.location.reload();
-    throw new Error("Session expired. Please login again.");
+    const isAuthEndpoint = path.includes("/auth/");
+    if (!isAuthEndpoint) {
+      localStorage.removeItem("bn_token");
+      window.location.reload();
+      throw new Error("Session expired. Please login again.");
+    }
   }
   const text = await response.text();
   if (!response.ok) {
@@ -61,29 +64,29 @@ export const api = {
   loanHistory: (page = 0, size = 20) => request(`/loans/history?page=${page}&size=${size}`),
   returnBook: (id) => request(`/loans/${id}/return`, { method: "POST" }),
   exportBooks: async () => {
-  const token = localStorage.getItem("bn_token");
+    const token = localStorage.getItem("bn_token");
 
-  const response = await fetch(`${API_URL}/all/books`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+    const response = await fetch(`${API_URL}/all/books`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
-  if (!response.ok) {
-    throw new Error("Failed to export books");
+    if (!response.ok) {
+      throw new Error("Failed to export books");
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "books.csv";
+    document.body.appendChild(a);
+    a.click();
+
+    a.remove();
+    window.URL.revokeObjectURL(url);
   }
-
-  const blob = await response.blob();
-  const url = window.URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "books.csv";
-  document.body.appendChild(a);
-  a.click();
-
-  a.remove();
-  window.URL.revokeObjectURL(url);
-}
 };

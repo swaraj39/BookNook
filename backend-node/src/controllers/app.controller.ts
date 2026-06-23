@@ -76,7 +76,6 @@ export class AppController {
   static async catalog(req: AuthRequest, res: Response) {
     try {
       const { search, genreId, availability, sort, page, size } = req.query;
-
       const result = await BookService.catalog({
         search: queryString(search),
         genreId: queryString(genreId),
@@ -84,8 +83,7 @@ export class AppController {
         sort: queryString(sort),
         page: queryNumber(page, 0),
         size: queryNumber(size, 20),
-      });
-
+      }, req.user.id);
       res.json(result);
     } catch (error: any) {
       res.status(400).json({ message: error.message });

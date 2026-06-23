@@ -17,6 +17,16 @@ export function Catalog({
   page, genres, filters, setFilters, searchTerm, setSearchTerm,
   loading, me, openDetails, setRequestModal, setBookModal, returnBook
 }) {
+  const showingBorrowed = filters.availability === "all" || filters.availability === "borrowed";
+
+  function toggleBorrowed() {
+    setFilters({
+      ...filters,
+      availability: showingBorrowed ? "available" : "all",
+      page: 0
+    });
+  }
+
   return (
     <section>
       <div className="section-heading">
@@ -24,8 +34,8 @@ export function Catalog({
           <p className="page-kicker">Browse</p>
           <h3>Books on the shelf</h3>
         </div>
+        <button className="btn" onClick={() => handleExportBooks()}>Export CSV</button>
       </div>
-      <button className="btn btn-outline" onClick={() => handleExportBooks()}>Export CSV</button>
       <div className="toolbar">
         <div className="search-wrap">
           <Search size={17} />
@@ -40,17 +50,19 @@ export function Catalog({
           <option value="">All genres</option>
           {genres.map((genre) => <option key={genre.id} value={genre.id}>{genre.name}</option>)}
         </select>
-        <select className="select" value={filters.availability} onChange={(e) => setFilters({ ...filters, availability: e.target.value, page: 0 })}>
-          <option value="all">All availability</option>
-          <option value="available">Available</option>
-          <option value="borrowed">Borrowed</option>
-          <option value="request_pending">Pending request</option>
-        </select>
         <select className="select" value={filters.sort} onChange={(e) => setFilters({ ...filters, sort: e.target.value, page: 0 })}>
           <option value="title">Sort by title</option>
           <option value="newest">Newest first</option>
           <option value="due">Due date</option>
         </select>
+        <button
+          className={`btn catalog-borrowed-toggle ${showingBorrowed ? "active" : ""}`}
+          onClick={toggleBorrowed}
+          title={showingBorrowed ? "Hide borrowed books" : "Show borrowed books"}
+        >
+          <span className={`catalog-toggle-dot ${showingBorrowed ? "on" : "off"}`} />
+          {showingBorrowed ? "Showing borrowed" : "Hide borrowed"}
+        </button>
       </div>
       <div className="grid catalog">
         {loading ? (

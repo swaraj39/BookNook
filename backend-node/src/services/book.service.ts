@@ -1,13 +1,14 @@
 import prisma from "../config/prisma";
 
 export class BookService {
-  static async catalog(params: any) {
+  static async catalog(params: any, userId?: string) {
     const { search = "", genreId, availability = "all", sort = "title", page = 0, size = 20 } = params;
-
     const where: any = {
       visibilityStatus: "visible",
     };
-
+    if (userId) {
+      where.ownerId = { not: userId };
+    }
     if (genreId) {
       where.genreId = genreId;
     }

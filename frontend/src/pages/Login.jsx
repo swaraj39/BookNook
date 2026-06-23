@@ -48,13 +48,14 @@ export function Login({ onLogin }) {
               <label className="field full">
                 <span>Full Name</span>
                 <input
-                  type="text"
-                  className="input"
-                  value={form.fullName}
-                  onChange={(e) => updateForm("fullName", e.target.value)}
-                  required
-                  placeholder="Gaurav Choudhary"
-                />
+              type="text"
+              className="input"
+              value={form.fullName}
+              onChange={(e) => updateForm("fullName", e.target.value)}
+              required
+              placeholder="Enter your name"
+              maxLength={60}
+            />
               </label>
               <label className="field full">
                 <span>Capability</span>
@@ -83,6 +84,7 @@ export function Login({ onLogin }) {
               onChange={(e) => updateForm("email", e.target.value)}
               required
               placeholder="Email"
+              maxLength={100}
             />
           </label>
           <label className="field full">
@@ -94,6 +96,7 @@ export function Login({ onLogin }) {
               onChange={(e) => updateForm("password", e.target.value)}
               required
               placeholder="Password"
+              maxLength={72}
             />
           </label>
           {error && <div className="error-box">{error}</div>}

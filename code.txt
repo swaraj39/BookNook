@@ -162,7 +162,28 @@ export const api = {
   reject: (id) => request(`/borrow-requests/${id}/reject`, { method: "POST" }),
   borrowed: (page = 0, size = 20) => request(`/loans/borrowed?page=${page}&size=${size}`),
   loanHistory: (page = 0, size = 20) => request(`/loans/history?page=${page}&size=${size}`),
-  returnBook: (id) => request(`/loans/${id}/return`, { method: "POST" })
+  returnBook: (id) => request(`/loans/${id}/return`, { method: "POST" }),
+  exportBooks: async () => {
+  const token = localStorage.getItem("bn_token");
+  const response = await fetch(`${API_URL}/all/books`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) {
+    throw new Error("Failed to export books");
+  }
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "books.csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
 };
 </file>
 
@@ -215,7 +236,7 @@ function HomePage({ stats, dailyThought, setView, setFilters, setBookModal }) {
       <div className="new-hero">
         <div className="new-hero-badge">
           <span>✦</span>
-          <span>A reading community</span>
+          <span>A Reading Community</span>
         </div>
         <h1 className="new-hero-title">
           Borrow a book. <span>Pass it on.</span>
@@ -231,8 +252,8 @@ function HomePage({ stats, dailyThought, setView, setFilters, setBookModal }) {
         {dailyThought && (
           <div className="new-hero-quote">
             <span className="new-hero-quote-icon">📖</span>
-            <blockquote>"{dailyThought.quote}"</blockquote>
-            — {dailyThought.author}
+            <blockquote>"{dailyThought.quote || dailyThought.text || dailyThought.content || dailyThought.q}"</blockquote>
+            — {dailyThought.author || dailyThought.by || dailyThought.a}
           </div>
         )}
         <div className="new-hero-stats">
@@ -290,6 +311,7 @@ export default function App() {
       .then((response) => response.ok ? response.json() : null)
       .then((quote) => {
         if (quote) setDailyThought(quote);
+        console.log(quote);
       })
       .catch(() => { });
   }, []);
@@ -569,13 +591,8 @@ export default function App() {
             </div>
           </section>
         )}
-        {view === "home" && (
-          <div style={{ position: "fixed", top: "16px", right: "24px", zIndex: 200 }}>
-            <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
-              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
-          </div>
-        )}
+        {
+}
         {view === "home" && (
           <HomePage
             stats={stats}
@@ -640,7 +657,10 @@ export function BookCard({ book, me, openDetails, setRequestModal, setBookModal,
   const ownedByMe = book.owner.id === me.id;
   const borrowedByMe = book.activeLoanId && book.activeLoanBorrowerId === me.id;
   return (
-    <article className={`book-card ${isAdmin ? "admin-border" : ""}`}>
+    <article
+      className={`book-card book-card-clickable ${isAdmin ? "admin-border" : ""}`}
+      onClick={() => openDetails(book)}
+    >
       <div className="cover">
         <div className="cover-art" style={{ background: book.coverColor || "#16756f" }}>
           {book.coverUrl ? (
@@ -664,32 +684,30 @@ export function BookCard({ book, me, openDetails, setRequestModal, setBookModal,
       <div className="book-body">
         <p className="book-desc">{book.description}</p>
         <div className="mini-meta">
-  <span>
-    <strong>Owner:</strong> {book.owner.fullName}
-  </span>
-  <span>
-    <strong>Genre:</strong> {book.genre?.name || "N/A"}
-  </span>
-  <span>
-    <strong>Condition:</strong>{" "}
-    {book.condition
-      ?.replace("_", " ")
-      .replace(/\b\w/g, c => c.toUpperCase())}
-  </span>
-  <span>
-    <strong>Reading Duration:</strong> {book.defaultLoanDays} days
-  </span>
-  {book.dueAt && (
-    <span>
-      <strong>Due Date:</strong> {dateText(book.dueAt)}
-    </span>
-  )}
-</div>
-        <div className="card-actions">
-          <button className="btn btn-outline" onClick={() => openDetails(book)}>Details</button>
-          {!ownedByMe && book.availabilityStatus === "available" && <button className="btn btn-primary" onClick={() => setRequestModal(book)}>Request</button>}
-          {(ownedByMe || isAdmin) && <button className="btn btn-outline" onClick={() => setBookModal(toBookForm(book))}>Edit</button>}
-          {borrowedByMe && <button className="btn warn" onClick={() => returnBook(book.activeLoanId)}>Return</button>}
+          <span>
+            <strong>Owner:</strong> {book.owner.fullName}
+          </span>
+          <span>
+            <strong>Genre:</strong> {book.genre?.name || "N/A"}
+          </span>
+          <span>
+            <strong>Condition:</strong>{" "}
+            {book.condition
+              ?.replace("_", " ")
+              .replace(/\b\w/g, c => c.toUpperCase())}
+          </span>
+          <span>
+            <strong>Reading Duration:</strong> {book.defaultLoanDays} days
+          </span>
+          {book.dueAt && (
+            <span>
+              <strong>Due Date:</strong> {dateText(book.dueAt)}
+            </span>
+          )}
+        </div>
+        <div className="card-actions" onClick={(e) => e.stopPropagation()}>
+          {!ownedByMe && book.availabilityStatus === "available" && <button className="btn primary" onClick={() => setRequestModal(book)}>Request</button>}
+          {borrowedByMe && <button className="btn warn" onClick={() => returnBook(book.activeLoanId, book.title)}>Return</button>}
         </div>
       </div>
     </article>
@@ -1151,11 +1169,19 @@ export function Borrowed({ page, onPageChange, returnBook, openDetails }) {
 
 <file path="src/pages/Catalog.jsx">
 import React from "react";
-import { Search } from "lucide-react";
+import { api } from "../api";
+import { Search, Download } from "lucide-react";
 import { BookCard } from "../components/BookCard";
 import { Pagination } from "../components/common/Pagination";
 import { BookCardSkeleton } from "../components/common/Skeleton";
 import { EmptyState } from "../components/common/EmptyState";
+const handleExportBooks = async () => {
+  try {
+    await api.exportBooks();
+  } catch (error) {
+    alert(error.message);
+  }
+};
 export function Catalog({
   page, genres, filters, setFilters, searchTerm, setSearchTerm,
   loading, me, openDetails, setRequestModal, setBookModal, returnBook
@@ -1168,6 +1194,7 @@ export function Catalog({
           <h3>Books on the shelf</h3>
         </div>
       </div>
+      <button className="btn btn-outline" onClick={() => handleExportBooks()}>Export CSV</button>
       <div className="toolbar">
         <div className="search-wrap">
           <Search size={17} />
@@ -1307,7 +1334,7 @@ export const Home = ({ stats, setView, setBookModal }) => {
         <div className="hero-content">
           <div className="hero-badge">
             <span>✦</span>
-            <span>A reading community</span>
+            <span>A Reading Community</span>
           </div>
           <h1 className="hero-title">
             Borrow a book. <span>Pass it on.</span>
@@ -2204,6 +2231,9 @@ button { cursor: pointer; }
   transform: translateY(-6px) scale(1.02);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
 }
+.book-card-clickable {
+  cursor: pointer;
+}
 .cover {
   display: grid;
   grid-template-columns: 86px 1fr;
@@ -2651,18 +2681,39 @@ tr:last-child td { border-bottom: 0; }
   min-width: 300px;
   max-width: 450px;
   background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--brand);
   border-radius: 10px;
   padding: 16px;
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  border-left: 4px solid var(--brand);
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  animation: toast-slide-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  animation: toast-slide-in 0.3s ease forwards;
   transition: all 0.2s ease;
+}
+.toast-content {
+  flex-grow: 1;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  font-weight: 400;
+}
+.toast-close {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 4px;
+  border-radius: 4px;
+}
+.toast-close:hover {
+  background: var(--brand-soft);
+  color: var(--ink);
 }
 .toast-progress {
   position: absolute;
@@ -2675,57 +2726,52 @@ tr:last-child td { border-bottom: 0; }
   transform-origin: left;
   animation: toast-countdown 4s linear forwards;
 }
+.toast-item:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+.toast-item.success {
+  border-left-color: #22c55e;
+}
+.toast-item.error {
+  border-left-color: #ef4444;
+}
+.toast-item.info {
+  border-left-color: #3b82f6;
+}
+.toast-item.success .toast-icon {
+  color: #22c55e;
+}
+.toast-item.error .toast-icon {
+  color: #ef4444;
+}
+.toast-item.info .toast-icon {
+  color: #3b82f6;
+}
+.toast-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+[data-theme="dark"] .toast-item {
+  background: #1e293b;
+  color: #f8fafc;
+  border-color: #334155;
+}
+[data-theme="dark"] .toast-content {
+  color: #f8fafc;
+}
+[data-theme="dark"] .toast-close {
+  color: #cbd5e1;
+}
+[data-theme="dark"] .toast-close:hover {
+  background: #334155;
+  color: #ffffff;
+}
 @keyframes toast-countdown {
   from { transform: scaleX(1); }
   to { transform: scaleX(0); }
 }
 @keyframes toast-slide-in {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-@keyframes toast-in {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-.toast-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-}
-.toast-item.success { border-left-color: #166534; }
-.toast-item.error { border-left-color: #991b1b; }
-.toast-item.info { border-left-color: #1e40af; }
-.toast-icon {
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-.toast-item.success .toast-icon { color: #166534; }
-.toast-item.error .toast-icon { color: #991b1b; }
-.toast-item.info .toast-icon { color: #1e40af; }
-.toast-content {
-  flex-grow: 1;
-  font-size: 14px;
-  line-height: 1.5;
-  color: #1f2937;
-  font-weight: 500;
-}
-.toast-close {
-  flex-shrink: 0;
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  padding: 4px;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-.toast-close:hover {
-  background: #f3f4f6;
-  color: #4b5563;
-}
-@keyframes toast-in {
   from {
     transform: translateX(100%);
     opacity: 0;
@@ -2735,7 +2781,6 @@ tr:last-child td { border-bottom: 0; }
     opacity: 1;
   }
 }
-/* Login Page */
 .login-page {
   min-height: 100vh;
   display: flex;
@@ -2819,7 +2864,6 @@ tr:last-child td { border-bottom: 0; }
 .login-footer strong {
   color: var(--ink);
 }
-/* Mobile Responsiveness & UI Polish with Flexbox */
 :root {
   --bg: #FDFBF7;
   --panel: #ffffff;
@@ -2888,7 +2932,6 @@ tr:last-child td { border-bottom: 0; }
   backdrop-filter: blur(12px);
   z-index: 100;
   flex-wrap: nowrap;
-  overflow: hidden;
 }
 .brand {
   padding: 0;
@@ -2907,7 +2950,7 @@ tr:last-child td { border-bottom: 0; }
   gap: 4px;
   min-width: 0;
   flex: 1;
-  overflow: hidden;
+  overflow: visible;
 }
 .nav-section {
   display: flex;
@@ -2942,7 +2985,6 @@ tr:last-child td { border-bottom: 0; }
   flex-shrink: 0;
   margin-left: 16px;
 }
-/* Profile Dropdown Custom Styling */
 .profile-dropdown-container {
   position: relative;
 }
@@ -2991,7 +3033,6 @@ tr:last-child td { border-bottom: 0; }
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-/* Styled Sign Out Button Inside Profile */
 .profile-box .logout-btn {
   margin-top: 16px;
   width: 100%;
@@ -3021,9 +3062,6 @@ tr:last-child td { border-bottom: 0; }
 }
 .topbar, .grid, .toolbar { max-width: none; }
 .home-page { display: flex; flex-direction: column; gap: 24px; }
-/* =========================
-   NEW HERO (Home page)
-   ========================= */
 .new-hero {
   display: flex;
   flex-direction: column;
@@ -3149,7 +3187,6 @@ tr:last-child td { border-bottom: 0; }
   color: var(--brand);
   line-height: 1;
 }
-/* also strip the padding from .main on the home view */
 .home-page {
   margin: calc(-1 * clamp(18px, 3vw, 44px)) calc(-1 * clamp(16px, 4vw, 64px));
 }
@@ -3256,13 +3293,11 @@ tr:last-child td { border-bottom: 0; }
   line-height: 1.7;
   color: var(--muted);
 }
-/* Tablet */
 @media (max-width: 992px) {
   .steps-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
-/* Mobile */
 @media (max-width: 768px) {
   .how-it-works {
     padding: 20px;
@@ -3281,7 +3316,6 @@ tr:last-child td { border-bottom: 0; }
     font-size: 14px;
   }
 }
-/* Catalog Page Flex Grid */
 .catalog {
   display: flex;
   flex-direction: row;
@@ -3318,7 +3352,6 @@ tr:last-child td { border-bottom: 0; }
 @media (min-width: 1500px) {
   .book-card { border-radius: 16px; }
 }
-/* Toolbar Responsive Flex layout */
 .toolbar {
   display: flex;
   flex-direction: row;
@@ -3338,7 +3371,6 @@ tr:last-child td { border-bottom: 0; }
 .toolbar .select {
   flex: 1 1 150px;
 }
-/* Stats responsive flex layout */
 .stats {
   display: grid;
   grid-template-columns: repeat(2, minmax(180px, 1fr));
@@ -3355,7 +3387,6 @@ tr:last-child td { border-bottom: 0; }
   text-align: center;
   box-shadow: var(--shadow-sm);
 }
-/* Details Page flex layout */
 .detail-layout {
   display: flex;
   flex-direction: row;
@@ -3384,7 +3415,6 @@ tr:last-child td { border-bottom: 0; }
     flex: 1 1 100%;
   }
 }
-/* Login/Register responsive flex layouts */
 .form-grid {
   display: flex;
   flex-direction: column;
@@ -3393,7 +3423,6 @@ tr:last-child td { border-bottom: 0; }
   overflow-y: auto;
   flex: 1;
 }
-/* Media Queries for Layout Responsiveness */
 @media (max-width: 980px) {
   .home-hero, .steps-grid, .stats, .toolbar { flex-direction: column; align-items: stretch; }
   .home-hero > div:first-child { flex: 1 1 auto; }
@@ -3432,7 +3461,6 @@ tr:last-child td { border-bottom: 0; }
   .pagination { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
   .pagination-controls { justify-content: center; flex-wrap: wrap; }
 }
-/* Daily Thought Card */
 .home-quote-card {
   max-width: 1200px;
   margin: 0 auto 2rem;
@@ -3478,7 +3506,6 @@ tr:last-child td { border-bottom: 0; }
   font-weight: 600;
   color: #667fff;
 }
-/* Dark Mode for quote card */
 [data-theme="dark"] .home-quote-card {
   background: linear-gradient(
     135deg,
@@ -3819,11 +3846,12 @@ export default prisma;
 </file>
 
 <file path="src/controllers/app.controller.ts">
-import { Response } from "express";
+import { NextFunction, Response } from "express";
 import { AuthRequest } from "../middleware/auth";
 import { BookService } from "../services/book.service";
 import { WorkflowService } from "../services/workflow.service";
 import { LookupService } from "../services/lookup.service";
+import prisma from "../config/prisma";
 function paramString(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
   if (!value) throw new Error("Missing required route parameter");
@@ -3839,6 +3867,45 @@ function queryNumber(value: unknown, fallback: number): number {
   return Number.isNaN(parsed) ? fallback : parsed;
 }
 export class AppController {
+  static async exportBooks(req: AuthRequest, res: Response) {
+  try {
+    const books = await prisma.book.findMany({
+      include: {
+        genre: true,
+        owner: true,
+      },
+    });
+    const result = books.map(book => ({
+      title: book.title,
+      author: book.author,
+      genre: book.genre?.name ?? "",
+      owner: book.owner?.fullName ?? "",
+      availabilityStatus: book.availabilityStatus,
+      createdAt: book.createdAt.toISOString(),
+    }));
+    const headers = Object.keys(result[0] || {});
+    const csv = [
+      headers.join(","),
+      ...result.map(row =>
+        headers
+          .map(header =>
+            `"${String((row as any)[header] ?? "").replace(/"/g, '""')}"`
+          )
+          .join(",")
+      ),
+    ].join("\n");
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=BookNook.csv"
+    );
+    res.status(200).send(csv);
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to export books",
+    });
+  }
+}
   static async me(req: AuthRequest, res: Response) {
     const { password, ...userWithoutPassword } = req.user;
     res.json(userWithoutPassword);
@@ -4094,6 +4161,7 @@ app.post("/api/borrow-requests/:id/reject", authenticate, AppController.rejectRe
 app.get("/api/loans/borrowed", authenticate, AppController.borrowed);
 app.get("/api/loans/history", authenticate, AppController.loanHistory);
 app.post("/api/loans/:id/return", authenticate, AppController.returnBook);
+app.get("/api/all/books", authenticate, AppController.exportBooks);
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
@@ -4111,8 +4179,6 @@ app.get("/api/quote/today", async (req, res) => {
   } catch (error: any) {
     console.error("Quote API error:", error.message);
     res.status(500).json({
-      message: "Failed to fetch quote from backend",
-      error: error.message,
     });
   }
 });
@@ -4510,28 +4576,44 @@ export class LookupService {
 <file path="src/services/workflow.service.ts">
 import prisma from "../config/prisma";
 export class WorkflowService {
-  static async myRequests(userId: string, isAdmin: boolean, page = 0, size = 20) {
-    const where = isAdmin ? {} : {
-      OR: [{ ownerId: userId }, { requesterId: userId }]
-    };
-    const [totalElements, content] = await Promise.all([
-      prisma.borrowRequest.count({ where }),
-      prisma.borrowRequest.findMany({
-        where,
-        include: { book: true, requester: true, owner: true },
-        orderBy: { requestedAt: "desc" },
-        skip: page * size,
-        take: size,
-      }),
-    ]);
-    return {
-      content: content.map(this.mapRequest),
-      totalElements,
-      totalPages: Math.ceil(totalElements / size),
-      pageNumber: page,
-      pageSize: size,
-    };
-  }
+  static async myRequests(
+  userId: string,
+  isAdmin: boolean,
+  page = 0,
+  size = 20
+) {
+  const where = isAdmin
+    ? {}
+    : {
+        OR: [
+          { ownerId: userId },
+          { requesterId: userId },
+        ],
+      };
+  const [totalElements, content] = await Promise.all([
+    prisma.borrowRequest.count({ where }),
+    prisma.borrowRequest.findMany({
+      where,
+      include: {
+        book: true,
+        requester: true,
+        owner: true,
+      },
+      orderBy: {
+        requestedAt: "desc",
+      },
+      skip: page * size,
+      take: size,
+    }),
+  ]);
+  return {
+    content: content.map(this.mapRequest),
+    totalElements,
+    totalPages: Math.ceil(totalElements / size),
+    pageNumber: page,
+    pageSize: size,
+  };
+}
   static async borrowed(userId: string, page = 0, size = 20) {
     const where = {
       borrowerId: userId,
@@ -4559,32 +4641,35 @@ export class WorkflowService {
       pageSize: size,
     };
   }
-  static async history(userId: string, isAdmin: boolean, page = 0, size = 20) {
-    const where = {
-      borrowerId: userId
-    };
-    const [totalElements, content] = await Promise.all([
-      prisma.loan.count({ where }),
-      prisma.loan.findMany({
-        where,
-        include: {
-          book: { include: { owner: true } },
-          borrower: true,
-          owner: true,
-        },
-        orderBy: { createdAt: "desc" },
-        skip: page * size,
-        take: size,
-      }),
-    ]);
-    return {
-      content: content.map(this.mapLoan),
-      totalElements,
-      totalPages: Math.ceil(totalElements / size),
-      pageNumber: page,
-      pageSize: size,
-    };
-  }
+  static async history(
+  userId: string,
+  isAdmin: boolean,
+  page = 0,
+  size = 20
+) {
+  const where = isAdmin ? {} : { borrowerId: userId };
+  const [totalElements, content] = await Promise.all([
+    prisma.loan.count({ where }),
+    prisma.loan.findMany({
+      where,
+      include: {
+        book: { include: { owner: true } },
+        borrower: true,
+        owner: true,
+      },
+      orderBy: { createdAt: "desc" },
+      skip: page * size,
+      take: size,
+    }),
+  ]);
+  return {
+    content: content.map(this.mapLoan),
+    totalElements,
+    totalPages: Math.ceil(totalElements / size),
+    pageNumber: page,
+    pageSize: size,
+  };
+}
   static async requestBook(userId: string, payload: any) {
     const requestedLoanDays = parseInt(payload.requestedLoanDays, 10);
     if (!Number.isInteger(requestedLoanDays) || requestedLoanDays < 1) {

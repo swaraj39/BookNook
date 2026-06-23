@@ -58,7 +58,7 @@ function HomePage({ stats, dailyThought, setView, setFilters, setBookModal }) {
         </p>
         <div className="new-hero-actions">
           <button className="new-btn-primary" onClick={() => setView("catalog")}>Browse the shelf</button>
-          <button className="new-btn-outline" onClick={() => setBookModal({ ...blankBook })}>Lend a book</button>
+          <button className="new-btn-outline" onClick={() => setBookModal({ ...blankBook })}>Add Book</button>
         </div>
         {dailyThought && (
           <div className="new-hero-quote">
@@ -104,7 +104,7 @@ export default function App() {
   const [historyPage, setHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
   const [bookHistoryPage, setBookHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
   const [selectedBook, setSelectedBook] = useState(null);
-  const [filters, setFilters] = useState({ search: "", genreId: "", availability: "all", sort: "title", page: 0 });
+  const [filters, setFilters] = useState({ search: "", genreId: "", availability: "available", sort: "title", page: 0 });
   const [searchTerm, setSearchTerm] = useState("");
   const [bookModal, setBookModal] = useState(null);
   const [requestModal, setRequestModal] = useState(null);
@@ -410,7 +410,7 @@ export default function App() {
               <h2>BA Reading Community Tracker</h2>
               <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
             </div>
-            <div className="actions">
+            <div>
               <button className="btn primary" onClick={() => setBookModal({ ...blankBook })}><Plus size={17} /> Add book</button>
             </div>
           </section>

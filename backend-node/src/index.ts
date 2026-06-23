@@ -71,8 +71,8 @@ app.get("/api/quote/today", async (req, res) => {
     console.error("Quote API error:", error.message);
 
     res.status(500).json({
-      message: "Failed to fetch quote from backend",
-      error: error.message,
+      // message: "Failed to fetch quote from backend",
+      // error: error.message,
     });
   }
 });
