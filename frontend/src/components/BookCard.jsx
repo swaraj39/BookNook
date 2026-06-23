@@ -5,7 +5,10 @@ export function BookCard({ book, me, openDetails, setRequestModal, setBookModal,
   const ownedByMe = book.owner.id === me.id;
   const borrowedByMe = book.activeLoanId && book.activeLoanBorrowerId === me.id;
   return (
-    <article className={`book-card ${isAdmin ? "admin-border" : ""}`}>
+    <article
+      className={`book-card book-card-clickable ${isAdmin ? "admin-border" : ""}`}
+      onClick={() => openDetails(book)}
+    >
       <div className="cover">
         <div className="cover-art" style={{ background: book.coverColor || "#16756f" }}>
           {book.coverUrl ? (
@@ -22,7 +25,7 @@ export function BookCard({ book, me, openDetails, setRequestModal, setBookModal,
           <div className="author">{book.author}</div>
           <div className="chips">
             <span className={`chip ${book.availabilityStatus}`}>{label(book.availabilityStatus)}</span>
-            
+
             {borrowedByMe && <span className="chip returned">Borrowed by you</span>}
           </div>
         </div>
@@ -30,36 +33,34 @@ export function BookCard({ book, me, openDetails, setRequestModal, setBookModal,
       <div className="book-body">
         <p className="book-desc">{book.description}</p>
         <div className="mini-meta">
-  <span>
-    <strong>Owner:</strong> {book.owner.fullName}
-  </span>
+          <span>
+            <strong>Owner:</strong> {book.owner.fullName}
+          </span>
 
-  <span>
-    <strong>Genre:</strong> {book.genre?.name || "N/A"}
-  </span>
+          <span>
+            <strong>Genre:</strong> {book.genre?.name || "N/A"}
+          </span>
 
-  <span>
-    <strong>Condition:</strong>{" "}
-    {book.condition
-      ?.replace("_", " ")
-      .replace(/\b\w/g, c => c.toUpperCase())}
-  </span>
+          <span>
+            <strong>Condition:</strong>{" "}
+            {book.condition
+              ?.replace("_", " ")
+              .replace(/\b\w/g, c => c.toUpperCase())}
+          </span>
 
-  <span>
-    <strong>Reading Duration:</strong> {book.defaultLoanDays} days
-  </span>
+          <span>
+            <strong>Reading Duration:</strong> {book.defaultLoanDays} days
+          </span>
 
-  {book.dueAt && (
-    <span>
-      <strong>Due Date:</strong> {dateText(book.dueAt)}
-    </span>
-  )}
-</div>
-        <div className="card-actions">
-          <button className="btn btn-outline" onClick={() => openDetails(book)}>Details</button>
-          {!ownedByMe && book.availabilityStatus === "available" && <button className="btn btn-primary" onClick={() => setRequestModal(book)}>Request</button>}
-          {(ownedByMe || isAdmin) && <button className="btn btn-outline" onClick={() => setBookModal(toBookForm(book))}>Edit</button>}
-          {borrowedByMe && <button className="btn warn" onClick={() => returnBook(book.activeLoanId)}>Return</button>}
+          {book.dueAt && (
+            <span>
+              <strong>Due Date:</strong> {dateText(book.dueAt)}
+            </span>
+          )}
+        </div>
+        <div className="card-actions" onClick={(e) => e.stopPropagation()}>
+          {!ownedByMe && book.availabilityStatus === "available" && <button className="btn primary" onClick={() => setRequestModal(book)}>Request</button>}
+          {borrowedByMe && <button className="btn warn" onClick={() => returnBook(book.activeLoanId, book.title)}>Return</button>}
         </div>
       </div>
     </article>
