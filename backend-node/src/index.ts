@@ -10,11 +10,11 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 8080;
-const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+const frontendUrl = "http://localhost:5173";
 app.use(
   cors({
     origin: [
-      frontendUrl,
+      "http://localhost:5173",
       "http://127.0.0.1:5173",
     ],
     credentials: true,
@@ -46,7 +46,7 @@ app.post("/api/borrow-requests/:id/reject", authenticate, AppController.rejectRe
 app.get("/api/loans/borrowed", authenticate, AppController.borrowed);
 app.get("/api/loans/history", authenticate, AppController.loanHistory);
 app.post("/api/loans/:id/return", authenticate, AppController.returnBook);
-
+app.get("/api/all/books", authenticate, AppController.exportBooks);
 
 
 // Placeholder for other routes
