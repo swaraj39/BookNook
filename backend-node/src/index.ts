@@ -22,6 +22,7 @@ app.use(
 );
 app.use(express.json());
 
+
 // Auth routes
 app.post("/api/auth/register", AuthController.register);
 app.post("/api/auth/login", AuthController.login);
@@ -46,7 +47,7 @@ app.post("/api/borrow-requests/:id/reject", authenticate, AppController.rejectRe
 app.get("/api/loans/borrowed", authenticate, AppController.borrowed);
 app.get("/api/loans/history", authenticate, AppController.loanHistory);
 app.post("/api/loans/:id/return", authenticate, AppController.returnBook);
-
+app.get("/api/all/books", authenticate, AppController.exportBooks);
 
 
 // Placeholder for other routes

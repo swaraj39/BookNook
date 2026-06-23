@@ -1,9 +1,9 @@
-import { Response } from "express";
+import { NextFunction, Response } from "express";
 import { AuthRequest } from "../middleware/auth";
 import { BookService } from "../services/book.service";
 import { WorkflowService } from "../services/workflow.service";
 import { LookupService } from "../services/lookup.service";
-
+import prisma from "../config/prisma";
 function paramString(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
   if (!value) throw new Error("Missing required route parameter");
@@ -22,6 +22,52 @@ function queryNumber(value: unknown, fallback: number): number {
 }
 
 export class AppController {
+  
+
+  static async exportBooks(req: AuthRequest, res: Response) {
+  try {
+    const books = await prisma.book.findMany({
+      include: {
+        genre: true,
+        owner: true,
+      },
+    });
+
+    const result = books.map(book => ({
+      title: book.title,
+      author: book.author,
+      genre: book.genre?.name ?? "",
+      owner: book.owner?.fullName ?? "",
+      availabilityStatus: book.availabilityStatus,
+      createdAt: book.createdAt.toISOString(),
+    }));
+
+    const headers = Object.keys(result[0] || {});
+
+    const csv = [
+      headers.join(","),
+      ...result.map(row =>
+        headers
+          .map(header =>
+            `"${String((row as any)[header] ?? "").replace(/"/g, '""')}"`
+          )
+          .join(",")
+      ),
+    ].join("\n");
+
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=BookNook.csv"
+    );
+
+    res.status(200).send(csv);
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to export books",
+    });
+  }
+}
   static async me(req: AuthRequest, res: Response) {
     const { password, ...userWithoutPassword } = req.user;
     res.json(userWithoutPassword);

@@ -59,5 +59,31 @@ export const api = {
   reject: (id) => request(`/borrow-requests/${id}/reject`, { method: "POST" }),
   borrowed: (page = 0, size = 20) => request(`/loans/borrowed?page=${page}&size=${size}`),
   loanHistory: (page = 0, size = 20) => request(`/loans/history?page=${page}&size=${size}`),
-  returnBook: (id) => request(`/loans/${id}/return`, { method: "POST" })
+  returnBook: (id) => request(`/loans/${id}/return`, { method: "POST" }),
+  exportBooks: async () => {
+  const token = localStorage.getItem("bn_token");
+
+  const response = await fetch(`${API_URL}/all/books`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to export books");
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "books.csv";
+  document.body.appendChild(a);
+  a.click();
+
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
 };

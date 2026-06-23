@@ -1,9 +1,18 @@
 import React from "react";
-import { Search } from "lucide-react";
+import { api } from "../api";
+import { Search, Download } from "lucide-react";
 import { BookCard } from "../components/BookCard";
 import { Pagination } from "../components/common/Pagination";
 import { BookCardSkeleton } from "../components/common/Skeleton";
 import { EmptyState } from "../components/common/EmptyState";
+
+const handleExportBooks = async () => {
+  try {
+    await api.exportBooks();
+  } catch (error) {
+    alert(error.message);
+  }
+};
 export function Catalog({
   page, genres, filters, setFilters, searchTerm, setSearchTerm,
   loading, me, openDetails, setRequestModal, setBookModal, returnBook
@@ -16,6 +25,7 @@ export function Catalog({
           <h3>Books on the shelf</h3>
         </div>
       </div>
+      <button className="btn btn-outline" onClick={() => handleExportBooks()}>Export CSV</button>
       <div className="toolbar">
         <div className="search-wrap">
           <Search size={17} />

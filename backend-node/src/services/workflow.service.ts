@@ -1,30 +1,46 @@
 import prisma from "../config/prisma";
 
 export class WorkflowService {
-  static async myRequests(userId: string, isAdmin: boolean, page = 0, size = 20) {
-    const where = isAdmin ? {} : {
-      OR: [{ ownerId: userId }, { requesterId: userId }]
-    };
+  static async myRequests(
+  userId: string,
+  isAdmin: boolean,
+  page = 0,
+  size = 20
+) {
+  const where = isAdmin
+    ? {}
+    : {
+        OR: [
+          { ownerId: userId },
+          { requesterId: userId },
+        ],
+      };
 
-    const [totalElements, content] = await Promise.all([
-      prisma.borrowRequest.count({ where }),
-      prisma.borrowRequest.findMany({
-        where,
-        include: { book: true, requester: true, owner: true },
-        orderBy: { requestedAt: "desc" },
-        skip: page * size,
-        take: size,
-      }),
-    ]);
+  const [totalElements, content] = await Promise.all([
+    prisma.borrowRequest.count({ where }),
+    prisma.borrowRequest.findMany({
+      where,
+      include: {
+        book: true,
+        requester: true,
+        owner: true,
+      },
+      orderBy: {
+        requestedAt: "desc",
+      },
+      skip: page * size,
+      take: size,
+    }),
+  ]);
 
-    return {
-      content: content.map(this.mapRequest),
-      totalElements,
-      totalPages: Math.ceil(totalElements / size),
-      pageNumber: page,
-      pageSize: size,
-    };
-  }
+  return {
+    content: content.map(this.mapRequest),
+    totalElements,
+    totalPages: Math.ceil(totalElements / size),
+    pageNumber: page,
+    pageSize: size,
+  };
+}
 
   static async borrowed(userId: string, page = 0, size = 20) {
     const where = {
@@ -56,34 +72,37 @@ export class WorkflowService {
     };
   }
 
-  static async history(userId: string, isAdmin: boolean, page = 0, size = 20) {
-    const where = {
-      borrowerId: userId
-    };
+  static async history(
+  userId: string,
+  isAdmin: boolean,
+  page = 0,
+  size = 20
+) {
+  const where = isAdmin ? {} : { borrowerId: userId };
 
-    const [totalElements, content] = await Promise.all([
-      prisma.loan.count({ where }),
-      prisma.loan.findMany({
-        where,
-        include: {
-          book: { include: { owner: true } },
-          borrower: true,
-          owner: true,
-        },
-        orderBy: { createdAt: "desc" },
-        skip: page * size,
-        take: size,
-      }),
-    ]);
+  const [totalElements, content] = await Promise.all([
+    prisma.loan.count({ where }),
+    prisma.loan.findMany({
+      where,
+      include: {
+        book: { include: { owner: true } },
+        borrower: true,
+        owner: true,
+      },
+      orderBy: { createdAt: "desc" },
+      skip: page * size,
+      take: size,
+    }),
+  ]);
 
-    return {
-      content: content.map(this.mapLoan),
-      totalElements,
-      totalPages: Math.ceil(totalElements / size),
-      pageNumber: page,
-      pageSize: size,
-    };
-  }
+  return {
+    content: content.map(this.mapLoan),
+    totalElements,
+    totalPages: Math.ceil(totalElements / size),
+    pageNumber: page,
+    pageSize: size,
+  };
+}
 
   static async requestBook(userId: string, payload: any) {
     const requestedLoanDays = parseInt(payload.requestedLoanDays, 10);
