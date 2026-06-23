@@ -212,25 +212,40 @@ const blankBook = {
 function HomePage({ stats, dailyThought, setView, setFilters, setBookModal }) {
   return (
     <section className="home-page">
-      <div className="home-hero panel">
-        <div>
-          <div className="page-kicker">Community library tracker</div>
-          <h2>Find your next read from the BA shelf.</h2>
-          <p>Browse available books, share your own shelf, request a copy, and track every return in one simple place.</p>
-          <div className="home-actions">
-            <button className="btn primary" onClick={() => setView("catalog")}>Browse books</button>
-            <button className="btn" onClick={() => setBookModal({ ...blankBook })}>Add book</button>
-          </div>
+      <div className="new-hero">
+        <div className="new-hero-badge">
+          <span>✦</span>
+          <span>A reading community</span>
+        </div>
+        <h1 className="new-hero-title">
+          Borrow a book. <span>Pass it on.</span>
+        </h1>
+        <p className="new-hero-desc">
+          Book Nook is a shared shelf for our team. List a book you'd lend,
+          borrow one you've been meaning to read, and swap stories along the way.
+        </p>
+        <div className="new-hero-actions">
+          <button className="new-btn-primary" onClick={() => setView("catalog")}>Browse the shelf</button>
+          <button className="new-btn-outline" onClick={() => setBookModal({ ...blankBook })}>Lend a book</button>
         </div>
         {dailyThought && (
-          <div className="quote-card hero-quote">
-            <div className="quote-label">📖 Daily Thought</div>
-            <blockquote className="quote-text">“{dailyThought.quote}”</blockquote>
-            <div className="quote-author">— {dailyThought.author}</div>
+          <div className="new-hero-quote">
+            <span className="new-hero-quote-icon">📖</span>
+            <blockquote>"{dailyThought.quote}"</blockquote>
+            — {dailyThought.author}
           </div>
         )}
+        <div className="new-hero-stats">
+          <div className="new-stat-card">
+            <label>Books on the shelf</label>
+            <strong>{stats?.totalBooks || 0}</strong>
+          </div>
+          <div className="new-stat-card">
+            <label>Available to borrow</label>
+            <strong>{stats?.availableBooks || 0}</strong>
+          </div>
+        </div>
       </div>
-      {stats && <Stats stats={stats} setView={setView} setFilters={setFilters} />}
       <section className="how-it-works panel">
         <div className="panel-head"><h3>How it works</h3></div>
         <div className="steps-grid">
@@ -365,7 +380,7 @@ export default function App() {
     }
   }
   function askConfirm(message, onConfirm) {
-  setConfirm({ message, onConfirm });
+    setConfirm({ message, onConfirm });
   }
   function resolveConfirm(confirmed) {
     if (confirmed && confirm?.onConfirm) confirm.onConfirm();
@@ -517,12 +532,16 @@ export default function App() {
           ))}
         </nav>
         <div className="top-nav-actions">
+          <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
+            {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
           {me && (
             <div
               ref={profileDropdownRef}
               className="profile-dropdown-container"
               style={{ position: "relative" }}
-            >              <button className="user-profile-trigger" onClick={() => setShowProfileDropdown(!showProfileDropdown)}>
+            >
+              <button className="user-profile-trigger" onClick={() => setShowProfileDropdown(!showProfileDropdown)}>
                 <div className="user-avatar-small">
                   {me.avatarInitials || initials(me.fullName)}
                 </div>
@@ -538,20 +557,25 @@ export default function App() {
         </div>
       </aside>
       <main className="main">
-        <section className="topbar">
-          <div className="page-title">
-            <div className="page-kicker">Community library tracker</div>
-            <h2>BA Reading Community Tracker</h2>
-            <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
-          </div>
-          <div className="actions">
-            <button className="btn primary" onClick={() => setBookModal({ ...blankBook })}><Plus size={17} /> Add book</button>
-            {}
+        {view !== "home" && (
+          <section className="topbar">
+            <div className="page-title">
+              <div className="page-kicker">Community library tracker</div>
+              <h2>BA Reading Community Tracker</h2>
+              <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
+            </div>
+            <div className="actions">
+              <button className="btn primary" onClick={() => setBookModal({ ...blankBook })}><Plus size={17} /> Add book</button>
+            </div>
+          </section>
+        )}
+        {view === "home" && (
+          <div style={{ position: "fixed", top: "16px", right: "24px", zIndex: 200 }}>
             <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
           </div>
-        </section>
+        )}
         {view === "home" && (
           <HomePage
             stats={stats}
@@ -597,7 +621,7 @@ export default function App() {
       </main>
       {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
       {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
-        <ConfirmDialog
+      <ConfirmDialog
         message={confirm?.message}
         onConfirm={() => resolveConfirm(true)}
         onCancel={() => resolveConfirm(false)}
@@ -2054,7 +2078,12 @@ button { cursor: pointer; }
   box-shadow: 0 12px 24px rgba(22, 117, 111, 0.2);
 }
 .btn.warn { color: white; border-color: var(--accent); background: var(--accent); }
-.btn.danger { color: white; border-color: var(--danger); background: var(--danger); }
+.btn.danger {
+  color: white !important;
+  background-color: rgb(254, 127, 127) !important;
+  background: var(--danger) !important;
+  border-color: var(--danger) !important;
+}
 .btn.icon-only { width: 38px; padding: 0; }
 .grid {
   display: grid;
@@ -2550,12 +2579,12 @@ tr:last-child td { border-bottom: 0; }
   transform: translateY(-1px);
   box-shadow: 0 8px 20px rgba(102, 127, 255, 0.25);
 }
-.btn:not(.primary) {
+.btn:not(.primary):not(.danger):not(.warn) {
   background: transparent;
   border: 1px solid var(--line);
   color: var(--ink);
 }
-.btn:not(.primary):hover {
+.btn:not(.primary):not(.danger):not(.warn):hover {
   background: var(--brand-soft);
 }
 /* =========================
@@ -2803,6 +2832,8 @@ tr:last-child td { border-bottom: 0; }
   --shadow-sm: 0 10px 28px rgba(22, 32, 42, 0.07);
   --sidebar-bg: rgba(253, 251, 247, 0.86);
   --card-bg: rgba(255, 255, 255, 0.88);
+  --danger: #f03838;
+  --accent: #f59e0b;
 }
 [data-theme='dark'] {
   --ink: #F8FAFC;
@@ -2842,37 +2873,41 @@ tr:last-child td { border-bottom: 0; }
 .sidebar {
   position: sticky;
   top: 0;
-  height: auto;
+  height: 64px;
   width: 100%;
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding: 12px clamp(16px, 4vw, 56px);
+  gap: 0;
+  padding: 0 clamp(16px, 4vw, 56px);
   border-right: 0;
   border-bottom: 1px solid var(--line);
   box-shadow: 0 10px 28px rgba(22, 32, 42, 0.045);
   background: var(--sidebar-bg);
   backdrop-filter: blur(12px);
   z-index: 100;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow: hidden;
 }
 .brand {
   padding: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  flex-shrink: 0;
+  margin-right: 24px;
 }
 .nav {
   margin: 0;
   display: flex;
   flex-direction: row;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 4px;
   min-width: 0;
   flex: 1;
+  overflow: hidden;
 }
 .nav-section {
   display: flex;
@@ -2904,7 +2939,8 @@ tr:last-child td { border-bottom: 0; }
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  min-width: 0;
+  flex-shrink: 0;
+  margin-left: 16px;
 }
 /* Profile Dropdown Custom Styling */
 .profile-dropdown-container {
@@ -2985,6 +3021,142 @@ tr:last-child td { border-bottom: 0; }
 }
 .topbar, .grid, .toolbar { max-width: none; }
 .home-page { display: flex; flex-direction: column; gap: 24px; }
+/* =========================
+   NEW HERO (Home page)
+   ========================= */
+.new-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: calc(100vh - 64px);
+  padding: clamp(48px, 8vw, 100px) clamp(24px, 6vw, 80px);
+  background:
+    radial-gradient(circle at 15% 50%, rgba(102, 127, 255, 0.10), transparent 45%),
+    radial-gradient(circle at 85% 20%, rgba(102, 127, 255, 0.07), transparent 40%);
+}
+.new-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 32px;
+  box-shadow: var(--shadow-sm);
+}
+.new-hero-title {
+  margin: 0 0 24px;
+  font-size: clamp(48px, 7vw, 80px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  max-width: 760px;
+}
+.new-hero-title span {
+  color: var(--brand);
+}
+.new-hero-desc {
+  margin: 0 0 40px;
+  max-width: 520px;
+  font-size: clamp(15px, 1.6vw, 18px);
+  line-height: 1.7;
+  color: var(--muted);
+}
+.new-hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 52px;
+}
+.new-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 13px 28px;
+  border: none;
+  border-radius: 12px;
+  background: var(--brand);
+  color: white;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px rgba(102, 127, 255, 0.35);
+}
+.new-btn-primary:hover {
+  background: var(--brand-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(102, 127, 255, 0.45);
+}
+.new-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 13px 28px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.new-btn-outline:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+  transform: translateY(-2px);
+}
+.new-hero-stats {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.new-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 18px 32px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+  min-width: 150px;
+}
+.new-stat-card label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: default;
+}
+.new-stat-card strong {
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--brand);
+  line-height: 1;
+}
+/* also strip the padding from .main on the home view */
+.home-page {
+  margin: calc(-1 * clamp(18px, 3vw, 44px)) calc(-1 * clamp(16px, 4vw, 64px));
+}
+@media (max-width: 768px) {
+  .new-hero { min-height: auto; padding: 56px 20px; }
+  .new-hero-title { font-size: clamp(36px, 9vw, 52px); }
+}
 .home-hero {
   display: flex;
   flex-direction: row;
@@ -3229,43 +3401,33 @@ tr:last-child td { border-bottom: 0; }
 }
 @media (max-width: 768px) {
   .sidebar {
-    flex-direction: row;
-    justify-content: space-between;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--line);
+    padding: 0 12px;
+    gap: 0;
+    height: 56px;
   }
   .brand {
-    order: 1;
+    margin-right: 12px;
   }
   .brand p { display: none; }
-  .top-nav-actions {
-    order: 2;
-  }
+  .brand h1 { font-size: 15px; }
+  .brand-mark { width: 30px; height: 30px; }
   .nav {
-    order: 3;
-    width: 100%;
-    margin-top: 8px;
-    justify-content: flex-start;
     overflow-x: auto;
+    overflow-y: hidden;
     white-space: nowrap;
-    padding-bottom: 4px;
+    gap: 2px;
+    -webkit-overflow-scrolling: touch;
   }
-  .nav::-webkit-scrollbar {
-    display: none;
-  }
-  .nav-section {
-    display: flex;
-    flex-direction: row;
-    gap: 8px;
-  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-section { gap: 2px; }
   .nav-item {
-    font-size: 12px;
-    padding: 8px 10px;
+    font-size: 11px;
+    padding: 6px 8px;
+    white-space: nowrap;
   }
-  .nav-item-content {
-    flex-direction: row;
-    gap: 6px;
-  }
+  .nav-item-content { gap: 4px; }
+  .nav-item-content svg { width: 14px; height: 14px; }
+  .top-nav-actions { margin-left: 8px; }
   .main { padding: 16px 14px 36px; }
   .pagination { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
   .pagination-controls { justify-content: center; flex-wrap: wrap; }
@@ -3341,6 +3503,37 @@ tr:last-child td { border-bottom: 0; }
   .quote-author {
     font-size: 0.9rem;
   }
+}
+.new-hero-quote {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 480px;
+  margin-bottom: 40px;
+  padding: 20px 28px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+}
+.new-hero-quote-icon {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+.new-hero-quote blockquote {
+  margin: 0;
+  font-size: 14px;
+  font-style: italic;
+  line-height: 1.65;
+  color: var(--muted);
+}
+.new-hero-quote cite {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand);
+  font-style: normal;
 }
 </file>
 

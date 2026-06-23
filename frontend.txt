@@ -1,0 +1,3572 @@
+<directory_structure>
+Dockerfile
+index.html
+package.json
+public/favicon.ico
+src/api/index.js
+src/App.jsx
+src/components/BookCard.jsx
+src/components/BookModal.jsx
+src/components/common/ConfirmDialog.jsx
+src/components/common/EmptyState.jsx
+src/components/common/FormInput.jsx
+src/components/common/Modal.jsx
+src/components/common/Pagination.jsx
+src/components/common/Panel.jsx
+src/components/common/Skeleton.jsx
+src/components/common/Stat.jsx
+src/components/common/Table.jsx
+src/components/common/Toast.jsx
+src/components/Profile.jsx
+src/components/RequestModal.jsx
+src/components/Stats.jsx
+src/main.jsx
+src/pages/Borrowed.jsx
+src/pages/Catalog.jsx
+src/pages/Details.jsx
+src/pages/Home.jsx
+src/pages/LoanHistory.jsx
+src/pages/Login.jsx
+src/pages/MyBooks.jsx
+src/pages/Requests.jsx
+src/styles/blue_altair_logo-removebg-preview.png
+src/styles/main.css
+src/utils/helpers.js
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="Dockerfile">
+# Build Stage
+FROM node:20-alpine AS builder
+WORKDIR /app
+# Copy package files
+COPY package*.json ./
+# Install dependencies
+RUN npm install
+# Copy source code
+COPY . .
+# Build the application
+RUN npm run build
+# Production Stage
+FROM nginx:alpine
+# Copy built files
+COPY --from=builder /app/dist /usr/share/nginx/html
+# Expose port
+EXPOSE 80
+# Start Nginx
+CMD ["nginx", "-g", "daemon off;"]
+</file>
+
+<file path="src/api/index.js">
+const API_URL = "http://localhost:8080/api";
+async function request(path, options = {}) {
+  const token = localStorage.getItem("bn_token");
+  const headers = {
+    "Content-Type": "application/json",
+    ...(options.headers || {})
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers
+  });
+  if (response.status === 401) {
+    localStorage.removeItem("bn_token");
+    window.location.reload();
+    throw new Error("Session expired. Please login again.");
+  }
+  const text = await response.text();
+  if (!response.ok) {
+    let message = "Something went wrong.";
+    try {
+      const body = text ? JSON.parse(text) : {};
+      message = body.message || message;
+    } catch {
+      message = text || message;
+    }
+    throw new Error(message);
+  }
+  if (response.status === 204) return null;
+  return text ? JSON.parse(text) : null;
+}
+export const api = {
+  login: (email, password) => request("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password })
+  }),
+  register: (payload) => request("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  }),
+  me: () => request("/me"),
+  dashboard: () => request("/dashboard"),
+  genres: () => request("/genres"),
+  books: (params) => {
+    const query = new URLSearchParams({ size: 20, ...params });
+    return request(`/books?${query}`);
+  },
+  myBooks: (page = 0, size = 20) => request(`/books/mine?page=${page}&size=${size}`),
+  book: (id) => request(`/books/${id}`),
+  bookHistory: (id, page = 0, size = 20) => request(`/books/${id}/history?page=${page}&size=${size}`),
+  createBook: (payload) => request("/books", { method: "POST", body: JSON.stringify(payload) }),
+  updateBook: (id, payload) => request(`/books/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  deleteBook: (id) => request(`/books/${id}`, { method: "DELETE" }),
+  requests: (page = 0, size = 20) => request(`/borrow-requests?page=${page}&size=${size}`),
+  requestBook: (payload) => request("/borrow-requests", { method: "POST", body: JSON.stringify(payload) }),
+  approve: (id) => request(`/borrow-requests/${id}/approve`, { method: "POST" }),
+  reject: (id) => request(`/borrow-requests/${id}/reject`, { method: "POST" }),
+  borrowed: (page = 0, size = 20) => request(`/loans/borrowed?page=${page}&size=${size}`),
+  loanHistory: (page = 0, size = 20) => request(`/loans/history?page=${page}&size=${size}`),
+  returnBook: (id) => request(`/loans/${id}/return`, { method: "POST" })
+};
+</file>
+
+<file path="src/App.jsx">
+import React, { useEffect, useRef, useState } from "react";
+import {
+  BookOpen,
+  CheckSquare,
+  Home as HomeIcon,
+  History,
+  LibraryBig,
+  LogOut,
+  Moon,
+  Plus,
+  RotateCcw,
+  Sun,
+  Undo2,
+  Search,
+  User as UserIcon,
+  ChevronDown
+} from "lucide-react";
+import { api } from "./api";
+import { Profile } from "./components/Profile";
+import { Stats } from "./components/Stats";
+import { BookModal } from "./components/BookModal";
+import { RequestModal } from "./components/RequestModal";
+import { ToastContainer } from "./components/common/Toast";
+import { Login } from "./pages/Login";
+import { Catalog } from "./pages/Catalog";
+import { Requests } from "./pages/Requests";
+import { MyBooks } from "./pages/MyBooks";
+import { Borrowed } from "./pages/Borrowed";
+import { LoanHistory } from "./pages/LoanHistory";
+import { Details } from "./pages/Details";
+import { initials } from "./utils/helpers";
+import { ConfirmDialog } from "./components/common/ConfirmDialog";
+import logo from "./styles/blue_altair_logo-removebg-preview.png";
+const blankBook = {
+  title: "",
+  author: "",
+  genreId: "",
+  condition: "good",
+  defaultLoanDays: 14,
+  description: "",
+  coverUrl: ""
+};
+function HomePage({ stats, dailyThought, setView, setFilters, setBookModal }) {
+  return (
+    <section className="home-page">
+      <div className="new-hero">
+        <div className="new-hero-badge">
+          <span>✦</span>
+          <span>A reading community</span>
+        </div>
+        <h1 className="new-hero-title">
+          Borrow a book. <span>Pass it on.</span>
+        </h1>
+        <p className="new-hero-desc">
+          Book Nook is a shared shelf for our team. List a book you'd lend,
+          borrow one you've been meaning to read, and swap stories along the way.
+        </p>
+        <div className="new-hero-actions">
+          <button className="new-btn-primary" onClick={() => setView("catalog")}>Browse the shelf</button>
+          <button className="new-btn-outline" onClick={() => setBookModal({ ...blankBook })}>Lend a book</button>
+        </div>
+        {dailyThought && (
+          <div className="new-hero-quote">
+            <span className="new-hero-quote-icon">📖</span>
+            <blockquote>"{dailyThought.quote}"</blockquote>
+            — {dailyThought.author}
+          </div>
+        )}
+        <div className="new-hero-stats">
+          <div className="new-stat-card">
+            <label>Books on the shelf</label>
+            <strong>{stats?.totalBooks || 0}</strong>
+          </div>
+          <div className="new-stat-card">
+            <label>Available to borrow</label>
+            <strong>{stats?.availableBooks || 0}</strong>
+          </div>
+        </div>
+      </div>
+      <section className="how-it-works panel">
+        <div className="panel-head"><h3>How it works</h3></div>
+        <div className="steps-grid">
+          <article><span>1</span><h4>Browse</h4><p>Search the shared shelf and filter books by genre, status, or due date.</p></article>
+          <article><span>2</span><h4>Request</h4><p>Send a borrow request with your preferred number of reading days.</p></article>
+          <article><span>3</span><h4>Read & return</h4><p>Track active loans and mark books returned when you are done.</p></article>
+        </div>
+      </section>
+    </section>
+  );
+}
+export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem("bn_token"));
+  const [view, setView] = useState("home");
+  const [darkMode, setDarkMode] = useState(localStorage.getItem("bn_theme") === "dark");
+  const [me, setMe] = useState(null);
+  const [stats, setStats] = useState(null);
+  const [genres, setGenres] = useState([]);
+  const [booksPage, setBooksPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+  const [requestsPage, setRequestsPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+  const [myBooksPage, setMyBooksPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+  const [borrowedPage, setBorrowedPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+  const [historyPage, setHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+  const [bookHistoryPage, setBookHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+  const [selectedBook, setSelectedBook] = useState(null);
+  const [filters, setFilters] = useState({ search: "", genreId: "", availability: "all", sort: "title", page: 0 });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [bookModal, setBookModal] = useState(null);
+  const [requestModal, setRequestModal] = useState(null);
+  const [toasts, setToasts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [dailyThought, setDailyThought] = useState(null);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const profileDropdownRef = useRef(null);
+  const [confirm, setConfirm] = useState(null); // { message, onConfirm }
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
+    localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
+  }, [darkMode]);
+  useEffect(() => {
+    fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+      .then((response) => response.ok ? response.json() : null)
+      .then((quote) => {
+        if (quote) setDailyThought(quote);
+      })
+      .catch(() => { });
+  }, []);
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (
+        profileDropdownRef.current &&
+        !profileDropdownRef.current.contains(event.target)
+      ) {
+        setShowProfileDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadBootstrap();
+    }
+  }, [isAuthenticated]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setFilters(prev => ({ ...prev, search: searchTerm, page: 0 }));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadCatalog();
+    }
+  }, [filters, isAuthenticated]);
+  async function handleLogin(token, user) {
+    localStorage.setItem("bn_token", token);
+    setMe(user);
+    setIsAuthenticated(true);
+    notify("Welcome , " + user.fullName + "!");
+    setView("home");
+  }
+  function handleLogout() {
+    setShowProfileDropdown(false);
+    localStorage.removeItem("bn_token");
+    setIsAuthenticated(false);
+    setMe(null);
+    notify("Logged out successfully.");
+  }
+  async function loadBootstrap() {
+    try {
+      setLoading(true);
+      const [user, genreList] = await Promise.all([api.me(), api.genres()]);
+      setMe(user);
+      setGenres(genreList);
+      await refresh();
+    } catch (error) {
+      notify(error.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+  async function refresh() {
+    const dashboard = await api.dashboard();
+    setStats(dashboard);
+    await Promise.all([
+      loadCatalog(),
+      loadRequests(requestsPage.page),
+      loadMyBooks(myBooksPage.page),
+      loadBorrowed(borrowedPage.page),
+      loadHistory(historyPage.page)
+    ]);
+  }
+  async function loadCatalog() {
+    try {
+      setLoading(true);
+      const params = {
+        search: filters.search,
+        availability: filters.availability,
+        sort: filters.sort,
+        page: filters.page,
+        size: 20
+      };
+      if (filters.genreId) params.genreId = filters.genreId;
+      setBooksPage(await api.books(params));
+    } catch (error) {
+      notify(error.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+  function askConfirm(message, onConfirm) {
+    setConfirm({ message, onConfirm });
+  }
+  function resolveConfirm(confirmed) {
+    if (confirmed && confirm?.onConfirm) confirm.onConfirm();
+    setConfirm(null);
+  }
+  async function loadRequests(page) {
+    try { setRequestsPage(await api.requests(page)); } catch (e) { notify(e.message, "error"); }
+  }
+  async function loadMyBooks(page) {
+    try { setMyBooksPage(await api.myBooks(page)); } catch (e) { notify(e.message, "error"); }
+  }
+  async function loadBorrowed(page) {
+    try { setBorrowedPage(await api.borrowed(page)); } catch (e) { notify(e.message, "error"); }
+  }
+  async function loadHistory(page) {
+    try { setHistoryPage(await api.loanHistory(page)); } catch (e) { notify(e.message, "error"); }
+  }
+  async function loadBookHistory(id, page) {
+    try { setBookHistoryPage(await api.bookHistory(id, page)); } catch (e) { notify(e.message, "error"); }
+  }
+  async function openDetails(book) {
+    const freshBook = await api.book(book.id);
+    setSelectedBook(freshBook);
+    await loadBookHistory(book.id, 0);
+    setView("detail");
+  }
+  async function saveBook(payload) {
+    try {
+      if (bookModal?.id) await api.updateBook(bookModal.id, payload);
+      else await api.createBook(payload);
+      setBookModal(null);
+      notify(bookModal?.id ? "Book updated." : "Book added.");
+      await refresh();
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  }
+  async function deleteBook(id) {
+    askConfirm("Are you sure you want to remove this book from the library? This cannot be undone.", async () => {
+      try {
+        await api.deleteBook(id);
+        notify("Book deleted.");
+        await refresh();
+      } catch (error) {
+        notify(error.message, "error");
+      }
+    });
+    return;
+  }
+  async function sendRequest(payload) {
+    try {
+      await api.requestBook(payload);
+      setRequestModal(null);
+      notify("Borrow request sent.");
+      await refresh();
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  }
+  async function approve(id) {
+    try {
+      await api.approve(id);
+      notify("Request approved and loan started.");
+      await refresh();
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  }
+  async function reject(id) {
+    askConfirm("Are you sure you want to reject this request?", async () => {
+      try {
+        await api.reject(id);
+        notify("Request rejected.");
+        await refresh();
+      } catch (error) {
+        notify(error.message, "error");
+      }
+    });
+    return;
+  }
+  async function returnBook(id, bookTitle) {
+    askConfirm(`Return "${bookTitle}"? This will mark the book as returned.`, async () => {
+      try {
+        await api.returnBook(id);
+        notify("Book marked as returned.");
+        await refresh();
+      } catch (error) {
+        notify(error.message, "error");
+      }
+    });
+  }
+  function notify(message, type = "success") {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id, message, type }]);
+  }
+  function removeToast(id) {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }
+  const navSections = [
+    {
+      label: "Discovery",
+      items: [
+        ["home", "Home", HomeIcon],
+        ["catalog", "Browse", BookOpen]
+      ]
+    },
+    {
+      label: "Your Activity",
+      items: [
+        ["requests", "Requests", CheckSquare, stats?.pendingApprovals],
+        ["myBooks", "My Shelf", LibraryBig],
+        ["borrowed", "Currently Reading", Undo2, stats?.activeBorrowed],
+        ["history", "History", History]
+      ]
+    }
+  ];
+  if (!isAuthenticated) {
+    return (
+      <>
+        <Login onLogin={handleLogin} />
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+      </>
+    );
+  }
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <button className="brand" onClick={() => setView("home")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
+          <img className="brand-mark" src={logo} alt="Book Nook Logo" />
+          <div>
+            <h1>Book Nook</h1>
+            <p>BA Reading Community</p>
+          </div>
+        </button>
+        <nav className="nav">
+          {navSections.map((section) => (
+            <div key={section.label} className="nav-section">
+              <div className="nav-label">{section.label}</div>
+              {section.items.map(([id, label, Icon, badge]) => (
+                <button key={id} className={`nav-item ${view === id ? "active" : ""}`} onClick={() => setView(id)}>
+                  <div className="nav-item-content">
+                    <Icon size={18} />
+                    <span>{label}</span>
+                  </div>
+                  {badge > 0 && <span className="nav-badge">{badge}</span>}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <div className="top-nav-actions">
+          <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
+            {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          {me && (
+            <div
+              ref={profileDropdownRef}
+              className="profile-dropdown-container"
+              style={{ position: "relative" }}
+            >
+              <button className="user-profile-trigger" onClick={() => setShowProfileDropdown(!showProfileDropdown)}>
+                <div className="user-avatar-small">
+                  {me.avatarInitials || initials(me.fullName)}
+                </div>
+                <ChevronDown size={14} color="var(--muted)" />
+              </button>
+              {showProfileDropdown && (
+                <div className="profile-dropdown-card">
+                  <Profile user={me} onLogout={handleLogout} />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </aside>
+      <main className="main">
+        {view !== "home" && (
+          <section className="topbar">
+            <div className="page-title">
+              <div className="page-kicker">Community library tracker</div>
+              <h2>BA Reading Community Tracker</h2>
+              <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
+            </div>
+            <div className="actions">
+              <button className="btn primary" onClick={() => setBookModal({ ...blankBook })}><Plus size={17} /> Add book</button>
+            </div>
+          </section>
+        )}
+        {view === "home" && (
+          <div style={{ position: "fixed", top: "16px", right: "24px", zIndex: 200 }}>
+            <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
+              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+          </div>
+        )}
+        {view === "home" && (
+          <HomePage
+            stats={stats}
+            dailyThought={dailyThought}
+            setView={setView}
+            setFilters={setFilters}
+            setBookModal={setBookModal}
+          />
+        )}
+        {loading && !["catalog", "home"].includes(view) && <div className="panel empty">Loading Book Nook...</div>}
+        {view === "catalog" && (
+          <Catalog
+            page={booksPage}
+            genres={genres}
+            filters={filters}
+            setFilters={setFilters}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            loading={loading}
+            me={me}
+            openDetails={openDetails}
+            setRequestModal={setRequestModal}
+            setBookModal={setBookModal}
+            returnBook={returnBook}
+          />
+        )}
+        {!loading && view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} />}
+        {!loading && view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} />}
+        {!loading && view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} returnBook={returnBook} openDetails={openDetails} />}
+        {!loading && view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} />}
+        {!loading && view === "detail" && selectedBook && (
+          <Details
+            book={selectedBook}
+            historyPage={bookHistoryPage}
+            onPageChange={(p) => loadBookHistory(selectedBook.id, p)}
+            me={me}
+            setView={setView}
+            setBookModal={setBookModal}
+            setRequestModal={setRequestModal}
+            returnBook={returnBook}
+          />
+        )}
+      </main>
+      {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
+      {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
+      <ConfirmDialog
+        message={confirm?.message}
+        onConfirm={() => resolveConfirm(true)}
+        onCancel={() => resolveConfirm(false)}
+      />
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+    </div>
+  );
+}
+</file>
+
+<file path="src/components/BookCard.jsx">
+import React from "react";
+import { label, dateText } from "../utils/helpers";
+export function BookCard({ book, me, openDetails, setRequestModal, setBookModal, returnBook }) {
+  const isAdmin = me.role === "ADMIN";
+  const ownedByMe = book.owner.id === me.id;
+  const borrowedByMe = book.activeLoanId && book.activeLoanBorrowerId === me.id;
+  return (
+    <article className={`book-card ${isAdmin ? "admin-border" : ""}`}>
+      <div className="cover">
+        <div className="cover-art" style={{ background: book.coverColor || "#16756f" }}>
+          {book.coverUrl ? (
+            <img src={book.coverUrl} alt={book.title} />
+          ) : (
+            book.genre?.name
+          )}
+        </div>
+        <div>
+          <div className="flex-between">
+            <h3>{book.title}</h3>
+            {isAdmin && <span className="admin-tag">Admin</span>}
+          </div>
+          <div className="author">{book.author}</div>
+          <div className="chips">
+            <span className={`chip ${book.availabilityStatus}`}>{label(book.availabilityStatus)}</span>
+            {borrowedByMe && <span className="chip returned">Borrowed by you</span>}
+          </div>
+        </div>
+      </div>
+      <div className="book-body">
+        <p className="book-desc">{book.description}</p>
+        <div className="mini-meta">
+  <span>
+    <strong>Owner:</strong> {book.owner.fullName}
+  </span>
+  <span>
+    <strong>Genre:</strong> {book.genre?.name || "N/A"}
+  </span>
+  <span>
+    <strong>Condition:</strong>{" "}
+    {book.condition
+      ?.replace("_", " ")
+      .replace(/\b\w/g, c => c.toUpperCase())}
+  </span>
+  <span>
+    <strong>Reading Duration:</strong> {book.defaultLoanDays} days
+  </span>
+  {book.dueAt && (
+    <span>
+      <strong>Due Date:</strong> {dateText(book.dueAt)}
+    </span>
+  )}
+</div>
+        <div className="card-actions">
+          <button className="btn btn-outline" onClick={() => openDetails(book)}>Details</button>
+          {!ownedByMe && book.availabilityStatus === "available" && <button className="btn btn-primary" onClick={() => setRequestModal(book)}>Request</button>}
+          {(ownedByMe || isAdmin) && <button className="btn btn-outline" onClick={() => setBookModal(toBookForm(book))}>Edit</button>}
+          {borrowedByMe && <button className="btn warn" onClick={() => returnBook(book.activeLoanId)}>Return</button>}
+        </div>
+      </div>
+    </article>
+  );
+}
+function toBookForm(book) {
+  return { ...book, genreId: book.genre?.id };
+}
+</file>
+
+<file path="src/components/BookModal.jsx">
+import React, { useState } from "react";
+import { Modal } from "./common/Modal";
+import { FormInput } from "./common/FormInput";
+import { validateBookForm } from "../utils/helpers";
+export function BookModal({ book, genres, onClose, onSave }) {
+  if (!book) return null;
+  const [form, setForm] = useState({ ...book, genreId: book.genreId || book.genre?.id || genres[0]?.id || "" });
+  const [errors, setErrors] = useState({});
+  function submit() {
+    const nextErrors = validateBookForm(form);
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length === 0) onSave({
+      ...form,
+      defaultLoanDays: Math.floor(Number(form.defaultLoanDays)),
+      title: form.title.trim(),
+      author: form.author.trim(),
+      description: form.description?.trim() || "",
+      coverUrl: form.coverUrl?.trim() || ""
+    });
+  }
+  return (
+    <Modal title={book.id ? "Edit book" : "Add book"} onClose={onClose} onSubmit={submit}>
+      <FormInput label="Title" required error={errors.title} value={form.title} onChange={(v) => setForm({ ...form, title: v })} />
+      <FormInput label="Author" required error={errors.author} value={form.author} onChange={(v) => setForm({ ...form, author: v })} />
+      <label className="field"><span>Genre <b>*</b></span><select className="select" value={form.genreId} onChange={(e) => setForm({ ...form, genreId: e.target.value })}>{genres.map((genre) => <option key={genre.id} value={genre.id}>{genre.name}</option>)}</select>{errors.genreId && <small>{errors.genreId}</small>}</label>
+      <label className="field"><span>Condition <b>*</b></span><select className="select" value={form.condition} onChange={(e) => setForm({ ...form, condition: e.target.value })}><option value="like_new">Like new</option><option value="good">Good</option><option value="well_loved">Well loved</option><option value="damaged">Damaged</option></select></label>
+      <FormInput
+        label="Default loan days"
+        required
+        error={errors.defaultLoanDays}
+        type="number"
+        value={form.defaultLoanDays}
+        onChange={(v) => setForm({ ...form, defaultLoanDays: v.replace(/^0+(?!$)/, "").replace(/[^0-9]/g, "") })}
+      />
+      <FormInput label="Cover image URL" value={form.coverUrl} onChange={(v) => setForm({ ...form, coverUrl: v })} />
+      <label className="field full"><span>Description</span><textarea className="textarea" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />{errors.description && <small>{errors.description}</small>}</label>
+    </Modal>
+  );
+}
+</file>
+
+<file path="src/components/common/ConfirmDialog.jsx">
+import React from "react";
+export function ConfirmDialog({ message, onConfirm, onCancel }) {
+  if (!message) return null;
+  return (
+    <div className="modal-backdrop open" onClick={onCancel}>
+      <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h3>Are you sure?</h3>
+        </div>
+        <div className="confirm-body">
+          <p>{message}</p>
+        </div>
+        <div className="modal-foot">
+          <button className="btn" onClick={onCancel}>Cancel</button>
+          <button className="btn danger" onClick={onConfirm}>Confirm</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="src/components/common/EmptyState.jsx">
+import React from "react";
+import * as Icons from "lucide-react";
+export function EmptyState({ icon, title, message, actionLabel, onAction }) {
+  const Icon = Icons[icon] || Icons.Inbox;
+  return (
+    <div className="panel empty full empty-state-box">
+      <div className="empty-state-icon">
+        <Icon size={48} strokeWidth={1.5} />
+      </div>
+      <h3>{title}</h3>
+      <p>{message}</p>
+      {actionLabel && (
+        <button className="btn primary" onClick={onAction}>
+          {actionLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+</file>
+
+<file path="src/components/common/FormInput.jsx">
+import React from "react";
+export function FormInput({ label: labelText, value, onChange, type = "text", required = false, error, className = "" }) {
+  return <label className={`field ${className}`}><span>{labelText} {required && <b>*</b>}</span><input className="input" type={type} value={value ?? ""} onChange={(e) => onChange(e.target.value)} />{error && <small>{error}</small>}</label>;
+}
+</file>
+
+<file path="src/components/common/Modal.jsx">
+import React from "react";
+export function Modal({ title, onClose, onSubmit, children }) {
+  return (
+    <div className="modal-backdrop open">
+      <form className="modal" onSubmit={(e) => { e.preventDefault(); onSubmit(); }}>
+        <div className="modal-head"><h3>{title}</h3><button className="btn icon-only" type="button" onClick={onClose}>X</button></div>
+        <div className="form-grid">{children}</div>
+        <div className="modal-foot"><button className="btn" type="button" onClick={onClose}>Cancel</button><button className="btn primary" type="submit">Save</button></div>
+      </form>
+    </div>
+  );
+}
+</file>
+
+<file path="src/components/common/Pagination.jsx">
+import React from "react";
+import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
+export function Pagination({ page, totalPages, totalElements, onPageChange }) {
+  const getPageNumbers = () => {
+    const current = page + 1;
+    const last = totalPages;
+    const delta = 1;
+    const left = current - delta;
+    const right = current + delta + 1;
+    const range = [];
+    const rangeWithDots = [];
+    let l;
+    for (let i = 1; i <= last; i++) {
+      if (i === 1 || i === last || (i >= left && i < right)) {
+        range.push(i);
+      }
+    }
+    for (let i of range) {
+      if (l) {
+        if (i - l === 2) {
+          rangeWithDots.push(l + 1);
+        } else if (i - l !== 1) {
+          rangeWithDots.push('...');
+        }
+      }
+      rangeWithDots.push(i);
+      l = i;
+    }
+    return rangeWithDots;
+  };
+  const pages = getPageNumbers();
+  return (
+    <div className="pagination">
+      <div className="pagination-info">
+         ({totalElements} total items)
+      </div>
+      <div className="pagination-controls">
+        <button
+          className="btn icon-only"
+          disabled={page === 0}
+          onClick={() => onPageChange(page - 1)}
+          aria-label="Previous page"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <div className="pagination-numbers">
+          {pages.map((p, i) => {
+            if (p === '...') {
+              return <span key={`ellipsis-${i}`} className="pagination-ellipsis"><MoreHorizontal size={16} /></span>;
+            }
+            return (
+              <button
+                key={p}
+                className={`btn pagination-num ${page === p - 1 ? 'active' : ''}`}
+                onClick={() => onPageChange(p - 1)}
+              >
+                {p}
+              </button>
+            );
+          })}
+        </div>
+        <button
+          className="btn icon-only"
+          disabled={page >= totalPages - 1}
+          onClick={() => onPageChange(page + 1)}
+          aria-label="Next page"
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="src/components/common/Panel.jsx">
+import React from "react";
+export function Panel({ title, badge, children }) {
+  return <div className="panel"><div className="panel-head"><h3>{title}</h3>{badge && <span className="chip">{badge}</span>}</div>{children}</div>;
+}
+</file>
+
+<file path="src/components/common/Skeleton.jsx">
+import React from "react";
+export function Skeleton({ className, width, height, borderRadius = "4px" }) {
+  return (
+    <div
+      className={`skeleton ${className || ""}`}
+      style={{ width, height, borderRadius }}
+    />
+  );
+}
+export function BookCardSkeleton() {
+  return (
+    <div className="book-card skeleton-card">
+      <div className="cover">
+        <Skeleton width="86px" height="120px" borderRadius="6px" />
+        <div style={{ flex: 1 }}>
+          <Skeleton width="80%" height="24px" />
+          <Skeleton width="40%" height="16px" style={{ marginTop: "8px" }} />
+          <div className="chips" style={{ marginTop: "12px" }}>
+            <Skeleton width="60px" height="24px" borderRadius="999px" />
+            <Skeleton width="60px" height="24px" borderRadius="999px" />
+          </div>
+        </div>
+      </div>
+      <div className="book-body">
+        <Skeleton width="100%" height="60px" />
+        <div className="mini-meta" style={{ marginTop: "12px" }}>
+          <Skeleton width="90%" height="14px" />
+          <Skeleton width="70%" height="14px" style={{ marginTop: "6px" }} />
+        </div>
+        <div className="card-actions" style={{ marginTop: "auto" }}>
+          <Skeleton width="80px" height="36px" />
+          <Skeleton width="80px" height="36px" />
+        </div>
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="src/components/common/Stat.jsx">
+import React from "react";
+export function Stat({ label, value, onClick }) {
+  return (
+    <article className="stat" onClick={onClick} style={{ cursor: onClick ? "pointer" : "default" }}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </article>
+  );
+}
+</file>
+
+<file path="src/components/common/Table.jsx">
+import React from "react";
+import { EmptyState } from "./EmptyState";
+export function Table({ headers, children }) {
+  const rows = React.Children.count(children);
+  if (!rows) return <EmptyState icon="Inbox" title="Nothing to show" message="There are no records to display in this list." />;
+  return <div className="table-wrap"><table><thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{children}</tbody></table></div>;
+}
+</file>
+
+<file path="src/components/common/Toast.jsx">
+import React, { useEffect } from "react";
+import { X, CheckCircle2, AlertCircle, Info } from "lucide-react";
+export function ToastContainer({ toasts, onRemove }) {
+  return (
+    <div className="toast-container">
+      {toasts.map((toast) => (
+        <Toast key={toast.id} {...toast} onRemove={() => onRemove(toast.id)} />
+      ))}
+    </div>
+  );
+}
+function Toast({ id, message, type = "success", onRemove }) {
+  useEffect(() => {
+    const timer = setTimeout(onRemove, 4000);
+    return () => clearTimeout(timer);
+  }, [onRemove]);
+  const Icon = {
+    success: CheckCircle2,
+    error: AlertCircle,
+    info: Info
+  }[type] || Info;
+  return (
+    <div className={`toast-item ${type}`} onClick={onRemove}>
+      <Icon size={18} className="toast-icon" />
+      <div className="toast-content">{message}</div>
+      <button className="toast-close">
+        <X size={14} />
+      </button>
+      <div className="toast-progress" />
+    </div>
+  );
+}
+</file>
+
+<file path="src/components/Profile.jsx">
+import React from "react";
+import { UserRound, LogOut } from "lucide-react";
+import { initials } from "../utils/helpers";
+export function Profile({ user, onLogout }) {
+  return (
+    <div className="profile-box">
+      <div className="profile-top">
+        <p className="profile-eyebrow">User profile</p>
+        <span className="profile-status">Active</span>
+      </div>
+      <div className="profile-row">
+        <div className="avatar">{user.avatarInitials || initials(user.fullName)}</div>
+        <div className="user-meta">
+          <strong>{user.fullName}</strong>
+          <span className="user-email">{user.email}</span>
+        </div>
+      </div>
+      <div className="profile-role" title="Capability"><UserRound size={13} /> {user.team}</div>
+      {onLogout && (
+        <button className="logout-btn" onClick={onLogout} title="Sign Out">
+          <LogOut size={16} />
+          <span>Sign Out</span>
+        </button>
+      )}
+    </div>
+  );
+}
+</file>
+
+<file path="src/components/RequestModal.jsx">
+import React, { useState } from "react";
+import { Modal } from "./common/Modal";
+import { FormInput } from "./common/FormInput";
+import { validateRequestForm } from "../utils/helpers";
+export function RequestModal({ book, onClose, onSave }) {
+  if (!book) return null;
+  const [form, setForm] = useState({
+    bookId: book.id,
+    requestedLoanDays: String(book.defaultLoanDays || 14),
+    borrowerNote: ""
+  });
+  const [errors, setErrors] = useState({});
+  function submit() {
+    const cleanedForm = {
+      ...form,
+      requestedLoanDays: parseInt(form.requestedLoanDays, 10),
+      borrowerNote: form.borrowerNote?.trim() || ""
+    };
+    const nextErrors = validateRequestForm(cleanedForm);
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length === 0) {
+      onSave(cleanedForm);
+    }
+  }
+  return (
+    <Modal title={`Request: ${book.title}`} onClose={onClose} onSubmit={submit}>
+      <FormInput
+        label="Borrow for days"
+        required
+        error={errors.requestedLoanDays}
+        type="number"
+        value={form.requestedLoanDays}
+        onChange={(v) => {
+          const onlyInteger = v.replace(/\D/g, "");
+          setForm({ ...form, requestedLoanDays: onlyInteger });
+        }}
+      />
+      <label className="field full">
+        <span>Note to owner</span>
+        <textarea
+          className="textarea"
+          value={form.borrowerNote}
+          onChange={(e) => setForm({ ...form, borrowerNote: e.target.value })}
+        />
+      </label>
+    </Modal>
+  );
+}
+</file>
+
+<file path="src/components/Stats.jsx">
+import React from "react";
+import { Stat } from "./common/Stat";
+export function Stats({ stats, setView, setFilters }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+      <section className="stats">
+        <Stat
+          label="Books on the shelf"
+          value={stats.totalBooks}
+          onClick={() => {
+            setView("catalog");
+            setFilters((f) => ({ ...f, availability: "all" }));
+          }}
+        />
+        <Stat
+          label="Available to borrow"
+          value={stats.availableBooks}
+          onClick={() => {
+            setView("catalog");
+            setFilters((f) => ({ ...f, availability: "available" }));
+          }}
+        />
+        {
+}
+      </section>
+    </div>
+  );
+}
+</file>
+
+<file path="src/main.jsx">
+import React from "react";
+import { createRoot } from "react-dom/client";
+import App from "./App";
+import "./styles/main.css";
+createRoot(document.getElementById("root")).render(<App />);
+</file>
+
+<file path="src/pages/Borrowed.jsx">
+import React from "react";
+import { Panel } from "../components/common/Panel";
+import { Table } from "../components/common/Table";
+import { Pagination } from "../components/common/Pagination";
+import { EmptyState } from "../components/common/EmptyState";
+import { label, dateText } from "../utils/helpers";
+export function Borrowed({ page, onPageChange, returnBook, openDetails }) {
+  if (page.content.length === 0) {
+    return (
+      <Panel title="Borrow Status">
+        <EmptyState
+          icon="LibraryBig"
+          title="No active reads"
+          message="You aren't currently reading any books from the community. Browse the catalog to find your next great read!"
+        />
+      </Panel>
+    );
+  }
+  return (
+    <Panel title="Borrow Status" >
+      <Table headers={["Book", "Owner", "Borrowed", "Due", "Status", "Actions"]}>
+        {page.content.map((loan) => (
+          <tr key={loan.id}>
+            <td><strong>{loan.book.title}</strong><br />{loan.book.author}</td>
+            <td>{loan.owner.fullName}</td>
+            <td>{dateText(loan.borrowedAt)}</td>
+            <td>{dateText(loan.dueAt)}</td>
+            <td><span className={`chip ${loan.status}`}>{label(loan.status)}</span></td>
+            <td><div className="row-actions"><button className="btn warn" onClick={() => returnBook(loan.id, loan.book.title)}>Return</button>
+              <button className="btn" onClick={() => openDetails(loan.book)}>Details</button></div></td>
+          </tr>
+        ))}
+      </Table>
+      <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
+    </Panel>
+  );
+}
+</file>
+
+<file path="src/pages/Catalog.jsx">
+import React from "react";
+import { Search } from "lucide-react";
+import { BookCard } from "../components/BookCard";
+import { Pagination } from "../components/common/Pagination";
+import { BookCardSkeleton } from "../components/common/Skeleton";
+import { EmptyState } from "../components/common/EmptyState";
+export function Catalog({
+  page, genres, filters, setFilters, searchTerm, setSearchTerm,
+  loading, me, openDetails, setRequestModal, setBookModal, returnBook
+}) {
+  return (
+    <section>
+      <div className="section-heading">
+        <div>
+          <p className="page-kicker">Browse</p>
+          <h3>Books on the shelf</h3>
+        </div>
+      </div>
+      <div className="toolbar">
+        <div className="search-wrap">
+          <Search size={17} />
+          <input
+            className="input"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search title, author, owner, or description"
+          />
+        </div>
+        <select className="select" value={filters.genreId} onChange={(e) => setFilters({ ...filters, genreId: e.target.value, page: 0 })}>
+          <option value="">All genres</option>
+          {genres.map((genre) => <option key={genre.id} value={genre.id}>{genre.name}</option>)}
+        </select>
+        <select className="select" value={filters.availability} onChange={(e) => setFilters({ ...filters, availability: e.target.value, page: 0 })}>
+          <option value="all">All availability</option>
+          <option value="available">Available</option>
+          <option value="borrowed">Borrowed</option>
+          <option value="request_pending">Pending request</option>
+        </select>
+        <select className="select" value={filters.sort} onChange={(e) => setFilters({ ...filters, sort: e.target.value, page: 0 })}>
+          <option value="title">Sort by title</option>
+          <option value="newest">Newest first</option>
+          <option value="due">Due date</option>
+        </select>
+      </div>
+      <div className="grid catalog">
+        {loading ? (
+          Array.from({ length: 6 }).map((_, i) => <BookCardSkeleton key={i} />)
+        ) : page.content.length === 0 ? (
+          <EmptyState
+            icon="SearchX"
+            title="No books found"
+            message="We couldn't find any books matching your current filters. Try adjusting your search or category."
+            actionLabel="Clear all filters"
+            onAction={() => { setSearchTerm(""); setFilters({ search: "", genreId: "", availability: "all", sort: "title", page: 0 }); }}
+          />
+        ) : (
+          page.content.map((book) => (
+            <BookCard
+              key={book.id}
+              book={book}
+              me={me}
+              openDetails={openDetails}
+              setRequestModal={setRequestModal}
+              setBookModal={setBookModal}
+              returnBook={returnBook}
+            />
+          ))
+        )}
+      </div>
+      {!loading && page.content.length > 0 && (
+        <Pagination
+          page={page.page}
+          totalPages={page.totalPages}
+          totalElements={page.totalElements}
+          onPageChange={(p) => setFilters({ ...filters, page: p })}
+        />
+      )}
+    </section>
+  );
+}
+</file>
+
+<file path="src/pages/Details.jsx">
+import React from "react";
+import { label, dateText, toBookForm } from "../utils/helpers";
+import { Pagination } from "../components/common/Pagination";
+export function Details({ book, historyPage, onPageChange, me, setView, setBookModal, setRequestModal, returnBook }) {
+  const isAdmin = me.role === "ADMIN";
+  const ownedByMe = book.owner.id === me.id;
+  const borrowedByMe = book.activeLoanId && book.activeLoanBorrowerId === me.id;
+  return (
+    <div className="detail-layout">
+      <div className="detail-cover">
+        <div className="detail-book" style={{ background: book.coverColor || "#17313b" }}>
+          {book.coverUrl ? (
+            <img src={book.coverUrl} alt={book.title} />
+          ) : (
+            book.title
+          )}
+        </div>
+      </div>
+      <div className="panel detail-panel">
+        <div className="flex-between">
+          <button className="btn" onClick={() => setView("catalog")}>Back to browse</button>
+          {isAdmin && <span className="admin-badge">Admin Mode</span>}
+        </div>
+        <h3>{book.title}</h3>
+        <div className="author">{book.author}</div>
+        <div className="chips">
+          <span className={`chip ${book.availabilityStatus}`}>{label(book.availabilityStatus)}</span>
+        </div>
+        <p>{book.description}</p>
+       <div className="mini-meta">
+  <span>
+    <strong>Owner:</strong> {book.owner.fullName}
+  </span>
+  <span>
+    <strong>Genre:</strong> {book.genre?.name || "N/A"}
+  </span>
+  <span>
+    <strong>Condition:</strong>{" "}
+    {book.condition
+      ?.replace("_", " ")
+      .replace(/\b\w/g, c => c.toUpperCase())}
+  </span>
+  <span>
+    <strong>Reading Duration:</strong> {book.defaultLoanDays} days
+  </span>
+  {book.dueAt && (
+    <span>
+      <strong>Due Date:</strong> {dateText(book.dueAt)}
+    </span>
+  )}
+</div>
+        <div className="card-actions detail-actions">
+          {!ownedByMe && book.availabilityStatus === "available" && <button className="btn primary" onClick={() => setRequestModal(book)}>Request this book</button>}
+          {borrowedByMe && <button className="btn warn" onClick={() => returnBook(book.activeLoanId, book.title)}>Return this book</button>}
+          {(ownedByMe || isAdmin) && <button className="btn" onClick={() => setBookModal(toBookForm(book))}>Edit book</button>}
+        </div>
+        {
+}
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="src/pages/Home.jsx">
+import React from "react";
+import { BookOpen, Plus, ArrowRight } from "lucide-react";
+export const Home = ({ stats, setView, setBookModal }) => {
+  return (
+    <div className="home-page">
+      <section className="hero-section">
+        <div className="hero-content">
+          <div className="hero-badge">
+            <span>✦</span>
+            <span>A reading community</span>
+          </div>
+          <h1 className="hero-title">
+            Borrow a book. <span>Pass it on.</span>
+          </h1>
+          <p className="hero-description">
+            Book Nook is a shared shelf for our team. List a book you'd
+            lend, borrow one you've been meaning to read, and swap stories
+            along the way.
+          </p>
+          <div className="hero-actions">
+            <button
+              className="btn btn-primary"
+              onClick={() => setView("catalog")}
+            >
+              Browse the shelf
+              <BookOpen size={18} />
+            </button>
+            <button
+              className="btn btn-outline"
+              onClick={() => setBookModal({
+                title: "",
+                author: "",
+                genreId: "",
+                condition: "good",
+                defaultLoanDays: 14,
+                description: "",
+                coverUrl: ""
+              })}
+            >
+              Lend a book
+              <Plus size={18} />
+            </button>
+          </div>
+          <div className="home-stats">
+            <div className="home-stat-card">
+              <label>Books on the shelf</label>
+              <strong>{stats?.totalBooks || 0}</strong>
+            </div>
+            <div className="home-stat-card">
+              <label>Available to borrow</label>
+              <strong>{stats?.availableBooks || 0}</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section className="how-it-works">
+        <h2 className="section-title">How it works</h2>
+        <div className="steps-grid">
+          <div className="step-card">
+            <div className="step-number">01</div>
+            <h3 className="step-title">List a book</h3>
+            <p className="step-description">
+              Add a book you own and are happy to lend. Takes 30 seconds.
+            </p>
+          </div>
+          <div className="step-card">
+            <div className="step-number">02</div>
+            <h3 className="step-title">Request to borrow</h3>
+            <p className="step-description">
+              Find a title you love and send a quick request to the owner.
+            </p>
+          </div>
+          <div className="step-card">
+            <div className="step-number">03</div>
+            <h3 className="step-title">Read & return</h3>
+            <p className="step-description">
+              Enjoy the read, then return it so the next reader can dive in.
+            </p>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+};
+</file>
+
+<file path="src/pages/LoanHistory.jsx">
+import React from "react";
+import { Panel } from "../components/common/Panel";
+import { Table } from "../components/common/Table";
+import { Pagination } from "../components/common/Pagination";
+import { label, dateText } from "../utils/helpers";
+export function LoanHistory({ page, onPageChange }) {
+  return (
+    <Panel title="Borrowing History">
+      <Table headers={["Book", "Borrower", "Owner", "Status", "Opened", "Closed"]}>
+        {page.content.map((row) => (
+          <tr key={row.id}>
+            <td><strong>{row.book.title}</strong><br />{row.book.author}</td>
+            <td>{row.borrower.fullName}</td>
+            <td>{row.owner.fullName}</td>
+            <td><span className={`chip ${row.status}`}>{label(row.status)}</span></td>
+            <td>{dateText(row.borrowedAt)}</td>
+            <td>{dateText(row.returnedAt)}</td>
+          </tr>
+        ))}
+      </Table>
+      <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
+    </Panel>
+  );
+}
+</file>
+
+<file path="src/pages/Login.jsx">
+import React, { useState } from "react";
+import { LogIn, UserPlus } from "lucide-react";
+import { api } from "../api";
+import logo from "../styles/blue_altair_logo-removebg-preview.png";
+export function Login({ onLogin }) {
+  const [isRegister, setIsRegister] = useState(false);
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+    fullName: "",
+    team: "APIM"
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.email || !form.password) return;
+    if (isRegister && (!form.fullName || !form.team)) return;
+    setLoading(true);
+    setError("");
+    try {
+      let result;
+      if (isRegister) {
+        result = await api.register(form);
+      } else {
+        result = await api.login(form.email, form.password);
+      }
+      onLogin(result.token, result.user);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+  const updateForm = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
+  return (
+    <div className="login-page">
+      <div className="login-card">
+        <div className="brand-large">
+          <img className ="brand-mark"  src={logo} alt="Book Nook Logo" />
+          <h1>Book Nook</h1>
+        </div>
+        <h2>{isRegister ? "Create an account" : "Sign in to your account"}</h2>
+        <p>{isRegister ? "Join the community library today." : "Enter your credentials to access the community library."}</p>
+        <form onSubmit={handleSubmit} className="form-grid">
+          {isRegister && (
+            <>
+              <label className="field full">
+                <span>Full Name</span>
+                <input
+                  type="text"
+                  className="input"
+                  value={form.fullName}
+                  onChange={(e) => updateForm("fullName", e.target.value)}
+                  required
+                  placeholder="Gaurav Choudhary"
+                />
+              </label>
+              <label className="field full">
+                <span>Capability</span>
+                <select
+                  className="select"
+                  value={form.team}
+                  onChange={(e) => updateForm("team", e.target.value)}
+                  required
+                >
+                  <option value="APIM">APIM</option>
+                  <option value="DAD">DAD</option>
+                  <option value="DM">DM</option>
+                  <option value="AI">AI</option>
+                  <option value="SF">SF</option>
+                  <option value="CS">CS</option>
+                </select>
+              </label>
+            </>
+          )}
+          <label className="field full">
+            <span>Email address</span>
+            <input
+              type="email"
+              className="input"
+              value={form.email}
+              onChange={(e) => updateForm("email", e.target.value)}
+              required
+              placeholder="Email"
+            />
+          </label>
+          <label className="field full">
+            <span>Password</span>
+            <input
+              type="password"
+              className="input"
+              value={form.password}
+              onChange={(e) => updateForm("password", e.target.value)}
+              required
+              placeholder="Password"
+            />
+          </label>
+          {error && <div className="error-box">{error}</div>}
+          <button type="submit" className="btn primary full" disabled={loading}>
+            {loading ? (isRegister ? "Creating account..." : "Signing in...") : (
+              isRegister ? <><UserPlus size={18} /> Create Account</> : <><LogIn size={18} /> Sign In</>
+            )}
+          </button>
+        </form>
+        <div className="login-toggle">
+          <button className="btn-link" onClick={() => {
+            setIsRegister(!isRegister);
+            setError("");
+          }}>
+            {isRegister ? "Already have an account? Sign in" : "Don't have an account? Sign up"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="src/pages/MyBooks.jsx">
+import React from "react";
+import { Panel } from "../components/common/Panel";
+import { Table } from "../components/common/Table";
+import { Pagination } from "../components/common/Pagination";
+import { EmptyState } from "../components/common/EmptyState";
+import { label, toBookForm } from "../utils/helpers";
+export function MyBooks({ page, onPageChange, setBookModal, deleteBook, openDetails }) {
+  if (page.content.length === 0) {
+    return (
+      <Panel title="My Shelf">
+        <EmptyState
+          icon="BookPlus"
+          title="Your library is empty"
+          message="You haven't shared any books with the community yet. Start by adding your first book!"
+          actionLabel="Add your first book"
+          onAction={() => setBookModal({ title: "", author: "", genreId: "", condition: "good", exchangeLocation: "", defaultLoanDays: 14, description: "" })}
+        />
+      </Panel>
+    );
+  }
+  return (
+    <Panel title="My Shelf" >
+      <Table headers={["Book", "Genre", "Status", "Actions"]}>
+        {page.content.map((book) => (
+          <tr key={book.id}>
+            <td><strong>{book.title}</strong><br />{book.author}</td>
+            <td>{book.genre?.name}</td>
+            <td><span className={`chip ${book.availabilityStatus}`}>{label(book.availabilityStatus)}</span></td>
+            <td><div className="row-actions">
+              <button className="btn" onClick={() => setBookModal(toBookForm(book))}>Edit</button>
+              <button className="btn" onClick={() => openDetails(book)}>Details</button>
+              <button className="btn danger" onClick={() => deleteBook(book.id)}>Delete</button>
+            </div></td>
+          </tr>
+        ))}
+      </Table>
+      <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
+    </Panel>
+  );
+}
+</file>
+
+<file path="src/pages/Requests.jsx">
+import React from "react";
+import { Panel } from "../components/common/Panel";
+import { Table } from "../components/common/Table";
+import { Pagination } from "../components/common/Pagination";
+import { EmptyState } from "../components/common/EmptyState";
+import { label, dateText } from "../utils/helpers";
+export function Requests({ page, onPageChange, me, approve, reject, openDetails }) {
+  const isAdmin = me.role === "ADMIN";
+  if (page.content.length === 0) {
+    return (
+      <Panel title="Borrow Requests">
+        <EmptyState
+          icon="ClipboardCheck"
+          title="No requests yet"
+          message="When someone wants to borrow your books, or when you request a book, they will appear here."
+        />
+      </Panel>
+    );
+  }
+  return (
+    <Panel title="Borrow Requests" >
+      <Table headers={["Book", "Borrower", "Owner", "Status", "Requested", "Actions"]}>
+        {page.content.map((row) => (
+          <tr key={row.id}>
+            <td><strong>{row.book.title}</strong><br /><span>{row.book.author}</span></td>
+            <td>{row.requester.fullName}</td>
+            <td>{row.owner.fullName}</td>
+            <td><span className={`chip ${row.status}`}>{label(row.status)}</span></td>
+            <td>{dateText(row.requestedAt)}</td>
+            <td><div className="row-actions">
+              {(row.owner.id === me.id || isAdmin) && row.status === "pending" && <><button className="btn primary" onClick={() => approve(row.id)}>Approve</button><button className="btn danger" onClick={() => reject(row.id)}>Reject</button></>}
+              <button className="btn" onClick={() => openDetails(row.book)}>Book</button>
+            </div></td>
+          </tr>
+        ))}
+      </Table>
+      <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
+    </Panel>
+  );
+}
+</file>
+
+<file path="src/styles/main.css">
+:root {
+  --ink: #1e293b;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --panel: #ffffff;
+  --bg: #FDFBF7;
+  --brand: #667FFF;
+  --brand-dark: #5566E6;
+  --brand-soft: #EEF2FF;
+  --accent: #f59e0b;
+  --danger: #ef4444;
+  --focus: #667FFF;
+  --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --nav-bg: rgba(255, 255, 255, 0.8);
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+}
+[data-theme='dark'] {
+  --ink: #f8fafc;
+  --muted: #94a3b8;
+  --line: #334155;
+  --panel: #1e293b;
+  --bg: #0f172a;
+  --brand: #818CF8;
+  --brand-dark: #6366F1;
+  --brand-soft: rgba(99, 102, 241, 0.1);
+  --accent: #fbbf24;
+  --shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
+  --nav-bg: rgba(30, 41, 59, 0.8);
+  --card-bg: #1e293b;
+  --input-bg: #0f172a;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  background: var(--bg);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+[data-theme='light'] body {
+  background:
+    radial-gradient(circle at 18% 0, rgba(22, 117, 111, 0.11), transparent 30%),
+    radial-gradient(circle at 90% 5%, rgba(166, 106, 24, 0.08), transparent 25%),
+    linear-gradient(180deg, #fbfcfd 0, #f4f6f8 360px),
+    var(--bg);
+}
+[data-theme='dark'] body {
+  background:
+    radial-gradient(circle at 18% 0, rgba(45, 212, 191, 0.08), transparent 30%),
+    radial-gradient(circle at 90% 5%, rgba(245, 158, 11, 0.05), transparent 25%),
+    var(--bg);
+}
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; }
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+.sidebar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--nav-bg);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+  height: 72px;
+}
+.header-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: inherit;
+}
+.brand-mark {
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  color: white;
+  font-weight: 900;
+  font-size: 15px;
+}
+.brand-logo {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  background: transparent;
+}
+.brand h1 { margin: 0; font-size: 19px; line-height: 1.05; color: var(--ink); }
+.brand p { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+.profile-box {
+  flex-shrink: 0;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(102, 127, 255, 0.3);
+}
+.profile-box:hover {
+  border-color: var(--brand);
+}
+.profile-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.profile-eyebrow {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.profile-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.1);
+  font-size: 11px;
+  font-weight: 800;
+}
+.profile-status::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #16a34a;
+  content: "";
+}
+.profile-row {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  gap: 12px;
+  align-items: center;
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 8px;
+  color: white;
+  background: linear-gradient(145deg, #123c3a, var(--brand));
+  font-size: 14px;
+  font-weight: 900;
+  box-shadow: 0 12px 24px rgba(22, 117, 111, 0.18);
+}
+.user-meta { min-width: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.user-meta strong, .user-meta span { display: block; overflow-wrap: anywhere; }
+.user-meta strong { color: var(--ink); font-size: 15px; line-height: 1.2; }
+.user-email { margin-top: 3px; color: var(--muted); font-size: 12px; }
+.profile-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  margin-top: 12px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--brand-dark);
+  background: var(--bg);
+  font-size: 12px;
+  font-weight: 800;
+}
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 32px;
+  flex: 1;
+}
+.nav-section {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.nav-label {
+  padding: 0 10px 4px;
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+  font-weight: 700;
+  transition: all 0.2s ease;
+  position: relative;
+}
+.nav-item-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.nav-item:hover {
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+}
+.nav-item.active {
+  color: var(--brand-dark);
+  background: var(--brand-soft);
+}
+.nav-item.active::before {
+  position: absolute;
+  bottom: -2px;
+  left: 8px;
+  right: 8px;
+  height: 3px;
+  width: auto;
+  border-radius: 3px 3px 0 0;
+  background: var(--brand-dark);
+  content: "";
+}
+.nav-badge {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--brand);
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  animation: badge-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes badge-pop {
+  0% { transform: scale(0); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.sidebar-footer {
+  flex-shrink: 0;
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+}
+.logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nav-link:hover {
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+.nav-link.active {
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.user-profile-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.logout-btn:hover {
+  background: rgba(180, 35, 24, 0.08);
+}
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.admin-tag {
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+.admin-badge {
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+.admin-border {
+  border-top: 3px solid var(--brand);
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-top: 1px solid var(--line);
+}
+.pagination-info {
+  font-size: 14px;
+  color: var(--muted);
+}
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pagination-numbers {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pagination-num {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  border-radius: 6px;
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+.pagination-num.active {
+  background: var(--brand);
+  color: white;
+  border-color: var(--brand);
+}
+.pagination-ellipsis {
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+}
+.main {
+  min-width: 0;
+  padding: 32px 36px 44px;
+  animation: page-fade-in 0.4s ease-out;
+}
+@keyframes page-fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1240px;
+  margin: 0 auto 20px;
+  padding: 10px 0 8px;
+}
+.page-kicker {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  margin: 0 0 12px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--brand-dark);
+  background: var(--brand-soft);
+  font-size: 12px;
+  font-weight: 800;
+}
+.page-title h2 {
+  max-width: 740px;
+  margin: 0;
+  font-size: clamp(30px, 4vw, 44px);
+  line-height: 1.02;
+}
+.page-title p {
+  max-width: 760px;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.55;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: var(--shadow-sm);
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  background: var(--card-bg);
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 2px 0 rgba(15, 23, 42, 0.03);
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+.btn:hover { border-color: var(--brand); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.btn.primary {
+  color: white;
+  border-color: var(--brand);
+  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+  box-shadow: 0 12px 24px rgba(22, 117, 111, 0.2);
+}
+.btn.warn { color: white; border-color: var(--accent); background: var(--accent); }
+.btn.danger {
+  color: white !important;
+  background-color: rgb(254, 127, 127) !important;
+  background: var(--danger) !important;
+  border-color: var(--danger) !important;
+}
+.btn.icon-only { width: 38px; padding: 0; }
+.grid {
+  display: grid;
+  gap: 16px;
+  max-width: 1240px;
+  margin-right: auto;
+  margin-left: auto;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 364px; /* 2 cards x 174px + gap */
+  margin: 20px auto 24px;
+}
+.stat {
+  min-height: 96px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.stat:hover {
+  transform: translateY(-3px);
+  border-color: var(--brand);
+  box-shadow: var(--shadow);
+}
+.stat::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 74px;
+  height: 74px;
+  border-radius: 0 12px 0 90px;
+  background: linear-gradient(
+    135deg,
+    var(--brand-soft),
+    transparent
+  );
+}
+.stat span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.stat strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 2rem;
+  line-height: 1;
+  font-weight: 800;
+}
+/* Mobile */
+@media (max-width: 640px) {
+  .stats {
+    grid-template-columns: 1fr;
+  }
+}
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.6fr) 170px 176px 150px;
+  gap: 12px;
+  max-width: 1240px;
+  margin: 18px auto 20px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: var(--shadow-sm);
+}
+.search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.search-wrap svg {
+  position: absolute;
+  left: 12px;
+  color: var(--muted);
+}
+.search-wrap .input { padding-left: 38px; }
+.input, .select, .textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  background: var(--input-bg);
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+}
+.textarea { min-height: 72px; resize: vertical; }
+.input:focus, .select:focus, .textarea:focus {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+.catalog { grid-template-columns: repeat(3, minmax(280px, 1fr)); }
+.full { grid-column: 1 / -1; }
+.book-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 382px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.book-card:hover {
+  border-color: var(--brand);
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+}
+.cover {
+  display: grid;
+  grid-template-columns: 86px 1fr;
+  gap: 16px;
+  min-height: 154px;
+  padding: 18px 18px 17px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.cover-art {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 86px;
+  height: 120px;
+  padding: 9px;
+  border-radius: 6px;
+  color: white;
+  box-shadow: 10px 10px 0 rgba(22, 32, 42, 0.1);
+  font-size: 11px;
+  font-weight: 900;
+  text-align: center;
+  line-height: 1.1;
+}
+.cover-art::before {
+  position: absolute;
+  inset: 8px auto 8px 8px;
+  width: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.48);
+  content: "";
+}
+.book-card h3 { margin: 0; font-size: 18px; line-height: 1.2; word-break: break-word; }
+.author { margin: 7px 0 12px; color: var(--muted); font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 4px 9px 5px;
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--line);
+  font-size: 12px;
+  font-weight: 800;
+}
+.chip.available { color: #065f46; background: #dff6ec; }
+.chip.borrowed, .chip.request_pending, .chip.pending, .chip.converted_to_loan { color: #92400e; background: #fff3d8; }
+.chip.overdue, .chip.rejected, .chip.expired { color: #991b1b; background: #fee2e2; }
+.chip.returned { color: #315b58; background: #e2f6f2; }
+.book-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 18px 18px;
+}
+.book-desc { flex: 1; margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.mini-meta {
+  display: grid;
+  gap: 6px;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  background: var(--bg);
+  font-size: 13px;
+}
+.card-actions, .row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.card-actions { margin-top: auto; padding-top: 2px; }
+.card-actions .btn { min-height: 36px; padding: 8px 11px; font-size: 13px; }
+.panel {
+  max-width: 1240px;
+  margin-right: auto;
+  margin-left: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: var(--shadow-sm);
+}
+.panel-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.panel-head h3 { margin: 0; font-size: 19px; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; min-width: 760px; border-collapse: collapse; background: transparent; }
+th, td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+th { color: var(--muted); background: var(--bg); font-size: 11px; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase; }
+tbody tr:hover { background: var(--bg); }
+tr:last-child td { border-bottom: 0; }
+.empty { padding: 34px 18px; color: var(--muted); text-align: center; background: var(--bg); }
+.empty-state-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 32px;
+  gap: 16px;
+}
+.empty-state-icon {
+  color: var(--muted);
+  opacity: 0.5;
+  margin-bottom: 8px;
+}
+.empty-state-box h3 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--ink);
+}
+.empty-state-box p {
+  margin: 0;
+  max-width: 400px;
+  line-height: 1.5;
+}
+.skeleton {
+  background: #f1f5f9;
+  background: linear-gradient(
+    90deg,
+    #f1f5f9 25%,
+    #f8fafc 50%,
+    #f1f5f9 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.skeleton-card {
+  pointer-events: none;
+  border-color: #f1f5f9;
+}
+.cover-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+.detail-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 20px;
+  max-width: 1240px;
+  margin: 0 auto;
+  align-items: start;
+}
+.detail-cover {
+  display: grid;
+  place-items: center;
+  min-height: 380px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: var(--shadow-sm);
+}
+.detail-book {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 180px;
+  height: 270px;
+  padding: 18px;
+  border-radius: 6px;
+  color: white;
+  box-shadow: 20px 18px 0 rgba(15, 23, 42, 0.12);
+  text-align: center;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.08;
+  overflow: hidden;
+  position: relative;
+}
+.detail-book img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.detail-panel { padding: 20px; }
+.detail-panel h3 { margin: 12px 0 8px; font-size: 30px; line-height: 1.1; }
+.detail-panel p { color: var(--muted); line-height: 1.55; }
+.detail-actions { margin: 16px 0; }
+.timeline { display: grid; gap: 10px; margin-top: 16px; }
+.timeline-item {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfefd;
+}
+.timeline-item strong { display: block; margin-bottom: 3px; }
+.field { display: grid; gap: 4px; color: var(--muted); font-size: 12px; font-weight: 800; }
+.field b {
+  color: var(--danger);
+}
+.field small {
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 700;
+}
+.field.full { grid-column: 1 / -1; }
+/* =========================
+   BOOK MODAL - MODERN UI
+   ========================= */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(6px);
+}
+.modal-backdrop.open {
+  display: flex;
+}
+.modal {
+  width: min(760px, 100%);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.15);
+}
+.confirm-modal {
+  width: min(420px, 100%);
+}
+.confirm-body {
+  padding: 24px;
+  font-size: 15px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.confirm-body p {
+  margin: 0;
+}
+/* Header */
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.modal-head h2,
+.modal-head h3 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+/* Body */
+.form-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  padding: 24px;
+  overflow-y: auto;
+}
+.form-grid::-webkit-scrollbar {
+  width: 6px;
+}
+.form-grid::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 999px;
+}
+/* Fields */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.field.full {
+  grid-column: 1 / -1;
+}
+.field span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.field b {
+  color: #ef4444;
+  font-weight: 500;
+}
+/* Inputs */
+.input,
+.select,
+.textarea {
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--input-bg);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 400;
+  outline: none;
+  transition: all 0.2s ease;
+}
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--muted);
+  font-weight: 400;
+}
+.input:focus,
+.select:focus,
+.textarea:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 4px rgba(102, 127, 255, 0.12);
+}
+.textarea {
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.6;
+}
+/* Errors */
+.field small {
+  font-size: 12px;
+  color: #ef4444;
+  font-weight: 400;
+  margin-top: 2px;
+}
+/* Footer */
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 18px 24px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+}
+/* Buttons */
+.btn {
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.btn.primary {
+  background: var(--brand);
+  color: #fff;
+  border: none;
+}
+.btn.primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(102, 127, 255, 0.25);
+}
+.btn:not(.primary):not(.danger):not(.warn) {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+.btn:not(.primary):not(.danger):not(.warn):hover {
+  background: var(--brand-soft);
+}
+/* =========================
+   MOBILE RESPONSIVE
+   ========================= */
+@media (max-width: 768px) {
+  .modal {
+    width: 100%;
+    max-height: 95vh;
+    border-radius: 20px 20px 0 0;
+  }
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 18px;
+  }
+  .field.full {
+    grid-column: auto;
+  }
+  .modal-head {
+    padding: 18px;
+  }
+  .modal-head h2,
+  .modal-head h3 {
+    font-size: 20px;
+  }
+  .modal-foot {
+    padding: 18px;
+    flex-direction: column-reverse;
+  }
+  .modal-foot .btn {
+    width: 100%;
+  }
+}
+@media (max-width: 480px) {
+  .modal-backdrop {
+    padding: 0;
+    align-items: flex-end;
+  }
+  .modal {
+    border-radius: 22px 22px 0 0;
+  }
+  .form-grid {
+    padding: 16px;
+  }
+  .input,
+  .select,
+  .textarea {
+    font-size: 16px;
+  }
+}
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;
+}
+.toast-item {
+  pointer-events: auto;
+  min-width: 300px;
+  max-width: 450px;
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  border-left: 4px solid var(--brand);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  animation: toast-slide-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  transition: all 0.2s ease;
+}
+.toast-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  background: currentColor;
+  opacity: 0.3;
+  transform-origin: left;
+  animation: toast-countdown 4s linear forwards;
+}
+@keyframes toast-countdown {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+@keyframes toast-slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes toast-in {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.toast-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+.toast-item.success { border-left-color: #166534; }
+.toast-item.error { border-left-color: #991b1b; }
+.toast-item.info { border-left-color: #1e40af; }
+.toast-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.toast-item.success .toast-icon { color: #166534; }
+.toast-item.error .toast-icon { color: #991b1b; }
+.toast-item.info .toast-icon { color: #1e40af; }
+.toast-content {
+  flex-grow: 1;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #1f2937;
+  font-weight: 500;
+}
+.toast-close {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.toast-close:hover {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+@keyframes toast-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+/* Login Page */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f9fafb;
+  padding: 24px;
+}
+.login-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--panel);
+  padding: 40px;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+.brand-large {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+.brand-large .brand-mark {
+  width: 48px;
+  height: 48px;
+  background: transparent;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 20px;
+  border-radius: 8px;
+}
+.brand-large h1 {
+  font-size: 24px;
+  margin: 0;
+  color: var(--ink);
+}
+.login-card h2 {
+  font-size: 20px;
+  margin-bottom: 8px;
+  color: var(--ink);
+}
+.login-card p {
+  color: var(--muted);
+  margin-bottom: 24px;
+}
+.error-box {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+.login-toggle {
+  margin-top: 16px;
+  text-align: center;
+}
+.btn-link {
+  background: transparent;
+  border: none;
+  color: var(--brand);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+.btn-link:hover {
+  text-decoration: underline;
+}
+.login-footer {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+}
+.login-footer strong {
+  color: var(--ink);
+}
+/* Mobile Responsiveness & UI Polish with Flexbox */
+:root {
+  --bg: #FDFBF7;
+  --panel: #ffffff;
+  --brand: #667FFF;
+  --brand-dark: #4f66e8;
+  --brand-soft: rgba(102, 127, 255, 0.12);
+  --focus: #667FFF;
+  --line: rgba(102, 127, 255, 0.16);
+  --shadow: 0 24px 70px rgba(102, 127, 255, 0.14);
+  --shadow-sm: 0 10px 28px rgba(22, 32, 42, 0.07);
+  --sidebar-bg: rgba(253, 251, 247, 0.86);
+  --card-bg: rgba(255, 255, 255, 0.88);
+  --danger: #f03838;
+  --accent: #f59e0b;
+}
+[data-theme='dark'] {
+  --ink: #F8FAFC;
+  --muted: #CBD5E1;
+  --line: rgba(142, 160, 255, 0.24);
+  --panel: #151827;
+  --bg: #0B1020;
+  --brand: #8ea0ff;
+  --brand-dark: #A9B6FF;
+  --brand-soft: rgba(102, 127, 255, 0.18);
+  --accent: #FBBF24;
+  --danger: #F87171;
+  --focus: #A9B6FF;
+  --shadow: 0 24px 70px rgba(0, 0, 0, 0.48);
+  --shadow-sm: 0 10px 28px rgba(0, 0, 0, 0.28);
+  --sidebar-bg: rgba(11, 16, 32, 0.88);
+  --card-bg: rgba(21, 24, 39, 0.92);
+  --input-bg: #101525;
+}
+[data-theme='light'] body {
+  background:
+    radial-gradient(circle at 12% 0, rgba(102, 127, 255, 0.12), transparent 28%),
+    radial-gradient(circle at 92% 8%, rgba(102, 127, 255, 0.08), transparent 24%),
+    #FDFBF7;
+}
+[data-theme='dark'] body {
+  background:
+    radial-gradient(circle at 12% 0, rgba(102, 127, 255, 0.18), transparent 30%),
+    radial-gradient(circle at 92% 8%, rgba(169, 182, 255, 0.10), transparent 26%),
+    var(--bg);
+}
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 64px;
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0;
+  padding: 0 clamp(16px, 4vw, 56px);
+  border-right: 0;
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 10px 28px rgba(22, 32, 42, 0.045);
+  background: var(--sidebar-bg);
+  backdrop-filter: blur(12px);
+  z-index: 100;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.brand {
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  margin-right: 24px;
+}
+.nav {
+  margin: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.nav-section {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.nav-label { display: none; }
+.nav-item {
+  width: auto;
+  min-height: 42px;
+  padding: 9px 13px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+.nav-item.active {
+  color: var(--brand-dark);
+  border-color: var(--line);
+  background: var(--brand-soft);
+}
+.nav-item.active::before { display: none; }
+.top-nav-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+  margin-left: 16px;
+}
+/* Profile Dropdown Custom Styling */
+.profile-dropdown-container {
+  position: relative;
+}
+.user-profile-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.user-profile-trigger:hover {
+  border-color: var(--brand);
+  box-shadow: var(--shadow-sm);
+}
+.user-avatar-small {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 13px;
+  box-shadow: 0 2px 8px rgba(102, 127, 255, 0.2);
+}
+.profile-dropdown-card {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 10px;
+  min-width: 260px;
+  z-index: 250;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  animation: dropdown-fade-in 0.2s ease-out;
+}
+@keyframes dropdown-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* Styled Sign Out Button Inside Profile */
+.profile-box .logout-btn {
+  margin-top: 16px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.05);
+  color: #ef4444;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.profile-box .logout-btn:hover {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+}
+.main {
+  width: min(100%, 1600px);
+  margin: 0 auto;
+  padding: clamp(18px, 3vw, 44px) clamp(16px, 4vw, 64px) 56px;
+}
+.topbar, .grid, .toolbar { max-width: none; }
+.home-page { display: flex; flex-direction: column; gap: 24px; }
+/* =========================
+   NEW HERO (Home page)
+   ========================= */
+.new-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: calc(100vh - 64px);
+  padding: clamp(48px, 8vw, 100px) clamp(24px, 6vw, 80px);
+  background:
+    radial-gradient(circle at 15% 50%, rgba(102, 127, 255, 0.10), transparent 45%),
+    radial-gradient(circle at 85% 20%, rgba(102, 127, 255, 0.07), transparent 40%);
+}
+.new-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 32px;
+  box-shadow: var(--shadow-sm);
+}
+.new-hero-title {
+  margin: 0 0 24px;
+  font-size: clamp(48px, 7vw, 80px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  max-width: 760px;
+}
+.new-hero-title span {
+  color: var(--brand);
+}
+.new-hero-desc {
+  margin: 0 0 40px;
+  max-width: 520px;
+  font-size: clamp(15px, 1.6vw, 18px);
+  line-height: 1.7;
+  color: var(--muted);
+}
+.new-hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 52px;
+}
+.new-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 13px 28px;
+  border: none;
+  border-radius: 12px;
+  background: var(--brand);
+  color: white;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px rgba(102, 127, 255, 0.35);
+}
+.new-btn-primary:hover {
+  background: var(--brand-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(102, 127, 255, 0.45);
+}
+.new-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 13px 28px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.new-btn-outline:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+  transform: translateY(-2px);
+}
+.new-hero-stats {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.new-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 18px 32px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+  min-width: 150px;
+}
+.new-stat-card label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: default;
+}
+.new-stat-card strong {
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--brand);
+  line-height: 1;
+}
+/* also strip the padding from .main on the home view */
+.home-page {
+  margin: calc(-1 * clamp(18px, 3vw, 44px)) calc(-1 * clamp(16px, 4vw, 64px));
+}
+@media (max-width: 768px) {
+  .new-hero { min-height: auto; padding: 56px 20px; }
+  .new-hero-title { font-size: clamp(36px, 9vw, 52px); }
+}
+.home-hero {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: center;
+  padding: clamp(24px, 4vw, 48px);
+  background: linear-gradient(135deg, var(--card-bg), var(--brand-soft));
+}
+.home-hero > div:first-child {
+  flex: 1 1 500px;
+}
+.home-hero h2 {
+  margin: 0;
+  max-width: 760px;
+  font-size: clamp(34px, 5vw, 72px);
+  line-height: 0.96;
+}
+.home-hero p {
+  max-width: 680px;
+  color: var(--muted);
+  font-size: clamp(16px, 1.4vw, 19px);
+  line-height: 1.6;
+}
+.home-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+.hero-quote {
+  flex: 1 1 300px;
+  margin: 0;
+}
+.section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: none;
+  margin: 0 auto 12px;
+}
+.section-heading h3 { margin: 0; font-size: clamp(24px, 3vw, 36px); }
+.section-heading .page-kicker { margin-bottom: 8px; }
+.how-it-works {
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--card-bg);
+  box-shadow: var(--shadow-sm);
+}
+.how-it-works .panel-head {
+  padding-bottom: 18px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.how-it-works .panel-head h3 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+.steps-grid article {
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg);
+  transition: all 0.25s ease;
+}
+.steps-grid article:hover {
+  transform: translateY(-4px);
+  border-color: var(--brand);
+  box-shadow: 0 12px 24px rgba(102, 127, 255, 0.12);
+}
+.steps-grid span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  margin-bottom: 18px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+}
+.steps-grid h4 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.steps-grid p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+/* Tablet */
+@media (max-width: 992px) {
+  .steps-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+/* Mobile */
+@media (max-width: 768px) {
+  .how-it-works {
+    padding: 20px;
+  }
+  .steps-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .steps-grid article {
+    padding: 20px;
+  }
+  .steps-grid h4 {
+    font-size: 17px;
+  }
+  .steps-grid p {
+    font-size: 14px;
+  }
+}
+/* Catalog Page Flex Grid */
+.catalog {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: flex-start;
+}
+.book-card {
+  flex: 1 1 280px;
+  max-width: calc(33.333% - 14px);
+}
+@media (max-width: 1100px) {
+  .book-card {
+    max-width: calc(50% - 10px);
+  }
+}
+@media (max-width: 768px) {
+  .book-card {
+    max-width: 100%;
+  }
+}
+.cover {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  min-height: 154px;
+  padding: 18px 18px 17px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.cover-art {
+  flex: 0 0 86px;
+}
+@media (min-width: 1500px) {
+  .book-card { border-radius: 16px; }
+}
+/* Toolbar Responsive Flex layout */
+.toolbar {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 12px;
+  max-width: none;
+  margin: 18px auto 20px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: var(--shadow-sm);
+}
+.search-wrap {
+  flex: 1 1 280px;
+}
+.toolbar .select {
+  flex: 1 1 150px;
+}
+/* Stats responsive flex layout */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 24px;
+  max-width: 520px;
+  margin: 28px auto 56px;
+}
+.stat {
+  min-height: 120px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card-bg);
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+/* Details Page flex layout */
+.detail-layout {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 24px;
+  max-width: 1240px;
+  margin: 0 auto;
+  align-items: start;
+}
+.detail-cover {
+  flex: 0 0 320px;
+  display: grid;
+  place-items: center;
+  min-height: 380px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: var(--shadow-sm);
+}
+.detail-panel {
+  flex: 1 1 400px;
+}
+@media (max-width: 768px) {
+  .detail-cover {
+    flex: 1 1 100%;
+  }
+}
+/* Login/Register responsive flex layouts */
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+/* Media Queries for Layout Responsiveness */
+@media (max-width: 980px) {
+  .home-hero, .steps-grid, .stats, .toolbar { flex-direction: column; align-items: stretch; }
+  .home-hero > div:first-child { flex: 1 1 auto; }
+  .hero-quote { flex: 1 1 auto; }
+}
+@media (max-width: 768px) {
+  .sidebar {
+    padding: 0 12px;
+    gap: 0;
+    height: 56px;
+  }
+  .brand {
+    margin-right: 12px;
+  }
+  .brand p { display: none; }
+  .brand h1 { font-size: 15px; }
+  .brand-mark { width: 30px; height: 30px; }
+  .nav {
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    gap: 2px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-section { gap: 2px; }
+  .nav-item {
+    font-size: 11px;
+    padding: 6px 8px;
+    white-space: nowrap;
+  }
+  .nav-item-content { gap: 4px; }
+  .nav-item-content svg { width: 14px; height: 14px; }
+  .top-nav-actions { margin-left: 8px; }
+  .main { padding: 16px 14px 36px; }
+  .pagination { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
+  .pagination-controls { justify-content: center; flex-wrap: wrap; }
+}
+/* Daily Thought Card */
+.home-quote-card {
+  max-width: 1200px;
+  margin: 0 auto 2rem;
+  padding: 1.5rem 2rem;
+  background: linear-gradient(
+    135deg,
+    rgba(102, 127, 255, 0.08),
+    rgba(102, 127, 255, 0.03)
+  );
+  border: 1px solid rgba(102, 127, 255, 0.15);
+  border-radius: 20px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(102, 127, 255, 0.08);
+  transition: all 0.3s ease;
+}
+.home-quote-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 40px rgba(102, 127, 255, 0.12);
+}
+.quote-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #667fff;
+  margin-bottom: 1rem;
+}
+.quote-text {
+  margin: 0;
+  font-size: clamp(1.1rem, 2vw, 1.4rem);
+  line-height: 1.7;
+  font-weight: 500;
+  color: var(--text-primary, #1f2937);
+  font-style: italic;
+}
+.quote-author {
+  margin-top: 1rem;
+  text-align: right;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #667fff;
+}
+/* Dark Mode for quote card */
+[data-theme="dark"] .home-quote-card {
+  background: linear-gradient(
+    135deg,
+    rgba(102, 127, 255, 0.15),
+    rgba(102, 127, 255, 0.05)
+  );
+  border-color: rgba(102, 127, 255, 0.25);
+}
+[data-theme="dark"] .quote-text {
+  color: #f8fafc;
+}
+@media (max-width: 768px) {
+  .home-quote-card {
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+    border-radius: 16px;
+  }
+  .quote-text {
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+  .quote-author {
+    font-size: 0.9rem;
+  }
+}
+.new-hero-quote {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 480px;
+  margin-bottom: 40px;
+  padding: 20px 28px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+}
+.new-hero-quote-icon {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+.new-hero-quote blockquote {
+  margin: 0;
+  font-size: 14px;
+  font-style: italic;
+  line-height: 1.65;
+  color: var(--muted);
+}
+.new-hero-quote cite {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand);
+  font-style: normal;
+}
+</file>
+
+<file path="src/utils/helpers.js">
+export function initials(name = "") {
+  return name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+}
+export function label(value = "") {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+export function dateText(value) {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
+}
+export function validateBookForm(form) {
+  const errors = {};
+  if (!form.title?.trim()) errors.title = "Title is required.";
+  if (!form.author?.trim()) errors.author = "Author is required.";
+  if (!form.genreId) errors.genreId = "Genre is required.";
+  const loanDays = Number(form.defaultLoanDays);
+  if (!Number.isInteger(loanDays) || loanDays < 3 || loanDays > 60) {
+    errors.defaultLoanDays = "Default loan days must be an integer between 3 and 60.";
+  }
+  return errors;
+}
+export function validateRequestForm(form) {
+  const errors = {};
+  const loanDays = Number(form.requestedLoanDays);
+  if (!Number.isInteger(loanDays) || loanDays < 3 || loanDays > 60) {
+    errors.requestedLoanDays = "Borrow days must be an integer between 3 and 60.";
+  }
+  return errors;
+}
+export function toBookForm(book) {
+  return { ...book, genreId: book.genre?.id };
+}
+</file>
+
+<file path="index.html">
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Book Nook</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+</file>
+
+<file path="package.json">
+{
+  "name": "booknook-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "dotenv": "^17.4.2",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^5.4.11"
+  }
+}
+</file>
+
+</files>

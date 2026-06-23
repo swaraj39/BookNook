@@ -8,7 +8,7 @@ export const Home = ({ stats, setView, setBookModal }) => {
         <div className="hero-content">
           <div className="hero-badge">
             <span>✦</span>
-            <span>A reading community</span>
+            <span>A Reading Community</span>
           </div>
 
           <h1 className="hero-title">

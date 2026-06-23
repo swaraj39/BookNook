@@ -44,25 +44,40 @@ const blankBook = {
 function HomePage({ stats, dailyThought, setView, setFilters, setBookModal }) {
   return (
     <section className="home-page">
-      <div className="home-hero panel">
-        <div>
-          <div className="page-kicker">Community library tracker</div>
-          <h2>Find your next read from the BA shelf.</h2>
-          <p>Browse available books, share your own shelf, request a copy, and track every return in one simple place.</p>
-          <div className="home-actions">
-            <button className="btn primary" onClick={() => setView("catalog")}>Browse books</button>
-            <button className="btn" onClick={() => setBookModal({ ...blankBook })}>Add book</button>
-          </div>
+      <div className="new-hero">
+        <div className="new-hero-badge">
+          <span>✦</span>
+          <span>A Reading Community</span>
+        </div>
+        <h1 className="new-hero-title">
+          Borrow a book. <span>Pass it on.</span>
+        </h1>
+        <p className="new-hero-desc">
+          Book Nook is a shared shelf for our team. List a book you'd lend,
+          borrow one you've been meaning to read, and swap stories along the way.
+        </p>
+        <div className="new-hero-actions">
+          <button className="new-btn-primary" onClick={() => setView("catalog")}>Browse the shelf</button>
+          <button className="new-btn-outline" onClick={() => setBookModal({ ...blankBook })}>Lend a book</button>
         </div>
         {dailyThought && (
-          <div className="quote-card hero-quote">
-            <div className="quote-label">📖 Daily Thought</div>
-            <blockquote className="quote-text">“{dailyThought.quote}”</blockquote>
-            <div className="quote-author">— {dailyThought.author}</div>
+          <div className="new-hero-quote">
+            <span className="new-hero-quote-icon">📖</span>
+            <blockquote>"{dailyThought.quote || dailyThought.text || dailyThought.content || dailyThought.q}"</blockquote>
+            — {dailyThought.author || dailyThought.by || dailyThought.a}
           </div>
         )}
+        <div className="new-hero-stats">
+          <div className="new-stat-card">
+            <label>Books on the shelf</label>
+            <strong>{stats?.totalBooks || 0}</strong>
+          </div>
+          <div className="new-stat-card">
+            <label>Available to borrow</label>
+            <strong>{stats?.availableBooks || 0}</strong>
+          </div>
+        </div>
       </div>
-      {stats && <Stats stats={stats} setView={setView} setFilters={setFilters} />}
       <section className="how-it-works panel">
         <div className="panel-head"><h3>How it works</h3></div>
         <div className="steps-grid">
@@ -105,10 +120,11 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-    fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+    fetch("https://localhost:8080/api/quote/today")
       .then((response) => response.ok ? response.json() : null)
       .then((quote) => {
         if (quote) setDailyThought(quote);
+        console.log(quote);
       })
       .catch(() => { });
   }, []);
@@ -203,7 +219,7 @@ export default function App() {
   }
 
   function askConfirm(message, onConfirm) {
-  setConfirm({ message, onConfirm });
+    setConfirm({ message, onConfirm });
   }
   function resolveConfirm(confirmed) {
     if (confirmed && confirm?.onConfirm) confirm.onConfirm();
@@ -362,18 +378,21 @@ export default function App() {
           ))}
         </nav>
         <div className="top-nav-actions">
+          <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
+            {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
           {me && (
             <div
               ref={profileDropdownRef}
               className="profile-dropdown-container"
               style={{ position: "relative" }}
-            >              <button className="user-profile-trigger" onClick={() => setShowProfileDropdown(!showProfileDropdown)}>
+            >
+              <button className="user-profile-trigger" onClick={() => setShowProfileDropdown(!showProfileDropdown)}>
                 <div className="user-avatar-small">
                   {me.avatarInitials || initials(me.fullName)}
                 </div>
                 <ChevronDown size={14} color="var(--muted)" />
               </button>
-
               {showProfileDropdown && (
                 <div className="profile-dropdown-card">
                   <Profile user={me} onLogout={handleLogout} />
@@ -384,23 +403,25 @@ export default function App() {
         </div>
       </aside>
       <main className="main">
-        <section className="topbar">
-          <div className="page-title">
-            <div className="page-kicker">Community library tracker</div>
-            <h2>BA Reading Community Tracker</h2>
-            <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
-          </div>
-          <div className="actions">
-            <button className="btn primary" onClick={() => setBookModal({ ...blankBook })}><Plus size={17} /> Add book</button>
-
-            {/* <button className="btn" onClick={refresh}><RotateCcw size={17} /> Refresh</button> */}
+        {view !== "home" && (
+          <section className="topbar">
+            <div className="page-title">
+              <div className="page-kicker">Community library tracker</div>
+              <h2>BA Reading Community Tracker</h2>
+              <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
+            </div>
+            <div className="actions">
+              <button className="btn primary" onClick={() => setBookModal({ ...blankBook })}><Plus size={17} /> Add book</button>
+            </div>
+          </section>
+        )}
+        {/* {view === "home" && (
+          <div style={{ position: "fixed", top: "16px", right: "24px", zIndex: 200 }}>
             <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-
-
           </div>
-        </section>
+        )} */}
         {view === "home" && (
           <HomePage
             stats={stats}
@@ -446,11 +467,11 @@ export default function App() {
       </main>
       {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
       {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
-        <ConfirmDialog
+      <ConfirmDialog
         message={confirm?.message}
         onConfirm={() => resolveConfirm(true)}
         onCancel={() => resolveConfirm(false)}
-      /> 
+      />
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );
