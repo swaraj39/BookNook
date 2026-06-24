@@ -2,100 +2,129 @@ import prisma from "../config/prisma";
 
 export class BookService {
   static async catalog(params: any, userId?: string) {
-    const { search = "", genreId, availability = "all", sort = "title", page = 0, size = 20 } = params;
+    const {
+      search = "",
+      genreId,
+      availability = "all",
+      sort = "title",
+      page = 0,
+      size = 20,
+    } = params;
+
+    const currentPage = Number(page) || 0;
+    const pageSize = Number(size) || 20;
+
     const where: any = {
       visibilityStatus: "visible",
     };
+
     if (userId) {
       where.ownerId = { not: userId };
     }
+
     if (genreId) {
       where.genreId = genreId;
     }
 
     if (availability === "borrowed_by_me") {
-  where.transactions = { some: { requesterId: userId, status: { in: ["active", "overdue"] } } };
-} else if (availability === "request_pending") {
-  where.availabilityStatus = "request_pending";
-  where.transactions = { some: { requesterId: userId, status: "pending" } };
-} else if (availability === "unavailable") {
-  where.availabilityStatus = { in: ["borrowed", "request_pending"] };
-  if (userId) {
-    where.NOT = [
-      { transactions: { some: { requesterId: userId, status: { in: ["active", "overdue"] } } } },
-      { transactions: { some: { requesterId: userId, status: "pending" } } },
-    ];
-  }
-} else if (availability && availability !== "all") {
+      where.transactions = {
+        some: {
+          requesterId: userId,
+          status: { in: ["active", "overdue"] },
+        },
+      };
+    } else if (availability === "request_pending") {
+      where.availabilityStatus = "request_pending";
+      where.transactions = {
+        some: {
+          requesterId: userId,
+          status: "pending",
+        },
+      };
+    } else if (availability === "unavailable") {
+      where.availabilityStatus = { in: ["borrowed", "request_pending"] };
+
+      if (userId) {
+        where.NOT = [
+          {
+            transactions: {
+              some: {
+                requesterId: userId,
+                status: { in: ["active", "overdue"] },
+              },
+            },
+          },
+          {
+            transactions: {
+              some: {
+                requesterId: userId,
+                status: "pending",
+              },
+            },
+          },
+        ];
+      }
+    } else if (availability && availability !== "all") {
       where.availabilityStatus = availability;
     }
 
     if (search) {
       where.OR = [
-        { title: { contains: search} },
+        { title: { contains: search } },
         { author: { contains: search } },
         { description: { contains: search } },
         { owner: { fullName: { contains: search } } },
       ];
     }
 
-    let secondaryOrder: any = { title: "asc" };
-    if (sort === "newest") secondaryOrder = { createdAt: "desc" };
+    let orderBy: any = { title: "asc" };
 
-    const statusOrder = ["available", "request_pending", "borrowed"];
+    if (sort === "newest") {
+      orderBy = { createdAt: "desc" };
+    }
 
-    const [totalElements, allContent] = await Promise.all([
+    const [totalElements, books] = await Promise.all([
       prisma.book.count({ where }),
       prisma.book.findMany({
         where,
-        include: { owner: true, genre: true },
-        orderBy: secondaryOrder,
-        skip: page * size,
-        take: size,
+        include: {
+          owner: true,
+          genre: true,
+        },
+        orderBy,
+        skip: currentPage * pageSize,
+        take: pageSize,
       }),
     ]);
 
-    const content = allContent.sort((a, b) => {
-      const ai = statusOrder.indexOf(a.availabilityStatus) === -1 ? 99 : statusOrder.indexOf(a.availabilityStatus);
-      const bi = statusOrder.indexOf(b.availabilityStatus) === -1 ? 99 : statusOrder.indexOf(b.availabilityStatus);
+    const statusOrder = ["available", "request_pending", "borrowed"];
+
+    const content = books.sort((a, b) => {
+      const ai = statusOrder.includes(a.availabilityStatus)
+        ? statusOrder.indexOf(a.availabilityStatus)
+        : 99;
+
+      const bi = statusOrder.includes(b.availabilityStatus)
+        ? statusOrder.indexOf(b.availabilityStatus)
+        : 99;
+
       return ai - bi;
     });
 
-    const totalPages = Math.ceil(totalElements / size);
     return {
       content: content.map(this.mapBook),
       totalElements,
-      totalPages,
-      pageNumber: page,
-      pageSize: size,
+      totalPages: Math.ceil(totalElements / pageSize),
+      page: currentPage,
+      pageNumber: currentPage,
+      pageSize,
     };
-
-    // const [totalElements, content] = await Promise.all([
-    //   prisma.book.count({ where }),
-    //   prisma.book.findMany({
-    //     where,
-    //     include: {
-    //       owner: true,
-    //       genre: true,
-    //     },
-    //     orderBy,
-    //     skip: page * size,
-    //     take: size,
-    //   }),
-    // ]);
-
-    // const totalPages = Math.ceil(totalElements / size);
-
-    // return {
-    //   content: content.map(this.mapBook),
-    //   totalElements,
-    //   totalPages,
-    //   pageNumber: page,
-    //   pageSize: size,
-    // };
   }
 
   static async myBooks(userId: string, page = 0, size = 20) {
+    const currentPage = Number(page) || 0;
+    const pageSize = Number(size) || 20;
+
     const where = {
       ownerId: userId,
       visibilityStatus: "visible",
@@ -110,18 +139,19 @@ export class BookService {
           genre: true,
         },
         orderBy: { createdAt: "desc" },
-        skip: page * size,
-        take: size,
+        skip: currentPage * pageSize,
+        take: pageSize,
       }),
     ]);
 
     return {
-  content: content.map(this.mapBook),
-  totalElements,
-  totalPages: Math.ceil(totalElements / size),
-  page,              // was: pageNumber: page,
-  pageSize: size,
-};
+      content: content.map(this.mapBook),
+      totalElements,
+      totalPages: Math.ceil(totalElements / pageSize),
+      page: currentPage,
+      pageNumber: currentPage,
+      pageSize,
+    };
   }
 
   static async get(id: string) {
@@ -134,12 +164,13 @@ export class BookService {
     });
 
     if (!book) throw new Error("Book not found");
+
     return this.mapBook(book);
   }
 
   static async create(userId: string, payload: any) {
     const coverColor = this.pickCoverColor(payload.title);
-    
+
     const book = await prisma.book.create({
       data: {
         title: payload.title,
@@ -160,7 +191,6 @@ export class BookService {
       },
     });
 
-    // Add history
     await prisma.bookHistory.create({
       data: {
         bookId: book.id,
@@ -175,8 +205,12 @@ export class BookService {
   }
 
   static async update(userId: string, id: string, payload: any, isAdmin: boolean) {
-    const book = await prisma.book.findUnique({ where: { id } });
+    const book = await prisma.book.findUnique({
+      where: { id },
+    });
+
     if (!book) throw new Error("Book not found");
+
     if (book.ownerId !== userId && !isAdmin) {
       throw new Error("Unauthorized");
     }
@@ -212,27 +246,36 @@ export class BookService {
   }
 
   static async delete(userId: string, id: string, isAdmin: boolean) {
-    const book = await prisma.book.findUnique({ where: { id } });
+    const book = await prisma.book.findUnique({
+      where: { id },
+    });
+
     if (!book) throw new Error("Book not found");
+
     if (book.ownerId !== userId && !isAdmin) {
       throw new Error("Unauthorized");
     }
 
-    // Check pending requests
     const pendingRequests = await prisma.bookTransaction.count({
-      where: { bookId: id, status: "pending" },
+      where: {
+        bookId: id,
+        status: "pending",
+      },
     });
+
     if (pendingRequests > 0) {
       throw new Error("Close pending requests before deleting this book.");
     }
 
-    // Check active loans
     const activeLoans = await prisma.bookTransaction.count({
       where: {
         bookId: id,
-        status: { in: ["active", "overdue", "return_pending"] },
+        status: {
+          in: ["active", "overdue", "return_pending"],
+        },
       },
     });
+
     if (activeLoans > 0) {
       throw new Error("This book cannot be deleted while borrowed.");
     }
@@ -243,7 +286,9 @@ export class BookService {
         visibilityStatus: "deleted",
         availabilityStatus: "unavailable",
       },
-      include: { owner: true }
+      include: {
+        owner: true,
+      },
     });
 
     await prisma.bookHistory.create({
@@ -279,19 +324,32 @@ export class BookService {
         avatarUrl: book.owner.avatarUrl,
         avatarInitials: book.owner.avatarInitials,
       },
-      genre: book.genre ? {
-        id: book.genre.id,
-        name: book.genre.name,
-      } : null,
+      genre: book.genre
+        ? {
+            id: book.genre.id,
+            name: book.genre.name,
+          }
+        : null,
     };
   }
 
   private static pickCoverColor(title: string) {
-    const colors = ["#16756f", "#17313b", "#7c2d12", "#1d4ed8", "#6d28d9", "#9d174d", "#166534"];
+    const colors = [
+      "#16756f",
+      "#17313b",
+      "#7c2d12",
+      "#1d4ed8",
+      "#6d28d9",
+      "#9d174d",
+      "#166534",
+    ];
+
     let hash = 0;
+
     for (let i = 0; i < title.length; i++) {
       hash = title.charCodeAt(i) + ((hash << 5) - hash);
     }
+
     return colors[Math.abs(hash) % colors.length];
   }
 }

@@ -106,11 +106,11 @@ export function Catalog({
 
     {!loading && page.content.length > 0 && page.totalPages > 1 && (
       <Pagination
-        page={page.page}
-        totalPages={page.totalPages}
-        totalElements={page.totalElements}
-        onPageChange={(p) => setFilters({ ...filters, page: p })}
-      />
+  page={page.page ?? page.pageNumber ?? 0}
+  totalPages={page.totalPages}
+  totalElements={page.totalElements}
+  onPageChange={(p) => setFilters((prev) => ({ ...prev, page: p }))}
+/>
     )}
   </section>
 );
