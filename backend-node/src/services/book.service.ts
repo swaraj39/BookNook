@@ -13,7 +13,20 @@ export class BookService {
       where.genreId = genreId;
     }
 
-    if (availability !== "all") {
+    if (availability === "borrowed_by_me") {
+      where.loans = { some: { borrowerId: userId, status: { in: ["active", "overdue"] } } };
+    } else if (availability === "request_pending") {
+      where.availabilityStatus = "request_pending";
+      where.borrowRequests = { some: { requesterId: userId, status: "pending" } };
+    } else if (availability === "unavailable") {
+      where.availabilityStatus = { in: ["borrowed", "request_pending"] };
+      if (userId) {
+        where.NOT = [
+          { loans: { some: { borrowerId: userId, status: { in: ["active", "overdue"] } } } },
+          { borrowRequests: { some: { requesterId: userId, status: "pending" } } },
+        ];
+      }
+    } else if (availability && availability !== "all") {
       where.availabilityStatus = availability;
     }
 

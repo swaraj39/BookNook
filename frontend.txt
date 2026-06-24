@@ -75,9 +75,12 @@ async function request(path, options = {}) {
     headers
   });
   if (response.status === 401) {
-    localStorage.removeItem("bn_token");
-    window.location.reload();
-    throw new Error("Session expired. Please login again.");
+    const isAuthEndpoint = path.includes("/auth/");
+    if (!isAuthEndpoint) {
+      localStorage.removeItem("bn_token");
+      window.location.reload();
+      throw new Error("Session expired. Please login again.");
+    }
   }
   const text = await response.text();
   if (!response.ok) {
@@ -121,7 +124,28 @@ export const api = {
   reject: (id) => request(`/borrow-requests/${id}/reject`, { method: "POST" }),
   borrowed: (page = 0, size = 20) => request(`/loans/borrowed?page=${page}&size=${size}`),
   loanHistory: (page = 0, size = 20) => request(`/loans/history?page=${page}&size=${size}`),
-  returnBook: (id) => request(`/loans/${id}/return`, { method: "POST" })
+  returnBook: (id) => request(`/loans/${id}/return`, { method: "POST" }),
+  exportBooks: async () => {
+    const token = localStorage.getItem("bn_token");
+    const response = await fetch(`${API_URL}/all/books`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error("Failed to export books");
+    }
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "books.csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  }
 };
 </file>
 
@@ -140,6 +164,8 @@ import {
   Sun,
   Undo2,
   Search,
+  BookOpenText,
+  Globe,
   User as UserIcon,
   ChevronDown
 } from "lucide-react";
@@ -174,7 +200,7 @@ function HomePage({ stats, dailyThought, setView, setFilters, setBookModal }) {
       <div className="new-hero">
         <div className="new-hero-badge">
           <span>✦</span>
-          <span>A reading community</span>
+          <span>A Reading Community</span>
         </div>
         <h1 className="new-hero-title">
           Borrow a book. <span>Pass it on.</span>
@@ -185,13 +211,13 @@ function HomePage({ stats, dailyThought, setView, setFilters, setBookModal }) {
         </p>
         <div className="new-hero-actions">
           <button className="new-btn-primary" onClick={() => setView("catalog")}>Browse the shelf</button>
-          <button className="new-btn-outline" onClick={() => setBookModal({ ...blankBook })}>Lend a book</button>
+          <button className="new-btn-outline" onClick={() => setBookModal({ ...blankBook })}>Add Book</button>
         </div>
         {dailyThought && (
           <div className="new-hero-quote">
             <span className="new-hero-quote-icon">📖</span>
-            <blockquote>"{dailyThought.quote}"</blockquote>
-            — {dailyThought.author}
+            <blockquote>"{dailyThought.quote || dailyThought.text || dailyThought.content || dailyThought.q}"</blockquote>
+            — {dailyThought.author || dailyThought.by || dailyThought.a}
           </div>
         )}
         <div className="new-hero-stats">
@@ -245,10 +271,11 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-    fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+    fetch("http://localhost:8080/api/quote/today")
       .then((response) => response.ok ? response.json() : null)
       .then((quote) => {
         if (quote) setDailyThought(quote);
+        console.log(quote);
       })
       .catch(() => { });
   }, []);
@@ -443,7 +470,7 @@ export default function App() {
       label: "Discovery",
       items: [
         ["home", "Home", HomeIcon],
-        ["catalog", "Browse", BookOpen]
+        ["catalog", "Browse", Globe]
       ]
     },
     {
@@ -451,7 +478,7 @@ export default function App() {
       items: [
         ["requests", "Requests", CheckSquare, stats?.pendingApprovals],
         ["myBooks", "My Shelf", LibraryBig],
-        ["borrowed", "Currently Reading", Undo2, stats?.activeBorrowed],
+        ["borrowed", "Currently Reading", BookOpenText, stats?.activeBorrowed],
         ["history", "History", History]
       ]
     }
@@ -516,25 +543,20 @@ export default function App() {
         </div>
       </aside>
       <main className="main">
-        {view !== "home" && (
+        {view !== "home" && view !== "catalog" && (
           <section className="topbar">
             <div className="page-title">
               <div className="page-kicker">Community library tracker</div>
               <h2>BA Reading Community Tracker</h2>
               <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
             </div>
-            <div className="actions">
+            <div>
               <button className="btn primary" onClick={() => setBookModal({ ...blankBook })}><Plus size={17} /> Add book</button>
             </div>
           </section>
         )}
-        {view === "home" && (
-          <div style={{ position: "fixed", top: "16px", right: "24px", zIndex: 200 }}>
-            <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
-              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
-          </div>
-        )}
+        {
+}
         {view === "home" && (
           <HomePage
             stats={stats}
@@ -599,7 +621,10 @@ export function BookCard({ book, me, openDetails, setRequestModal, setBookModal,
   const ownedByMe = book.owner.id === me.id;
   const borrowedByMe = book.activeLoanId && book.activeLoanBorrowerId === me.id;
   return (
-    <article className={`book-card ${isAdmin ? "admin-border" : ""}`}>
+    <article
+      className={`book-card book-card-clickable ${isAdmin ? "admin-border" : ""} ${book.availabilityStatus === "borrowed" ? "status-borrowed" : ""}`}
+      onClick={() => openDetails(book)}
+    >
       <div className="cover">
         <div className="cover-art" style={{ background: book.coverColor || "#16756f" }}>
           {book.coverUrl ? (
@@ -621,34 +646,33 @@ export function BookCard({ book, me, openDetails, setRequestModal, setBookModal,
         </div>
       </div>
       <div className="book-body">
-        <p className="book-desc">{book.description}</p>
+        {}
+        {}
         <div className="mini-meta">
-  <span>
-    <strong>Owner:</strong> {book.owner.fullName}
-  </span>
-  <span>
-    <strong>Genre:</strong> {book.genre?.name || "N/A"}
-  </span>
-  <span>
-    <strong>Condition:</strong>{" "}
-    {book.condition
-      ?.replace("_", " ")
-      .replace(/\b\w/g, c => c.toUpperCase())}
-  </span>
-  <span>
-    <strong>Reading Duration:</strong> {book.defaultLoanDays} days
-  </span>
-  {book.dueAt && (
-    <span>
-      <strong>Due Date:</strong> {dateText(book.dueAt)}
-    </span>
-  )}
-</div>
-        <div className="card-actions">
-          <button className="btn btn-outline" onClick={() => openDetails(book)}>Details</button>
-          {!ownedByMe && book.availabilityStatus === "available" && <button className="btn btn-primary" onClick={() => setRequestModal(book)}>Request</button>}
-          {(ownedByMe || isAdmin) && <button className="btn btn-outline" onClick={() => setBookModal(toBookForm(book))}>Edit</button>}
-          {borrowedByMe && <button className="btn warn" onClick={() => returnBook(book.activeLoanId)}>Return</button>}
+          <span>
+            <strong>Owner:</strong> {book.owner.fullName}
+          </span>
+          <span>
+            <strong>Genre:</strong> {book.genre?.name || "N/A"}
+          </span>
+          <span>
+            <strong>Condition:</strong>{" "}
+            {book.condition
+              ?.replace("_", " ")
+              .replace(/\b\w/g, c => c.toUpperCase())}
+          </span>
+          <span>
+            <strong>Reading Duration:</strong> {book.defaultLoanDays} days
+          </span>
+          {book.dueAt && (
+            <span>
+              <strong>Due Date:</strong> {dateText(book.dueAt)}
+            </span>
+          )}
+        </div>
+        <div className="card-actions" onClick={(e) => e.stopPropagation()}>
+          {!ownedByMe && book.availabilityStatus === "available" && <button className="btn primary" onClick={() => setRequestModal(book)}>Request</button>}
+          {borrowedByMe && <button className="btn warn" onClick={() => returnBook(book.activeLoanId, book.title)}>Return</button>}
         </div>
       </div>
     </article>
@@ -772,6 +796,8 @@ export function Modal({ title, onClose, onSubmit, children }) {
 import React from "react";
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 export function Pagination({ page, totalPages, totalElements, onPageChange }) {
+  const isFirst = page === 0;
+  const isLast = page >= totalPages - 1;
   const getPageNumbers = () => {
     const current = page + 1;
     const last = totalPages;
@@ -782,17 +808,12 @@ export function Pagination({ page, totalPages, totalElements, onPageChange }) {
     const rangeWithDots = [];
     let l;
     for (let i = 1; i <= last; i++) {
-      if (i === 1 || i === last || (i >= left && i < right)) {
-        range.push(i);
-      }
+      if (i === 1 || i === last || (i >= left && i < right)) range.push(i);
     }
     for (let i of range) {
       if (l) {
-        if (i - l === 2) {
-          rangeWithDots.push(l + 1);
-        } else if (i - l !== 1) {
-          rangeWithDots.push('...');
-        }
+        if (i - l === 2) rangeWithDots.push(l + 1);
+        else if (i - l !== 1) rangeWithDots.push("...");
       }
       rangeWithDots.push(i);
       l = i;
@@ -802,27 +823,27 @@ export function Pagination({ page, totalPages, totalElements, onPageChange }) {
   const pages = getPageNumbers();
   return (
     <div className="pagination">
-      <div className="pagination-info">
-         ({totalElements} total items)
-      </div>
+      <div className="pagination-info">({totalElements} total items)</div>
       <div className="pagination-controls">
         <button
           className="btn icon-only"
-          disabled={page === 0}
-          onClick={() => onPageChange(page - 1)}
+          disabled={isFirst}
           aria-label="Previous page"
+          onClick={() => onPageChange(page - 1)}
         >
           <ChevronLeft size={16} />
         </button>
         <div className="pagination-numbers">
           {pages.map((p, i) => {
-            if (p === '...') {
-              return <span key={`ellipsis-${i}`} className="pagination-ellipsis"><MoreHorizontal size={16} /></span>;
-            }
+            if (p === "...") return (
+              <span key={`e-${i}`} className="pagination-ellipsis">
+                <MoreHorizontal size={16} />
+              </span>
+            );
             return (
               <button
                 key={p}
-                className={`btn pagination-num ${page === p - 1 ? 'active' : ''}`}
+                className={`btn pagination-num ${page === p - 1 ? "active" : ""}`}
                 onClick={() => onPageChange(p - 1)}
               >
                 {p}
@@ -832,9 +853,9 @@ export function Pagination({ page, totalPages, totalElements, onPageChange }) {
         </div>
         <button
           className="btn icon-only"
-          disabled={page >= totalPages - 1}
-          onClick={() => onPageChange(page + 1)}
+          disabled={isLast}
           aria-label="Next page"
+          onClick={() => onPageChange(page + 1)}
         >
           <ChevronRight size={16} />
         </button>
@@ -1110,21 +1131,44 @@ export function Borrowed({ page, onPageChange, returnBook, openDetails }) {
 
 <file path="src/pages/Catalog.jsx">
 import React from "react";
-import { Search } from "lucide-react";
+import { api } from "../api";
+import { Search, Download, Plus } from "lucide-react";
 import { BookCard } from "../components/BookCard";
 import { Pagination } from "../components/common/Pagination";
 import { BookCardSkeleton } from "../components/common/Skeleton";
 import { EmptyState } from "../components/common/EmptyState";
+const handleExportBooks = async () => {
+  try {
+    await api.exportBooks();
+  } catch (error) {
+    alert(error.message);
+  }
+};
 export function Catalog({
   page, genres, filters, setFilters, searchTerm, setSearchTerm,
   loading, me, openDetails, setRequestModal, setBookModal, returnBook
 }) {
+  const capsules = [
+    { label: "All", value: "all" },
+    { label: "Available", value: "available" },
+    { label: "Request Pending", value: "request_pending" },
+    { label: "Borrowed by me", value: "borrowed_by_me" },
+    { label: "Unavailable", value: "unavailable" },
+  ];
+  function setCapsule(value) {
+    setFilters({ ...filters, availability: value, page: 0 });
+  }
   return (
-    <section>
-      <div className="section-heading">
-        <div>
-          <p className="page-kicker">Browse</p>
+    <section className="catalog-page">
+      <div className="catalog-header">
+        <div className="catalog-header-left">
           <h3>Books on the shelf</h3>
+        </div>
+        <div className="catalog-header-right">
+          <button className="btn" onClick={() => handleExportBooks()}>Export</button>
+          <button className="btn primary" onClick={() => setBookModal({ title: "", author: "", genreId: "", condition: "good", exchangeLocation: "", defaultLoanDays: 14, description: "" })}>
+            <Plus size={15} /> Add book
+          </button>
         </div>
       </div>
       <div className="toolbar">
@@ -1141,19 +1185,24 @@ export function Catalog({
           <option value="">All genres</option>
           {genres.map((genre) => <option key={genre.id} value={genre.id}>{genre.name}</option>)}
         </select>
-        <select className="select" value={filters.availability} onChange={(e) => setFilters({ ...filters, availability: e.target.value, page: 0 })}>
-          <option value="all">All availability</option>
-          <option value="available">Available</option>
-          <option value="borrowed">Borrowed</option>
-          <option value="request_pending">Pending request</option>
-        </select>
         <select className="select" value={filters.sort} onChange={(e) => setFilters({ ...filters, sort: e.target.value, page: 0 })}>
           <option value="title">Sort by title</option>
           <option value="newest">Newest first</option>
           <option value="due">Due date</option>
         </select>
       </div>
-      <div className="grid catalog">
+      <div className="catalog-capsules">
+        {capsules.map((c) => (
+          <button
+            key={c.value}
+            className={`catalog-capsule ${filters.availability === c.value ? "active" : ""}`}
+            onClick={() => setCapsule(c.value)}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+      <div className="catalog">
         {loading ? (
           Array.from({ length: 6 }).map((_, i) => <BookCardSkeleton key={i} />)
         ) : page.content.length === 0 ? (
@@ -1266,7 +1315,7 @@ export const Home = ({ stats, setView, setBookModal }) => {
         <div className="hero-content">
           <div className="hero-badge">
             <span>✦</span>
-            <span>A reading community</span>
+            <span>A Reading Community</span>
           </div>
           <h1 className="hero-title">
             Borrow a book. <span>Pass it on.</span>
@@ -1421,13 +1470,14 @@ export function Login({ onLogin }) {
               <label className="field full">
                 <span>Full Name</span>
                 <input
-                  type="text"
-                  className="input"
-                  value={form.fullName}
-                  onChange={(e) => updateForm("fullName", e.target.value)}
-                  required
-                  placeholder="Gaurav Choudhary"
-                />
+              type="text"
+              className="input"
+              value={form.fullName}
+              onChange={(e) => updateForm("fullName", e.target.value)}
+              required
+              placeholder="Enter your name"
+              maxLength={60}
+            />
               </label>
               <label className="field full">
                 <span>Capability</span>
@@ -1456,6 +1506,7 @@ export function Login({ onLogin }) {
               onChange={(e) => updateForm("email", e.target.value)}
               required
               placeholder="Email"
+              maxLength={100}
             />
           </label>
           <label className="field full">
@@ -1467,6 +1518,7 @@ export function Login({ onLogin }) {
               onChange={(e) => updateForm("password", e.target.value)}
               required
               placeholder="Password"
+              maxLength={72}
             />
           </label>
           {error && <div className="error-box">{error}</div>}
@@ -1521,7 +1573,7 @@ export function MyBooks({ page, onPageChange, setBookModal, deleteBook, openDeta
             <td><span className={`chip ${book.availabilityStatus}`}>{label(book.availabilityStatus)}</span></td>
             <td><div className="row-actions">
               <button className="btn" onClick={() => setBookModal(toBookForm(book))}>Edit</button>
-              <button className="btn" onClick={() => openDetails(book)}>Details</button>
+              <button className="btn" onClick={() => openDetails(book)}>View</button>
               <button className="btn danger" onClick={() => deleteBook(book.id)}>Delete</button>
             </div></td>
           </tr>
@@ -1561,10 +1613,16 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails 
             <td><strong>{row.book.title}</strong><br /><span>{row.book.author}</span></td>
             <td>{row.requester.fullName}</td>
             <td>{row.owner.fullName}</td>
-            <td><span className={`chip ${row.status}`}>{label(row.status)}</span></td>
+            <td>
+              <span className={`chip ${row.status}`}>
+                {row.status === "converted_to_loan"
+                  ? "Reading"
+                  : label(row.status)}
+              </span>
+            </td>
             <td>{dateText(row.requestedAt)}</td>
             <td><div className="row-actions">
-              {(row.owner.id === me.id || isAdmin) && row.status === "pending" && <><button className="btn primary" onClick={() => approve(row.id)}>Approve</button><button className="btn danger" onClick={() => reject(row.id)}>Reject</button></>}
+              {(row.owner.id === me.id || isAdmin) && row.status === "pending" && <><button className="btn approve" onClick={() => approve(row.id)}>Approve</button><button className="btn danger" onClick={() => reject(row.id)}>Reject</button></>}
               <button className="btn" onClick={() => openDetails(row.book)}>Book</button>
             </div></td>
           </tr>
@@ -2029,7 +2087,18 @@ button { cursor: pointer; }
   box-shadow: 0 2px 0 rgba(15, 23, 42, 0.03);
   transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, background 150ms ease;
 }
-.btn:hover { border-color: var(--brand); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.btn:hover:not([disabled]) { border-color: var(--brand); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.btn[disabled],
+.btn:disabled {
+  opacity: 0.38 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  transform: none !important;
+  box-shadow: none !important;
+  border-color: var(--line) !important;
+  background: var(--card-bg) !important;
+  color: var(--muted) !important;
+}
 .btn.primary {
   color: white;
   border-color: var(--brand);
@@ -2145,12 +2214,26 @@ button { cursor: pointer; }
   border-color: var(--focus);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
-.catalog { grid-template-columns: repeat(3, minmax(280px, 1fr)); }
+.catalog {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  max-width: 1240px;
+  margin: 0 auto;
+}
+@media (max-width: 1100px) {
+  .catalog { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 768px) {
+  .catalog { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .catalog { grid-template-columns: 1fr; }
+}
 .full { grid-column: 1 / -1; }
 .book-card {
   display: flex;
   flex-direction: column;
-  min-height: 382px;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -2163,14 +2246,19 @@ button { cursor: pointer; }
   transform: translateY(-6px) scale(1.02);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
 }
+.book-card-clickable {
+  cursor: pointer;
+}
 .cover {
   display: grid;
   grid-template-columns: 86px 1fr;
   gap: 16px;
-  min-height: 154px;
+  height: 154px;
   padding: 18px 18px 17px;
   background: var(--bg);
   border-bottom: 1px solid var(--line);
+  align-items: start;
+  overflow: hidden;
 }
 .cover-art {
   position: relative;
@@ -2211,7 +2299,10 @@ button { cursor: pointer; }
   font-weight: 800;
 }
 .chip.available { color: #065f46; background: #dff6ec; }
-.chip.borrowed, .chip.request_pending, .chip.pending, .chip.converted_to_loan { color: #92400e; background: #fff3d8; }
+.chip.borrowed { color: #991b1b; background: #fee2e2; }
+.chip.request_pending { color: #92400e; background: #fff3d8; }
+.chip.pending { color: #1e40af; background: #dbeafe; }
+.chip.converted_to_loan { color: #045741; background: #a0face; }
 .chip.overdue, .chip.rejected, .chip.expired { color: #991b1b; background: #fee2e2; }
 .chip.returned { color: #315b58; background: #e2f6f2; }
 .book-body {
@@ -2610,18 +2701,39 @@ tr:last-child td { border-bottom: 0; }
   min-width: 300px;
   max-width: 450px;
   background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--brand);
   border-radius: 10px;
   padding: 16px;
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  border-left: 4px solid var(--brand);
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  animation: toast-slide-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  animation: toast-slide-in 0.3s ease forwards;
   transition: all 0.2s ease;
+}
+.toast-content {
+  flex-grow: 1;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  font-weight: 400;
+}
+.toast-close {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 4px;
+  border-radius: 4px;
+}
+.toast-close:hover {
+  background: var(--brand-soft);
+  color: var(--ink);
 }
 .toast-progress {
   position: absolute;
@@ -2634,57 +2746,52 @@ tr:last-child td { border-bottom: 0; }
   transform-origin: left;
   animation: toast-countdown 4s linear forwards;
 }
+.toast-item:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+.toast-item.success {
+  border-left-color: #22c55e;
+}
+.toast-item.error {
+  border-left-color: #ef4444;
+}
+.toast-item.info {
+  border-left-color: #3b82f6;
+}
+.toast-item.success .toast-icon {
+  color: #22c55e;
+}
+.toast-item.error .toast-icon {
+  color: #ef4444;
+}
+.toast-item.info .toast-icon {
+  color: #3b82f6;
+}
+.toast-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+[data-theme="dark"] .toast-item {
+  background: #1e293b;
+  color: #f8fafc;
+  border-color: #334155;
+}
+[data-theme="dark"] .toast-content {
+  color: #f8fafc;
+}
+[data-theme="dark"] .toast-close {
+  color: #cbd5e1;
+}
+[data-theme="dark"] .toast-close:hover {
+  background: #334155;
+  color: #ffffff;
+}
 @keyframes toast-countdown {
   from { transform: scaleX(1); }
   to { transform: scaleX(0); }
 }
 @keyframes toast-slide-in {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-@keyframes toast-in {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-.toast-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-}
-.toast-item.success { border-left-color: #166534; }
-.toast-item.error { border-left-color: #991b1b; }
-.toast-item.info { border-left-color: #1e40af; }
-.toast-icon {
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-.toast-item.success .toast-icon { color: #166534; }
-.toast-item.error .toast-icon { color: #991b1b; }
-.toast-item.info .toast-icon { color: #1e40af; }
-.toast-content {
-  flex-grow: 1;
-  font-size: 14px;
-  line-height: 1.5;
-  color: #1f2937;
-  font-weight: 500;
-}
-.toast-close {
-  flex-shrink: 0;
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  padding: 4px;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-.toast-close:hover {
-  background: #f3f4f6;
-  color: #4b5563;
-}
-@keyframes toast-in {
   from {
     transform: translateX(100%);
     opacity: 0;
@@ -2694,7 +2801,6 @@ tr:last-child td { border-bottom: 0; }
     opacity: 1;
   }
 }
-/* Login Page */
 .login-page {
   min-height: 100vh;
   display: flex;
@@ -2778,7 +2884,6 @@ tr:last-child td { border-bottom: 0; }
 .login-footer strong {
   color: var(--ink);
 }
-/* Mobile Responsiveness & UI Polish with Flexbox */
 :root {
   --bg: #FDFBF7;
   --panel: #ffffff;
@@ -2847,7 +2952,6 @@ tr:last-child td { border-bottom: 0; }
   backdrop-filter: blur(12px);
   z-index: 100;
   flex-wrap: nowrap;
-  overflow: hidden;
 }
 .brand {
   padding: 0;
@@ -2866,7 +2970,7 @@ tr:last-child td { border-bottom: 0; }
   gap: 4px;
   min-width: 0;
   flex: 1;
-  overflow: hidden;
+  overflow: visible;
 }
 .nav-section {
   display: flex;
@@ -2901,7 +3005,6 @@ tr:last-child td { border-bottom: 0; }
   flex-shrink: 0;
   margin-left: 16px;
 }
-/* Profile Dropdown Custom Styling */
 .profile-dropdown-container {
   position: relative;
 }
@@ -2950,7 +3053,6 @@ tr:last-child td { border-bottom: 0; }
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-/* Styled Sign Out Button Inside Profile */
 .profile-box .logout-btn {
   margin-top: 16px;
   width: 100%;
@@ -2978,11 +3080,8 @@ tr:last-child td { border-bottom: 0; }
   margin: 0 auto;
   padding: clamp(18px, 3vw, 44px) clamp(16px, 4vw, 64px) 56px;
 }
-.topbar, .grid, .toolbar { max-width: none; }
+.topbar, .grid, .toolbar, .catalog-header { max-width: 1240px; margin-left: auto; margin-right: auto; }
 .home-page { display: flex; flex-direction: column; gap: 24px; }
-/* =========================
-   NEW HERO (Home page)
-   ========================= */
 .new-hero {
   display: flex;
   flex-direction: column;
@@ -3108,7 +3207,6 @@ tr:last-child td { border-bottom: 0; }
   color: var(--brand);
   line-height: 1;
 }
-/* also strip the padding from .main on the home view */
 .home-page {
   margin: calc(-1 * clamp(18px, 3vw, 44px)) calc(-1 * clamp(16px, 4vw, 64px));
 }
@@ -3150,7 +3248,7 @@ tr:last-child td { border-bottom: 0; }
   align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
-  max-width: none;
+  max-width: 1240px;
   margin: 0 auto 12px;
 }
 .section-heading h3 { margin: 0; font-size: clamp(24px, 3vw, 36px); }
@@ -3215,13 +3313,11 @@ tr:last-child td { border-bottom: 0; }
   line-height: 1.7;
   color: var(--muted);
 }
-/* Tablet */
 @media (max-width: 992px) {
   .steps-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
-/* Mobile */
 @media (max-width: 768px) {
   .how-it-works {
     padding: 20px;
@@ -3240,50 +3336,16 @@ tr:last-child td { border-bottom: 0; }
     font-size: 14px;
   }
 }
-/* Catalog Page Flex Grid */
-.catalog {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 20px;
-  justify-content: flex-start;
-}
-.book-card {
-  flex: 1 1 280px;
-  max-width: calc(33.333% - 14px);
-}
-@media (max-width: 1100px) {
-  .book-card {
-    max-width: calc(50% - 10px);
-  }
-}
-@media (max-width: 768px) {
-  .book-card {
-    max-width: 100%;
-  }
-}
-.cover {
-  display: flex;
-  flex-direction: row;
-  gap: 16px;
-  min-height: 154px;
-  padding: 18px 18px 17px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--line);
-}
-.cover-art {
-  flex: 0 0 86px;
-}
 @media (min-width: 1500px) {
   .book-card { border-radius: 16px; }
 }
-/* Toolbar Responsive Flex layout */
 .toolbar {
   display: flex;
   flex-direction: row;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 12px;
-  max-width: none;
+  max-width: 1240px;
+  width: 100%;
   margin: 18px auto 20px;
   padding: 12px;
   border: 1px solid var(--line);
@@ -3291,13 +3353,36 @@ tr:last-child td { border-bottom: 0; }
   background: var(--card-bg);
   box-shadow: var(--shadow-sm);
 }
+.catalog-page {
+  display: flex;
+  flex-direction: column;
+}
+.catalog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1240px;
+  width: 100%;
+  margin: 0 auto 12px;
+}
+.catalog-header-left h3 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 36px);
+  font-weight: 700;
+}
+.catalog-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .search-wrap {
   flex: 1 1 280px;
 }
 .toolbar .select {
   flex: 1 1 150px;
 }
-/* Stats responsive flex layout */
 .stats {
   display: grid;
   grid-template-columns: repeat(2, minmax(180px, 1fr));
@@ -3314,7 +3399,6 @@ tr:last-child td { border-bottom: 0; }
   text-align: center;
   box-shadow: var(--shadow-sm);
 }
-/* Details Page flex layout */
 .detail-layout {
   display: flex;
   flex-direction: row;
@@ -3343,7 +3427,6 @@ tr:last-child td { border-bottom: 0; }
     flex: 1 1 100%;
   }
 }
-/* Login/Register responsive flex layouts */
 .form-grid {
   display: flex;
   flex-direction: column;
@@ -3352,7 +3435,6 @@ tr:last-child td { border-bottom: 0; }
   overflow-y: auto;
   flex: 1;
 }
-/* Media Queries for Layout Responsiveness */
 @media (max-width: 980px) {
   .home-hero, .steps-grid, .stats, .toolbar { flex-direction: column; align-items: stretch; }
   .home-hero > div:first-child { flex: 1 1 auto; }
@@ -3391,7 +3473,6 @@ tr:last-child td { border-bottom: 0; }
   .pagination { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
   .pagination-controls { justify-content: center; flex-wrap: wrap; }
 }
-/* Daily Thought Card */
 .home-quote-card {
   max-width: 1200px;
   margin: 0 auto 2rem;
@@ -3437,7 +3518,6 @@ tr:last-child td { border-bottom: 0; }
   font-weight: 600;
   color: #667fff;
 }
-/* Dark Mode for quote card */
 [data-theme="dark"] .home-quote-card {
   background: linear-gradient(
     135deg,
@@ -3493,6 +3573,117 @@ tr:last-child td { border-bottom: 0; }
   font-weight: 700;
   color: var(--brand);
   font-style: normal;
+}
+.catalog-borrowed-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  white-space: nowrap;
+  border-color: var(--line);
+  color: var(--muted);
+  transition: all 0.2s ease;
+}
+.catalog-borrowed-toggle.active {
+  border-color: var(--brand);
+  color: var(--brand-dark);
+  background: var(--brand-soft);
+}
+.catalog-toggle-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+}
+.catalog-toggle-dot.on  { background: var(--brand); }
+.catalog-toggle-dot.off { background: var(--muted); }
+.btn.approve, .btn.success {
+  color: white !important;
+  background: #16a34a !important;
+  border-color: #16a34a !important;
+}
+.btn.approve:hover, .btn.success:hover {
+  background: #15803d !important;
+  border-color: #15803d !important;
+}
+.book-card.status-borrowed {
+  opacity: 0.55;
+  filter: grayscale(0.4);
+}
+.book-card.status-borrowed:hover {
+  opacity: 0.55;
+  filter: grayscale(0.4);
+}
+.catalog-page {
+  display: flex;
+  flex-direction: column;
+}
+.catalog-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1240px;
+  width: 100%;
+  margin: 0 auto 12px;
+}
+.catalog-header-left p {
+  margin: 0 0 6px;
+}
+.catalog-header-left h3 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 36px);
+  font-weight: 700;
+}
+.catalog-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.catalog-capsules {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  max-width: 1240px;
+  margin: 0 auto 16px;
+}
+.catalog-capsules::-webkit-scrollbar {
+  display: none;
+}
+.catalog-capsules {
+  scrollbar-width: none;
+}
+.catalog-capsule {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 16px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.catalog-capsule:hover {
+  border-color: var(--brand);
+  color: var(--brand-dark);
+}
+.catalog-capsule.active {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+}
+.btn[disabled],
+.btn:disabled {
+  opacity: 0.38 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
 }
 </file>
 
@@ -3561,7 +3752,7 @@ export function toBookForm(book) {
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "dotenv": "^17.4.2",
-    "lucide-react": "^0.468.0",
+    "lucide-react": "^1.21.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "vite": "^5.4.11"
