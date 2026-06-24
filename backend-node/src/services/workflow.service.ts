@@ -127,7 +127,7 @@ export class WorkflowService {
       throw new Error("This book is not available.");
     }
 
-    const transaction = await prisma.$transaction(
+const transaction = await prisma.$transaction(
   async (tx) => {
     const tr = await tx.bookTransaction.create({
       data: {
@@ -140,12 +140,7 @@ export class WorkflowService {
         requestedAt: new Date(),
       },
       include: {
-        book: {
-          include: {
-            owner: true,
-            genre: true,
-          },
-        },
+        book: { include: { owner: true, genre: true } },
         requester: true,
         owner: true,
       },
@@ -156,17 +151,6 @@ export class WorkflowService {
       data: { availabilityStatus: "request_pending" },
     });
 
-    await tx.bookHistory.create({
-      data: {
-        bookId: book.id,
-        actorId: userId,
-        eventType: "request_created",
-        eventTitle: "Borrow request created",
-        eventMessage: `${tr.requester.fullName} requested ${book.title}.`,
-        transactionId: tr.id,
-      },
-    });
-
     return tr;
   },
   {
@@ -175,7 +159,18 @@ export class WorkflowService {
   }
 );
 
-    return this.mapTransaction(transaction);
+await prisma.bookHistory.create({
+  data: {
+    bookId: book.id,
+    actorId: userId,
+    eventType: "request_created",
+    eventTitle: "Borrow request created",
+    eventMessage: `${transaction.requester.fullName} requested ${book.title}.`,
+    transactionId: transaction.id,
+  },
+});
+
+return this.mapTransaction(transaction);
   }
 
   static async approve(userId: string, transactionId: string, isAdmin: boolean) {
