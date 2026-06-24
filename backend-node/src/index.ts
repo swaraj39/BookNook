@@ -1,4 +1,5 @@
 import express from "express";
+import cookieParser from "cookie-parser";
 import cors from "cors";
 import dotenv from "dotenv";
 import { AuthController } from "./controllers/auth.controller";
@@ -20,11 +21,15 @@ app.use(
     credentials: true,
   })
 );
+app.use(cookieParser());
+
+app.use(cookieParser());
 app.use(express.json());
 
 // Auth routes
 app.post("/api/auth/register", AuthController.register);
 app.post("/api/auth/login", AuthController.login);
+app.post("/api/auth/logout", AuthController.logout);
 
 // App routes
 app.get("/api/me", authenticate, AppController.me);

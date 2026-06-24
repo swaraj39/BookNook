@@ -18,9 +18,26 @@ export class AuthController {
   static async login(req: Request, res: Response) {
     try {
       const result = await AuthService.login(req.body);
-      res.json(result);
+
+      res.cookie("token", result.token, {
+        httpOnly: true,
+        secure: false, // true in production with HTTPS
+        sameSite: "lax",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      res.json({
+        user: result.user,
+      });
     } catch (error: any) {
       res.status(401).json({ message: error.message });
     }
+  }
+  static async logout(req: Request, res: Response) {
+    res.clearCookie("token");
+
+    res.json({
+      message: "Logged out successfully",
+    });
   }
 }

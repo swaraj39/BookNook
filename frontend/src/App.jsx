@@ -93,7 +93,7 @@ function HomePage({ stats, dailyThought, setView, setFilters, setBookModal }) {
 }
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem("bn_token"));
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [view, setView] = useState("home");
   const [darkMode, setDarkMode] = useState(localStorage.getItem("bn_theme") === "dark");
   const [me, setMe] = useState(null);
@@ -166,15 +166,21 @@ export default function App() {
     }
   }, [filters, isAuthenticated]);
   async function handleLogin(token, user) {
-    localStorage.setItem("bn_token", token);
     setMe(user);
     setIsAuthenticated(true);
     notify("Welcome , " + user.fullName + "!");
     setView("home");
   }
-  function handleLogout() {
+  async function handleLogout() {
     setShowProfileDropdown(false);
-    localStorage.removeItem("bn_token");
+
+    try {
+      await fetch("http://localhost:8080/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch { }
+
     setIsAuthenticated(false);
     setMe(null);
     notify("Logged out successfully.");

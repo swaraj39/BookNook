@@ -2,22 +2,18 @@
 const API_URL = "http://localhost:8080/api";
 
 async function request(path, options = {}) {
-  const token = localStorage.getItem("bn_token");
   const headers = {
     "Content-Type": "application/json",
     ...(options.headers || {})
   };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
+    credentials: "include",
     headers
   });
   if (response.status === 401) {
     const isAuthEndpoint = path.includes("/auth/");
     if (!isAuthEndpoint) {
-      localStorage.removeItem("bn_token");
       window.location.reload();
       throw new Error("Session expired. Please login again.");
     }
@@ -70,9 +66,7 @@ export const api = {
 
     const response = await fetch(`${API_URL}/all/books`, {
       method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      credentials: "include",
     });
 
     if (!response.ok) {

@@ -4,15 +4,22 @@ import prisma from "../config/prisma";
 
 export interface AuthRequest extends Request {
   user?: any;
+  cookies: {
+    token?: string;
+  };
 }
 
-export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+export const authenticate = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  const token = req.cookies?.token;
+
+  if (!token) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  const token = authHeader.split(" ")[1];
   const decoded = verifyToken(token);
 
   if (!decoded || !decoded.email) {

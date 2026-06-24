@@ -54,7 +54,7 @@ export function Login({ onLogin }) {
         result = await api.login(form.email, form.password);
       }
 
-      onLogin(result.token, result.user);
+      onLogin(null, result.user);
     } catch (err) {
       setError(err.message);
     } finally {

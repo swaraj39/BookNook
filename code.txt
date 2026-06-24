@@ -1,43 +1,87 @@
 <directory_structure>
-Dockerfile
-index.html
-package.json
-public/favicon.ico
-src/api/index.js
-src/App.jsx
-src/components/BookCard.jsx
-src/components/BookModal.jsx
-src/components/common/ConfirmDialog.jsx
-src/components/common/EmptyState.jsx
-src/components/common/FormInput.jsx
-src/components/common/Modal.jsx
-src/components/common/Pagination.jsx
-src/components/common/Panel.jsx
-src/components/common/Skeleton.jsx
-src/components/common/Spinner.jsx
-src/components/common/Stat.jsx
-src/components/common/Table.jsx
-src/components/common/Toast.jsx
-src/components/common/Topbar.jsx
-src/components/Profile.jsx
-src/components/RequestModal.jsx
-src/components/Stats.jsx
-src/main.jsx
-src/pages/Borrowed.jsx
-src/pages/Catalog.jsx
-src/pages/Details.jsx
-src/pages/Home.jsx
-src/pages/LoanHistory.jsx
-src/pages/Login.jsx
-src/pages/MyBooks.jsx
-src/pages/Requests.jsx
-src/styles/blue_altair_logo-removebg-preview.png
-src/styles/main.css
-src/utils/helpers.js
+[frontend]/
+  Dockerfile
+  index.html
+  package.json
+  public/favicon.ico
+  src/api/index.js
+  src/App.jsx
+  src/components/BookCard.jsx
+  src/components/BookModal.jsx
+  src/components/common/ConfirmDialog.jsx
+  src/components/common/EmptyState.jsx
+  src/components/common/FormInput.jsx
+  src/components/common/Modal.jsx
+  src/components/common/Pagination.jsx
+  src/components/common/Panel.jsx
+  src/components/common/Skeleton.jsx
+  src/components/common/Spinner.jsx
+  src/components/common/Stat.jsx
+  src/components/common/Table.jsx
+  src/components/common/Toast.jsx
+  src/components/common/Topbar.jsx
+  src/components/Profile.jsx
+  src/components/RequestModal.jsx
+  src/components/Stats.jsx
+  src/main.jsx
+  src/pages/Borrowed.jsx
+  src/pages/Catalog.jsx
+  src/pages/Details.jsx
+  src/pages/Home.jsx
+  src/pages/LoanHistory.jsx
+  src/pages/Login.jsx
+  src/pages/MyBooks.jsx
+  src/pages/Requests.jsx
+  src/styles/blue_altair_logo-removebg-preview.png
+  src/styles/main.css
+  src/utils/helpers.js
+
+[backend-node]/
+  .gitignore
+  Dockerfile
+  package.json
+  prisma/migrations/20260624073730_merge_requests_and_loans/migration.sql
+  prisma/migrations/migration_lock.toml
+  prisma/schema.prisma
+  src/config/prisma.ts
+  src/controllers/app.controller.ts
+  src/controllers/auth.controller.ts
+  src/index.ts
+  src/middleware/auth.ts
+  src/middleware/error.ts
+  src/services/auth.service.ts
+  src/services/book.service.ts
+  src/services/lookup.service.ts
+  src/services/workflow.service.ts
+  src/utils/jwt.ts
+  src/utils/workato.ts
+  tsconfig.json
 </directory_structure>
 
 <files>
 This section contains the contents of the repository's files.
+
+<file path="Dockerfile">
+# Build Stage
+FROM node:20-alpine AS builder
+WORKDIR /app
+# Copy package files
+COPY package*.json ./
+# Install dependencies
+RUN npm install
+# Copy source code
+COPY . .
+# Build the application
+RUN npm run build
+# Production Stage
+FROM nginx:alpine
+# Copy built files
+COPY --from=builder /app/dist /usr/share/nginx/html
+# Expose port
+EXPOSE 80
+# Start Nginx
+CMD ["nginx", "-g", "daemon off;"]
+</file>
 
 <file path="Dockerfile">
 # Build Stage
@@ -268,6 +312,7 @@ export default function App() {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
   const [confirm, setConfirm] = useState(null); // { message, onConfirm }
+  const [detailsLoading, setDetailsLoading] = useState(false);
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
@@ -390,10 +435,15 @@ export default function App() {
     try { setBookHistoryPage(await api.bookHistory(id, page)); } catch (e) { notify(e.message, "error"); }
   }
   async function openDetails(book) {
-    const freshBook = await api.book(book.id);
-    setSelectedBook(freshBook);
-    await loadBookHistory(book.id, 0);
-    setView("detail");
+    setDetailsLoading(true);
+    try {
+      const freshBook = await api.book(book.id);
+      setSelectedBook(freshBook);
+      await loadBookHistory(book.id, 0);
+      setView("detail");
+    } finally {
+      setDetailsLoading(false);
+    }
   }
   async function saveBook(payload) {
     try {
@@ -609,6 +659,16 @@ export default function App() {
         onConfirm={() => resolveConfirm(true)}
         onCancel={() => resolveConfirm(false)}
       />
+      {detailsLoading && (
+        <div className="details-loader-overlay">
+          <div className="details-loader-box">
+            <svg className="details-loader-spinner" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M12 2a10 10 0 0 1 10 10" />
+            </svg>
+            <span>Loading book details...</span>
+          </div>
+        </div>
+      )}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );
@@ -1350,7 +1410,7 @@ export function Catalog({
 </file>
 
 <file path="src/pages/Details.jsx">
-import React from "react";
+import React, { useState } from "react";
 import { label, dateText, toBookForm } from "../utils/helpers";
 import { Pagination } from "../components/common/Pagination";
 function SpinnerInline() {
@@ -1377,6 +1437,24 @@ export function Details({ book, historyPage, onPageChange, me, setView, setBookM
   const isAdmin = me.role === "ADMIN";
   const ownedByMe = book.owner.id === me.id;
   const borrowedByMe = book.activeLoanId && book.activeLoanBorrowerId === me.id;
+  const [navigating, setNavigating] = useState(false);
+  async function handleBack() {
+    setNavigating(true);
+    await new Promise((res) => setTimeout(res, 400));
+    setView("catalog");
+  }
+  if (navigating) {
+    return (
+      <div className="details-loader-overlay">
+        <div className="details-loader-box">
+          <svg className="details-loader-spinner" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M12 2a10 10 0 0 1 10 10" />
+          </svg>
+          <span>Going back to browse...</span>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="detail-layout">
       <div className="detail-cover">
@@ -1390,7 +1468,7 @@ export function Details({ book, historyPage, onPageChange, me, setView, setBookM
       </div>
       <div className="panel detail-panel">
         <div className="flex-between">
-          <button className="btn" onClick={() => setView("catalog")}>Back to browse</button>
+          <button className="btn" onClick={handleBack}>Back to browse</button>
           {isAdmin && <span className="admin-badge">Admin Mode</span>}
         </div>
         <h3>{book.title}</h3>
@@ -2571,10 +2649,20 @@ button { cursor: pointer; }
   background: var(--bg);
   font-size: 13px;
 }
-.card-actions, .row-actions {
+.card-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+.row-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  align-items: center;
+}
+.row-actions .btn {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .card-actions { margin-top: auto; padding-top: 2px; }
 .card-actions .btn { min-height: 36px; padding: 8px 11px; font-size: 13px; }
@@ -2643,6 +2731,10 @@ th, td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: l
 th {  color: var(--muted); background: var(--bg); font-size: 11px; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase; }
 tbody tr:hover { background: var(--bg); }
 tr:last-child td { border-bottom: 0; }
+td:last-child, th:last-child {
+  white-space: nowrap;
+  width: 1%;
+}
 .table-wrap table {
   table-layout: fixed;
 }
@@ -3997,6 +4089,35 @@ tr:last-child td { border-bottom: 0; }
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+.details-loader-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.details-loader-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 40px 48px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+}
+.details-loader-spinner {
+  animation: btn-spin 0.7s linear infinite;
+}
+.details-loader-box span {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--muted);
+}
 </file>
 
 <file path="src/utils/helpers.js">
@@ -4034,6 +4155,1611 @@ export function toBookForm(book) {
 }
 </file>
 
+<file path="Dockerfile">
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+RUN npx prisma generate
+RUN npm run build
+
+EXPOSE 8080
+
+CMD ["npm", "start"]
+</file>
+
+<file path="Dockerfile">
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+RUN npx prisma generate
+RUN npm run build
+
+EXPOSE 8080
+
+CMD ["npm", "start"]
+</file>
+
+<file path="prisma/migrations/20260624073730_merge_requests_and_loans/migration.sql">
+CREATE TABLE `users` (
+    `id` VARCHAR(191) NOT NULL,
+    `full_name` VARCHAR(120) NOT NULL,
+    `email` VARCHAR(180) NOT NULL,
+    `team` VARCHAR(120) NULL,
+    `role` VARCHAR(40) NOT NULL DEFAULT 'member',
+    `status` VARCHAR(40) NOT NULL DEFAULT 'active',
+    `avatar_initials` VARCHAR(8) NULL,
+    `avatar_url` TEXT NULL,
+    `password` VARCHAR(255) NULL,
+    `created_at` TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    `updated_at` TIMESTAMP(6) NOT NULL,
+    UNIQUE INDEX `users_email_key`(`email`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE TABLE `genres` (
+    `id` VARCHAR(191) NOT NULL,
+    `name` VARCHAR(80) NOT NULL,
+    `display_order` INTEGER NULL DEFAULT 0,
+    `created_at` TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    UNIQUE INDEX `genres_name_key`(`name`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE TABLE `books` (
+    `id` VARCHAR(191) NOT NULL,
+    `owner_id` VARCHAR(191) NOT NULL,
+    `genre_id` VARCHAR(191) NULL,
+    `title` VARCHAR(220) NOT NULL,
+    `author` VARCHAR(180) NOT NULL,
+    `isbn` VARCHAR(30) NULL,
+    `description` TEXT NULL,
+    `condition` VARCHAR(40) NOT NULL DEFAULT 'good',
+    `default_loan_days` INTEGER NOT NULL DEFAULT 14,
+    `availability_status` VARCHAR(40) NOT NULL DEFAULT 'available',
+    `visibility_status` VARCHAR(40) NOT NULL DEFAULT 'visible',
+    `cover_color` VARCHAR(20) NULL,
+    `cover_url` TEXT NULL,
+    `created_at` TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    `updated_at` TIMESTAMP(6) NOT NULL,
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE TABLE `book_transactions` (
+    `id` VARCHAR(191) NOT NULL,
+    `book_id` VARCHAR(191) NOT NULL,
+    `requester_id` VARCHAR(191) NOT NULL,
+    `owner_id` VARCHAR(191) NOT NULL,
+    `status` VARCHAR(40) NOT NULL DEFAULT 'pending',
+    `requested_loan_days` INTEGER NOT NULL DEFAULT 14,
+    `borrower_note` TEXT NULL,
+    `owner_response_note` TEXT NULL,
+    `requested_at` TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    `responded_at` TIMESTAMP(6) NULL,
+    `expires_at` TIMESTAMP(6) NULL,
+    `borrowed_at` TIMESTAMP(6) NULL,
+    `due_at` TIMESTAMP(6) NULL,
+    `returned_at` TIMESTAMP(6) NULL,
+    `borrower_return_note` TEXT NULL,
+    `owner_return_note` TEXT NULL,
+    `return_confirmed_by_owner` BOOLEAN NOT NULL DEFAULT false,
+    `created_at` TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    `updated_at` TIMESTAMP(6) NOT NULL,
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE TABLE `book_history` (
+    `id` VARCHAR(191) NOT NULL,
+    `book_id` VARCHAR(191) NOT NULL,
+    `actor_id` VARCHAR(191) NULL,
+    `event_type` VARCHAR(80) NOT NULL,
+    `event_title` VARCHAR(180) NULL,
+    `event_message` TEXT NULL,
+    `transaction_id` VARCHAR(191) NULL,
+    `created_at` TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE TABLE `notifications` (
+    `id` VARCHAR(191) NOT NULL,
+    `recipient_id` VARCHAR(191) NOT NULL,
+    `actor_id` VARCHAR(191) NULL,
+    `type` VARCHAR(80) NOT NULL,
+    `title` VARCHAR(180) NOT NULL,
+    `message` TEXT NULL,
+    `book_id` VARCHAR(191) NULL,
+    `transaction_id` VARCHAR(191) NULL,
+    `channel` VARCHAR(40) NULL DEFAULT 'in_app',
+    `created_at` TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE TABLE `reviews` (
+    `id` VARCHAR(191) NOT NULL,
+    `book_id` VARCHAR(191) NOT NULL,
+    `transaction_id` VARCHAR(191) NULL,
+    `reviewer_id` VARCHAR(191) NOT NULL,
+    `rating` INTEGER NULL,
+    `comment` TEXT NULL,
+    `created_at` TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    `updated_at` TIMESTAMP(6) NOT NULL,
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE TABLE `audit_logs` (
+    `id` VARCHAR(191) NOT NULL,
+    `actor_id` VARCHAR(191) NULL,
+    `action` VARCHAR(80) NOT NULL,
+    `entity_type` VARCHAR(80) NOT NULL,
+    `entity_id` VARCHAR(191) NULL,
+    `old_value` JSON NULL,
+    `new_value` JSON NULL,
+    `ip_address` VARCHAR(80) NULL,
+    `user_agent` TEXT NULL,
+    `created_at` TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `books` ADD CONSTRAINT `books_owner_id_fkey` FOREIGN KEY (`owner_id`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `books` ADD CONSTRAINT `books_genre_id_fkey` FOREIGN KEY (`genre_id`) REFERENCES `genres`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `book_transactions` ADD CONSTRAINT `book_transactions_book_id_fkey` FOREIGN KEY (`book_id`) REFERENCES `books`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `book_transactions` ADD CONSTRAINT `book_transactions_requester_id_fkey` FOREIGN KEY (`requester_id`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `book_transactions` ADD CONSTRAINT `book_transactions_owner_id_fkey` FOREIGN KEY (`owner_id`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `book_history` ADD CONSTRAINT `book_history_book_id_fkey` FOREIGN KEY (`book_id`) REFERENCES `books`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `book_history` ADD CONSTRAINT `book_history_actor_id_fkey` FOREIGN KEY (`actor_id`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `book_history` ADD CONSTRAINT `book_history_transaction_id_fkey` FOREIGN KEY (`transaction_id`) REFERENCES `book_transactions`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `notifications` ADD CONSTRAINT `notifications_recipient_id_fkey` FOREIGN KEY (`recipient_id`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `notifications` ADD CONSTRAINT `notifications_actor_id_fkey` FOREIGN KEY (`actor_id`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `notifications` ADD CONSTRAINT `notifications_book_id_fkey` FOREIGN KEY (`book_id`) REFERENCES `books`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `notifications` ADD CONSTRAINT `notifications_transaction_id_fkey` FOREIGN KEY (`transaction_id`) REFERENCES `book_transactions`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `reviews` ADD CONSTRAINT `reviews_book_id_fkey` FOREIGN KEY (`book_id`) REFERENCES `books`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `reviews` ADD CONSTRAINT `reviews_transaction_id_fkey` FOREIGN KEY (`transaction_id`) REFERENCES `book_transactions`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `reviews` ADD CONSTRAINT `reviews_reviewer_id_fkey` FOREIGN KEY (`reviewer_id`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `audit_logs` ADD CONSTRAINT `audit_logs_actor_id_fkey` FOREIGN KEY (`actor_id`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+</file>
+
+<file path="prisma/migrations/migration_lock.toml">
+# Please do not edit this file manually
+# It should be added in your version-control system (e.g., Git)
+provider = "mysql"
+</file>
+
+<file path="prisma/schema.prisma">
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(uuid())
+  fullName        String   @map("full_name") @db.VarChar(120)
+  email           String   @unique @db.VarChar(180)
+  team            String?  @db.VarChar(120)
+  role            String   @default("member") @db.VarChar(40)
+  status          String   @default("active") @db.VarChar(40)
+  avatarInitials  String?  @map("avatar_initials") @db.VarChar(8)
+  avatarUrl       String?  @map("avatar_url") @db.Text
+  password        String?  @db.VarChar(255)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  ownedBooks      Book[]          @relation("BookOwner")
+  transactions     BookTransaction[] @relation("Requester")
+  ownedTransactions BookTransaction[] @relation("RequestOwner")
+  bookHistory     BookHistory[]   @relation("Actor")
+  notifications   Notification[]  @relation("Recipient")
+  actedNotifications Notification[] @relation("NotificationActor")
+  reviews         Review[]
+  auditLogs       AuditLog[]
+
+  @@map("users")
+}
+
+model Genre {
+  id           String   @id @default(uuid())
+  name         String   @unique @db.VarChar(80)
+  displayOrder Int?     @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  books        Book[]
+
+  @@map("genres")
+}
+
+model Book {
+  id                String   @id @default(uuid())
+  ownerId           String   @map("owner_id")
+  genreId           String?  @map("genre_id")
+  title             String   @db.VarChar(220)
+  author            String   @db.VarChar(180)
+  isbn              String?  @db.VarChar(30)
+  description       String?  @db.Text
+  condition         String   @default("good") @db.VarChar(40)
+  defaultLoanDays   Int      @default(14) @map("default_loan_days")
+  availabilityStatus String  @default("available") @map("availability_status") @db.VarChar(40)
+  visibilityStatus  String   @default("visible") @map("visibility_status") @db.VarChar(40)
+  coverColor        String?  @map("cover_color") @db.VarChar(20)
+  coverUrl          String?  @map("cover_url") @db.Text
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  owner             User     @relation("BookOwner", fields: [ownerId], references: [id])
+  genre             Genre?   @relation(fields: [genreId], references: [id])
+  transactions      BookTransaction[]
+  history           BookHistory[]
+  notifications     Notification[]
+  reviews           Review[]
+
+  @@map("books")
+}
+
+model BookTransaction {
+  id                    String   @id @default(uuid())
+  bookId                String   @map("book_id")
+  requesterId           String   @map("requester_id")
+  ownerId               String   @map("owner_id")
+  status                String   @default("pending") @db.VarChar(40)
+  requestedLoanDays     Int      @default(14) @map("requested_loan_days")
+  borrowerNote          String?  @map("borrower_note") @db.Text
+  ownerResponseNote     String?  @map("owner_response_note") @db.Text
+  requestedAt           DateTime @default(now()) @map("requested_at") @db.Timestamp(6)
+  respondedAt           DateTime? @map("responded_at") @db.Timestamp(6)
+  expiresAt             DateTime? @map("expires_at") @db.Timestamp(6)
+  borrowedAt            DateTime? @map("borrowed_at") @db.Timestamp(6)
+  dueAt                 DateTime? @map("due_at") @db.Timestamp(6)
+  returnedAt            DateTime? @map("returned_at") @db.Timestamp(6)
+  borrowerReturnNote    String?  @map("borrower_return_note") @db.Text
+  ownerReturnNote       String?  @map("owner_return_note") @db.Text
+  returnConfirmedByOwner Boolean @default(false) @map("return_confirmed_by_owner")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  book                  Book     @relation(fields: [bookId], references: [id])
+  requester             User     @relation("Requester", fields: [requesterId], references: [id])
+  owner                 User     @relation("RequestOwner", fields: [ownerId], references: [id])
+  bookHistory           BookHistory[]
+  notifications         Notification[]
+  reviews               Review[]
+
+  @@map("book_transactions")
+}
+
+model BookHistory {
+  id              String   @id @default(uuid())
+  bookId          String   @map("book_id")
+  actorId         String?  @map("actor_id")
+  eventType       String   @map("event_type") @db.VarChar(80)
+  eventTitle      String?  @map("event_title") @db.VarChar(180)
+  eventMessage    String?  @map("event_message") @db.Text
+  transactionId   String?  @map("transaction_id")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  book            Book     @relation(fields: [bookId], references: [id])
+  actor           User?    @relation("Actor", fields: [actorId], references: [id])
+  transaction     BookTransaction? @relation(fields: [transactionId], references: [id])
+
+  @@map("book_history")
+}
+
+model Notification {
+  id              String   @id @default(uuid())
+  recipientId     String   @map("recipient_id")
+  actorId         String?  @map("actor_id")
+  type            String   @db.VarChar(80)
+  title           String   @map("title") @db.VarChar(180)
+  message         String?  @map("message") @db.Text
+  bookId          String?  @map("book_id")
+  transactionId   String?  @map("transaction_id")
+  channel         String?  @default("in_app") @db.VarChar(40)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  recipient       User     @relation("Recipient", fields: [recipientId], references: [id])
+  actor           User?    @relation("NotificationActor", fields: [actorId], references: [id])
+  book            Book?    @relation(fields: [bookId], references: [id])
+  transaction     BookTransaction? @relation(fields: [transactionId], references: [id])
+
+  @@map("notifications")
+}
+
+model Review {
+  id              String   @id @default(uuid())
+  bookId          String   @map("book_id")
+  transactionId   String?  @map("transaction_id")
+  reviewerId      String   @map("reviewer_id")
+  rating          Int?
+  comment         String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  book            Book     @relation(fields: [bookId], references: [id])
+  transaction     BookTransaction? @relation(fields: [transactionId], references: [id])
+  reviewer        User     @relation(fields: [reviewerId], references: [id])
+
+  @@map("reviews")
+}
+
+model AuditLog {
+  id              String   @id @default(uuid())
+  actorId         String?  @map("actor_id")
+  action          String   @db.VarChar(80)
+  entityType      String   @map("entity_type") @db.VarChar(80)
+  entityId        String?  @map("entity_id")
+  oldValue        Json?    @map("old_value")
+  newValue        Json?    @map("new_value")
+  ipAddress       String?  @map("ip_address") @db.VarChar(80)
+  userAgent       String?  @map("user_agent") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  actor           User?    @relation(fields: [actorId], references: [id])
+
+  @@map("audit_logs")
+}
+</file>
+
+<file path="src/config/prisma.ts">
+import { PrismaClient } from "@prisma/client";
+import dotenv from "dotenv";
+dotenv.config();
+const prisma = new PrismaClient();
+export default prisma;
+</file>
+
+<file path="src/controllers/app.controller.ts">
+import { NextFunction, Response } from "express";
+import { AuthRequest } from "../middleware/auth";
+import { BookService } from "../services/book.service";
+import { WorkflowService } from "../services/workflow.service";
+import { LookupService } from "../services/lookup.service";
+import prisma from "../config/prisma";
+function paramString(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0] ?? "";
+  if (!value) throw new Error("Missing required route parameter");
+  return value;
+}
+function queryString(value: unknown): string {
+  if (Array.isArray(value)) return String(value[0] ?? "");
+  if (value == null) return "";
+  return String(value);
+}
+function queryNumber(value: unknown, fallback: number): number {
+  const parsed = parseInt(queryString(value), 10);
+  return Number.isNaN(parsed) ? fallback : parsed;
+}
+export class AppController {
+  static async exportBooks(req: AuthRequest, res: Response) {
+  try {
+    const books = await prisma.book.findMany({
+      include: {
+        genre: true,
+        owner: true,
+      },
+    });
+    const result = books.map(book => ({
+      Title: book.title,
+      Author: book.author,
+      Genre: book.genre?.name ?? "",
+      Owner: book.owner?.fullName ?? "",
+      AvailabilityStatus: book.availabilityStatus,
+      CreatedAt: book.createdAt.toISOString(),
+    }));
+    const headers = Object.keys(result[0] || {});
+    const csv = [
+      headers.join(","),
+      ...result.map(row =>
+        headers
+          .map(header =>
+            `"${String((row as any)[header] ?? "").replace(/"/g, '""')}"`
+          )
+          .join(",")
+      ),
+    ].join("\n");
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=BookNook.csv"
+    );
+    res.status(200).send(csv);
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to export books",
+    });
+  }
+}
+  static async me(req: AuthRequest, res: Response) {
+    const { password, ...userWithoutPassword } = req.user;
+    res.json(userWithoutPassword);
+  }
+  static async catalog(req: AuthRequest, res: Response) {
+    try {
+      const { search, genreId, availability, sort, page, size } = req.query;
+      const result = await BookService.catalog({
+        search: queryString(search),
+        genreId: queryString(genreId),
+        availability: queryString(availability),
+        sort: queryString(sort),
+        page: queryNumber(page, 0),
+        size: queryNumber(size, 20),
+      }, req.user.id);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error in AppController:", error);
+      res.status(400).json({ message: error.message });
+    }
+  }
+  static async myBooks(req: AuthRequest, res: Response) {
+    try {
+      const { page, size } = req.query;
+      const result = await BookService.myBooks(
+        req.user.id,
+        queryNumber(page, 0),
+        queryNumber(size, 20)
+      );
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error in AppController:", error);
+      res.status(400).json({ message: error.message });
+    }
+  }
+  static async getBook(req: AuthRequest, res: Response) {
+    try {
+      const result = await BookService.get(paramString(req.params.id));
+      res.json(result);
+    } catch (error: any) {
+      res.status(404).json({ message: error.message });
+    }
+  }
+  static async createBook(req: AuthRequest, res: Response) {
+    try {
+      const result = await BookService.create(req.user.id, req.body);
+      res.status(201).json(result);
+    } catch (error: any) {
+      console.error("Error in AppController:", error);
+      res.status(400).json({ message: error.message });
+    }
+  }
+  static async updateBook(req: AuthRequest, res: Response) {
+    try {
+      const result = await BookService.update(
+        req.user.id,
+        paramString(req.params.id),
+        req.body,
+        req.user.role === "ADMIN"
+      );
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error in AppController:", error);
+      res.status(400).json({ message: error.message });
+    }
+  }
+  static async deleteBook(req: AuthRequest, res: Response) {
+    try {
+      await BookService.delete(
+        req.user.id,
+        paramString(req.params.id),
+        req.user.role === "ADMIN"
+      );
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error in AppController:", error);
+      res.status(400).json({ message: error.message });
+    }
+  }
+  static async myRequests(req: AuthRequest, res: Response) {
+    try {
+      const { page, size } = req.query;
+      const result = await WorkflowService.myRequests(
+        req.user.id,
+        req.user.role === "ADMIN",
+        queryNumber(page, 0),
+        queryNumber(size, 20)
+      );
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error in AppController:", error);
+      res.status(400).json({ message: error.message });
+    }
+  }
+  static async requestBook(req: AuthRequest, res: Response) {
+    try {
+      const result = await WorkflowService.requestBook(req.user.id, req.body);
+      res.status(201).json(result);
+    } catch (error: any) {
+      console.error("Error in AppController:", error);
+      res.status(400).json({ message: error.message });
+    }
+  }
+  static async approveRequest(req: AuthRequest, res: Response) {
+    try {
+      const result = await WorkflowService.approve(
+        req.user.id,
+        paramString(req.params.id),
+        req.user.role === "ADMIN"
+      );
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error in AppController:", error);
+      res.status(400).json({ message: error.message });
+    }
+  }
+  static async rejectRequest(req: AuthRequest, res: Response) {
+    try {
+      const result = await WorkflowService.reject(
+        req.user.id,
+        paramString(req.params.id),
+        req.user.role === "ADMIN"
+      );
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error in AppController:", error);
+      res.status(400).json({ message: error.message });
+    }
+  }
+  static async borrowed(req: AuthRequest, res: Response) {
+    try {
+      const { page, size } = req.query;
+      const result = await WorkflowService.borrowed(
+        req.user.id,
+        queryNumber(page, 0),
+        queryNumber(size, 20)
+      );
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error in AppController:", error);
+      res.status(400).json({ message: error.message });
+    }
+  }
+  static async loanHistory(req: AuthRequest, res: Response) {
+    try {
+      const { page, size } = req.query;
+      const result = await WorkflowService.history(
+        req.user.id,
+        req.user.role === "ADMIN",
+        queryNumber(page, 0),
+        queryNumber(size, 20)
+      );
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error in AppController:", error);
+      res.status(400).json({ message: error.message });
+    }
+  }
+  static async returnBook(req: AuthRequest, res: Response) {
+    try {
+      const result = await WorkflowService.returnBook(
+        req.user.id,
+        paramString(req.params.id),
+        req.user.role === "ADMIN"
+      );
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error in AppController:", error);
+      res.status(400).json({ message: error.message });
+    }
+  }
+  static async genres(req: AuthRequest, res: Response) {
+    try {
+      const result = await LookupService.genres();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error in AppController:", error);
+      res.status(400).json({ message: error.message });
+    }
+  }
+  static async dashboard(req: AuthRequest, res: Response) {
+    try {
+      const result = await LookupService.dashboard(req.user.id);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error in AppController:", error);
+      res.status(400).json({ message: error.message });
+    }
+  }
+  static async bookHistory(req: AuthRequest, res: Response) {
+    try {
+      const { page, size } = req.query;
+      const result = await LookupService.bookHistory(
+        paramString(req.params.id),
+        queryNumber(page, 0),
+        queryNumber(size, 20)
+      );
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error in AppController:", error);
+      res.status(400).json({ message: error.message });
+    }
+  }
+}
+</file>
+
+<file path="src/controllers/auth.controller.ts">
+import { Request, Response } from "express";
+import { AuthService } from "../services/auth.service";
+import { callWorkatoSignupWebhook } from "../utils/workato";
+export class AuthController {
+  static async register(req: Request, res: Response) {
+    try {
+      const result = await AuthService.register(req.body);
+      await callWorkatoSignupWebhook(result.user);
+      res.status(201).json(result);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  }
+  static async login(req: Request, res: Response) {
+    try {
+      const result = await AuthService.login(req.body);
+      res.json(result);
+    } catch (error: any) {
+      res.status(401).json({ message: error.message });
+    }
+  }
+}
+</file>
+
+<file path="src/index.ts">
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import { AuthController } from "./controllers/auth.controller";
+import { AppController } from "./controllers/app.controller";
+import { authenticate } from "./middleware/auth";
+import { errorHandler } from "./middleware/error";
+dotenv.config();
+const app = express();
+const port = process.env.PORT || 8080;
+const frontendUrl = "http://localhost:5173";
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+    ],
+    credentials: true,
+  })
+);
+app.use(express.json());
+app.post("/api/auth/register", AuthController.register);
+app.post("/api/auth/login", AuthController.login);
+app.get("/api/me", authenticate, AppController.me);
+app.get("/api/genres", authenticate, AppController.genres);
+app.get("/api/dashboard", authenticate, AppController.dashboard);
+app.get("/api/books", authenticate, AppController.catalog);
+app.get("/api/books/mine", authenticate, AppController.myBooks);
+app.get("/api/books/:id", authenticate, AppController.getBook);
+app.get("/api/books/:id/history", authenticate, AppController.bookHistory);
+app.post("/api/books", authenticate, AppController.createBook);
+app.patch("/api/books/:id", authenticate, AppController.updateBook);
+app.delete("/api/books/:id", authenticate, AppController.deleteBook);
+app.get("/api/borrow-requests", authenticate, AppController.myRequests);
+app.post("/api/borrow-requests", authenticate, AppController.requestBook);
+app.post("/api/borrow-requests/:id/approve", authenticate, AppController.approveRequest);
+app.post("/api/borrow-requests/:id/reject", authenticate, AppController.rejectRequest);
+app.get("/api/loans/borrowed", authenticate, AppController.borrowed);
+app.get("/api/loans/history", authenticate, AppController.loanHistory);
+app.post("/api/loans/:id/return", authenticate, AppController.returnBook);
+app.get("/api/all/books", authenticate, AppController.exportBooks);
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+app.get("/api/quote/today", async (req, res) => {
+  try {
+    const response = await fetch("https://dummyjson.com/quotes/random");
+    if (!response.ok) {
+      return res.status(response.status).json({
+        message: "ZenQuotes API failed",
+        status: response.status,
+      });
+    }
+    const data = await response.json();
+    res.json(data);
+  } catch (error: any) {
+    console.error("Quote API error:", error.message);
+    res.status(500).json({
+    });
+  }
+});
+app.use(errorHandler);
+app.listen(port, () => {
+  console.log(`Server running at http://localhost:${port}`);
+});
+</file>
+
+<file path="src/middleware/auth.ts">
+import { Request, Response, NextFunction } from "express";
+import { verifyToken } from "../utils/jwt";
+import prisma from "../config/prisma";
+export interface AuthRequest extends Request {
+  user?: any;
+}
+export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  const token = authHeader.split(" ")[1];
+  const decoded = verifyToken(token);
+  if (!decoded || !decoded.email) {
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
+  const user = await prisma.user.findUnique({
+    where: { email: decoded.email },
+  });
+  if (!user) {
+    return res.status(401).json({ message: "User not found" });
+  }
+  req.user = user;
+  next();
+};
+</file>
+
+<file path="src/middleware/error.ts">
+import { Request, Response, NextFunction } from "express";
+export const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error(err);
+  const status = err.status || 500;
+  const message = err.message || "Something went wrong";
+  res.status(status).json({ message });
+};
+</file>
+
+<file path="src/services/auth.service.ts">
+import bcrypt from "bcryptjs";
+import prisma from "../config/prisma";
+import { generateToken } from "../utils/jwt";
+export class AuthService {
+  static async register(data: any) {
+    const existingUser = await prisma.user.findUnique({
+      where: { email: data.email },
+    });
+    if (existingUser) {
+      throw new Error("Email already exists.");
+    }
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+    const role = data.email.includes("gaurav.choudhary") ? "ADMIN" : "USER";
+    const user = await prisma.user.create({
+      data: {
+        fullName: data.fullName,
+        email: data.email,
+        password: hashedPassword,
+        team: data.team,
+        role: role,
+        status: "active",
+      },
+    });
+    const token = generateToken({ email: user.email, id: user.id });
+    return { token, user: this.mapUser(user) };
+  }
+  static async login(data: any) {
+    const user = await prisma.user.findUnique({
+      where: { email: data.email },
+    });
+    if (!user || !user.password) {
+      throw new Error("Invalid email or password");
+    }
+    const isValid = await bcrypt.compare(data.password, user.password);
+    if (!isValid) {
+      throw new Error("Invalid email or password");
+    }
+    const token = generateToken({ email: user.email, id: user.id });
+    return { token, user: this.mapUser(user) };
+  }
+  private static mapUser(user: any) {
+    const { password, ...userWithoutPassword } = user;
+    return userWithoutPassword;
+  }
+}
+</file>
+
+<file path="src/services/book.service.ts">
+import prisma from "../config/prisma";
+export class BookService {
+  static async catalog(params: any, userId?: string) {
+    const { search = "", genreId, availability = "all", sort = "title", page = 0, size = 20 } = params;
+    const where: any = {
+      visibilityStatus: "visible",
+    };
+    if (userId) {
+      where.ownerId = { not: userId };
+    }
+    if (genreId) {
+      where.genreId = genreId;
+    }
+    if (availability === "borrowed_by_me") {
+  where.transactions = { some: { requesterId: userId, status: { in: ["active", "overdue"] } } };
+} else if (availability === "request_pending") {
+  where.availabilityStatus = "request_pending";
+  where.transactions = { some: { requesterId: userId, status: "pending" } };
+} else if (availability === "unavailable") {
+  where.availabilityStatus = { in: ["borrowed", "request_pending"] };
+  if (userId) {
+    where.NOT = [
+      { transactions: { some: { requesterId: userId, status: { in: ["active", "overdue"] } } } },
+      { transactions: { some: { requesterId: userId, status: "pending" } } },
+    ];
+  }
+} else if (availability && availability !== "all") {
+      where.availabilityStatus = availability;
+    }
+    if (search) {
+      where.OR = [
+        { title: { contains: search} },
+        { author: { contains: search } },
+        { description: { contains: search } },
+        { owner: { fullName: { contains: search } } },
+      ];
+    }
+    let secondaryOrder: any = { title: "asc" };
+    if (sort === "newest") secondaryOrder = { createdAt: "desc" };
+    const statusOrder = ["available", "request_pending", "borrowed"];
+    const [totalElements, allContent] = await Promise.all([
+      prisma.book.count({ where }),
+      prisma.book.findMany({
+        where,
+        include: { owner: true, genre: true },
+        orderBy: secondaryOrder,
+        skip: page * size,
+        take: size,
+      }),
+    ]);
+    const content = allContent.sort((a, b) => {
+      const ai = statusOrder.indexOf(a.availabilityStatus) === -1 ? 99 : statusOrder.indexOf(a.availabilityStatus);
+      const bi = statusOrder.indexOf(b.availabilityStatus) === -1 ? 99 : statusOrder.indexOf(b.availabilityStatus);
+      return ai - bi;
+    });
+    const totalPages = Math.ceil(totalElements / size);
+    return {
+      content: content.map(this.mapBook),
+      totalElements,
+      totalPages,
+      pageNumber: page,
+      pageSize: size,
+    };
+  }
+  static async myBooks(userId: string, page = 0, size = 20) {
+    const where = {
+      ownerId: userId,
+      visibilityStatus: "visible",
+    };
+    const [totalElements, content] = await Promise.all([
+      prisma.book.count({ where }),
+      prisma.book.findMany({
+        where,
+        include: {
+          owner: true,
+          genre: true,
+        },
+        orderBy: { createdAt: "desc" },
+        skip: page * size,
+        take: size,
+      }),
+    ]);
+    return {
+      content: content.map(this.mapBook),
+      totalElements,
+      totalPages: Math.ceil(totalElements / size),
+      pageNumber: page,
+      pageSize: size,
+    };
+  }
+  static async get(id: string) {
+    const book = await prisma.book.findUnique({
+      where: { id },
+      include: {
+        owner: true,
+        genre: true,
+      },
+    });
+    if (!book) throw new Error("Book not found");
+    return this.mapBook(book);
+  }
+  static async create(userId: string, payload: any) {
+    const coverColor = this.pickCoverColor(payload.title);
+    const book = await prisma.book.create({
+      data: {
+        title: payload.title,
+        author: payload.author,
+        genreId: payload.genreId,
+        condition: payload.condition || "good",
+        defaultLoanDays: payload.defaultLoanDays || 14,
+        description: payload.description,
+        coverUrl: payload.coverUrl,
+        coverColor,
+        ownerId: userId,
+        availabilityStatus: "available",
+        visibilityStatus: "visible",
+      },
+      include: {
+        owner: true,
+        genre: true,
+      },
+    });
+    await prisma.bookHistory.create({
+      data: {
+        bookId: book.id,
+        actorId: userId,
+        eventType: "book_added",
+        eventTitle: "Book added",
+        eventMessage: `${book.owner.fullName} added ${book.title}.`,
+      },
+    });
+    return this.mapBook(book);
+  }
+  static async update(userId: string, id: string, payload: any, isAdmin: boolean) {
+    const book = await prisma.book.findUnique({ where: { id } });
+    if (!book) throw new Error("Book not found");
+    if (book.ownerId !== userId && !isAdmin) {
+      throw new Error("Unauthorized");
+    }
+    const updatedBook = await prisma.book.update({
+      where: { id },
+      data: {
+        title: payload.title,
+        author: payload.author,
+        genreId: payload.genreId,
+        condition: payload.condition,
+        defaultLoanDays: payload.defaultLoanDays,
+        description: payload.description,
+        coverUrl: payload.coverUrl,
+      },
+      include: {
+        owner: true,
+        genre: true,
+      },
+    });
+    await prisma.bookHistory.create({
+      data: {
+        bookId: updatedBook.id,
+        actorId: userId,
+        eventType: "book_updated",
+        eventTitle: "Book updated",
+        eventMessage: `${updatedBook.owner.fullName} updated ${updatedBook.title}.`,
+      },
+    });
+    return this.mapBook(updatedBook);
+  }
+  static async delete(userId: string, id: string, isAdmin: boolean) {
+    const book = await prisma.book.findUnique({ where: { id } });
+    if (!book) throw new Error("Book not found");
+    if (book.ownerId !== userId && !isAdmin) {
+      throw new Error("Unauthorized");
+    }
+    const pendingRequests = await prisma.bookTransaction.count({
+      where: { bookId: id, status: "pending" },
+    });
+    if (pendingRequests > 0) {
+      throw new Error("Close pending requests before deleting this book.");
+    }
+    const activeLoans = await prisma.bookTransaction.count({
+      where: {
+        bookId: id,
+        status: { in: ["active", "overdue", "return_pending"] },
+      },
+    });
+    if (activeLoans > 0) {
+      throw new Error("This book cannot be deleted while borrowed.");
+    }
+    const deletedBook = await prisma.book.update({
+      where: { id },
+      data: {
+        visibilityStatus: "deleted",
+        availabilityStatus: "unavailable",
+      },
+      include: { owner: true }
+    });
+    await prisma.bookHistory.create({
+      data: {
+        bookId: id,
+        actorId: userId,
+        eventType: "book_deleted",
+        eventTitle: "Book deleted",
+        eventMessage: `${deletedBook.owner.fullName} removed ${deletedBook.title}.`,
+      },
+    });
+  }
+  private static mapBook(book: any) {
+    return {
+      id: book.id,
+      title: book.title,
+      author: book.author,
+      isbn: book.isbn,
+      description: book.description,
+      condition: book.condition,
+      defaultLoanDays: book.defaultLoanDays,
+      availabilityStatus: book.availabilityStatus,
+      visibilityStatus: book.visibilityStatus,
+      coverColor: book.coverColor,
+      coverUrl: book.coverUrl,
+      createdAt: book.createdAt,
+      updatedAt: book.updatedAt,
+      owner: {
+        id: book.owner.id,
+        fullName: book.owner.fullName,
+        email: book.owner.email,
+        avatarUrl: book.owner.avatarUrl,
+        avatarInitials: book.owner.avatarInitials,
+      },
+      genre: book.genre ? {
+        id: book.genre.id,
+        name: book.genre.name,
+      } : null,
+    };
+  }
+  private static pickCoverColor(title: string) {
+    const colors = ["#16756f", "#17313b", "#7c2d12", "#1d4ed8", "#6d28d9", "#9d174d", "#166534"];
+    let hash = 0;
+    for (let i = 0; i < title.length; i++) {
+      hash = title.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  }
+}
+</file>
+
+<file path="src/services/lookup.service.ts">
+import prisma from "../config/prisma";
+export class LookupService {
+  static async genres() {
+    const genres = await prisma.genre.findMany({
+      orderBy: [
+        { displayOrder: "asc" },
+        { name: "asc" },
+      ],
+    });
+    return genres.map((g) => ({ id: g.id, name: g.name }));
+  }
+  static async bookHistory(bookId: string, page = 0, size = 20) {
+    const [totalElements, content] = await Promise.all([
+      prisma.bookHistory.count({ where: { bookId } }),
+      prisma.bookHistory.findMany({
+        where: { bookId },
+        include: { actor: true },
+        orderBy: { createdAt: "desc" },
+        skip: page * size,
+        take: size,
+      }),
+    ]);
+    return {
+      content: content.map((h) => ({
+        id: h.id,
+        eventType: h.eventType,
+        eventTitle: h.eventTitle,
+        eventMessage: h.eventMessage,
+        createdAt: h.createdAt,
+        actor: h.actor ? {
+          id: h.actor.id,
+          fullName: h.actor.fullName,
+          avatarUrl: h.actor.avatarUrl,
+          avatarInitials: h.actor.avatarInitials,
+        } : null,
+      })),
+      totalElements,
+      totalPages: Math.ceil(totalElements / size),
+      pageNumber: page,
+      pageSize: size,
+    };
+  }
+  static async dashboard(userId: string) {
+    const now = new Date();
+    const [totalBooks, availableBooks, pendingRequests, activeLoans, overdueLoans] = await Promise.all([
+      prisma.book.count({ where: { visibilityStatus: "visible" } }),
+      prisma.book.count({ where: { visibilityStatus: "visible", availabilityStatus: "available" } }),
+      prisma.bookTransaction.count({
+        where: { ownerId: userId, status: "pending" },
+      }),
+      prisma.bookTransaction.count({
+        where: { requesterId: userId, status: { in: ["active", "overdue", "return_pending"] } },
+      }),
+      prisma.bookTransaction.count({
+        where: { requesterId: userId, status: "active", dueAt: { lt: now } },
+      }),
+    ]);
+    return {
+      totalBooks,
+      availableBooks,
+      pendingRequests,
+      activeLoans,
+      overdueLoans,
+    };
+  }
+}
+</file>
+
+<file path="src/services/workflow.service.ts">
+import prisma from "../config/prisma";
+export class WorkflowService {
+  static async myRequests(userId: string, isAdmin: boolean, page = 0, size = 20) {
+    const where = {
+      OR: [{ ownerId: userId }, { requesterId: userId }],
+    };
+    const [totalElements, content] = await Promise.all([
+      prisma.bookTransaction.count({ where }),
+      prisma.bookTransaction.findMany({
+        where,
+        include: {
+          book: {
+            include: {
+              owner: true,
+              genre: true,
+            },
+          },
+          requester: true,
+          owner: true,
+        },
+        orderBy: { requestedAt: "desc" },
+        skip: page * size,
+        take: size,
+      }),
+    ]);
+    return {
+      content: content.map(this.mapTransaction),
+      totalElements,
+      totalPages: Math.ceil(totalElements / size),
+      page: page,
+      pageSize: size,
+    };
+  }
+  static async borrowed(userId: string, page = 0, size = 20) {
+    const where = {
+      requesterId: userId,
+      status: { in: ["active", "overdue", "return_pending"] },
+    };
+    const [totalElements, content] = await Promise.all([
+      prisma.bookTransaction.count({ where }),
+      prisma.bookTransaction.findMany({
+        where,
+        include: {
+          book: {
+            include: {
+              owner: true,
+              genre: true,
+            },
+          },
+          requester: true,
+          owner: true,
+        },
+        orderBy: { dueAt: "asc" },
+        skip: page * size,
+        take: size,
+      }),
+    ]);
+    return {
+      content: content.map(this.mapTransaction),
+      totalElements,
+      totalPages: Math.ceil(totalElements / size),
+      page: page,
+      pageSize: size,
+    };
+  }
+  static async history(userId: string, isAdmin: boolean, page = 0, size = 20) {
+    const where = isAdmin ? {} : { requesterId: userId };
+    const [totalElements, content] = await Promise.all([
+      prisma.bookTransaction.count({ where }),
+      prisma.bookTransaction.findMany({
+        where,
+        include: {
+          book: {
+            include: {
+              owner: true,
+              genre: true,
+            },
+          },
+          requester: true,
+          owner: true,
+        },
+        orderBy: { createdAt: "desc" },
+        skip: page * size,
+        take: size,
+      }),
+    ]);
+    return {
+      content: content.map(this.mapTransaction),
+      totalElements,
+      totalPages: Math.ceil(totalElements / size),
+      page: page,
+      pageSize: size,
+    };
+  }
+  static async requestBook(userId: string, payload: any) {
+    const requestedLoanDays = parseInt(payload.requestedLoanDays, 10);
+    if (!Number.isInteger(requestedLoanDays) || requestedLoanDays < 1) {
+      throw new Error("Borrow days must be a whole number.");
+    }
+    const book = await prisma.book.findUnique({
+      where: { id: payload.bookId },
+      include: { owner: true, genre: true },
+    });
+    if (!book) throw new Error("Book not found.");
+    if (book.visibilityStatus !== "visible") {
+      throw new Error("This book is no longer listed.");
+    }
+    if (book.ownerId === userId) {
+      throw new Error("You cannot request your own book.");
+    }
+    if (book.availabilityStatus !== "available") {
+      throw new Error("This book is not available.");
+    }
+    const transaction = await prisma.$transaction(
+      async (tx) => {
+        const tr = await tx.bookTransaction.create({
+          data: {
+            bookId: payload.bookId,
+            requesterId: userId,
+            ownerId: book.ownerId,
+            status: "pending",
+            requestedLoanDays,
+            borrowerNote: payload.borrowerNote || null,
+            requestedAt: new Date(),
+          },
+          include: {
+            book: { include: { owner: true, genre: true } },
+            requester: true,
+            owner: true,
+          },
+        });
+        await tx.book.update({
+          where: { id: payload.bookId },
+          data: { availabilityStatus: "request_pending" },
+        });
+        return tr;
+      },
+      {
+        timeout: 20000,
+        maxWait: 10000,
+      }
+    );
+    await prisma.bookHistory.create({
+      data: {
+        bookId: book.id,
+        actorId: userId,
+        eventType: "request_created",
+        eventTitle: "Borrow request created",
+        eventMessage: `${transaction.requester.fullName} requested ${book.title}.`,
+        transactionId: transaction.id,
+      },
+    });
+    return this.mapTransaction(transaction);
+  }
+  static async approve(userId: string, transactionId: string, isAdmin: boolean) {
+    const transaction = await prisma.bookTransaction.findUnique({
+      where: { id: transactionId },
+      include: {
+        book: {
+          include: {
+            owner: true,
+            genre: true,
+          },
+        },
+        requester: true,
+        owner: true,
+      },
+    });
+    if (!transaction) throw new Error("Transaction not found.");
+    if (transaction.ownerId !== userId && !isAdmin) {
+      throw new Error("Unauthorized.");
+    }
+    if (transaction.status !== "pending") {
+      throw new Error("This transaction has already been processed.");
+    }
+    const now = new Date();
+    const dueAt = new Date(
+      now.getTime() + transaction.requestedLoanDays * 24 * 60 * 60 * 1000
+    );
+    const updatedTransaction = await prisma.$transaction(async (tx) => {
+      const tr = await tx.bookTransaction.update({
+        where: { id: transactionId },
+        data: {
+          status: "active",
+          respondedAt: now,
+          borrowedAt: now,
+          dueAt,
+        },
+        include: {
+          book: {
+            include: {
+              owner: true,
+              genre: true,
+            },
+          },
+          requester: true,
+          owner: true,
+        },
+      });
+      await tx.book.update({
+        where: { id: transaction.bookId },
+        data: { availabilityStatus: "borrowed" },
+      });
+      await tx.bookTransaction.updateMany({
+        where: {
+          bookId: transaction.bookId,
+          status: "pending",
+          id: { not: transactionId },
+        },
+        data: {
+          status: "expired",
+          respondedAt: now,
+        },
+      });
+      await tx.bookHistory.create({
+        data: {
+          bookId: transaction.bookId,
+          actorId: userId,
+          eventType: "request_approved",
+          eventTitle: "Request approved",
+          eventMessage: `${transaction.owner.fullName} approved ${transaction.requester.fullName}'s request.`,
+          transactionId: tr.id,
+        },
+      });
+      await tx.bookHistory.create({
+        data: {
+          bookId: transaction.bookId,
+          actorId: userId,
+          eventType: "loan_started",
+          eventTitle: "Loan started",
+          eventMessage: `${tr.book.title} is due on ${dueAt.toISOString().split("T")[0]}.`,
+          transactionId: tr.id,
+        },
+      });
+      return tr;
+    });
+    return this.mapTransaction(updatedTransaction);
+  }
+  static async reject(userId: string, transactionId: string, isAdmin: boolean) {
+    const transaction = await prisma.bookTransaction.findUnique({
+      where: { id: transactionId },
+      include: {
+        book: {
+          include: {
+            owner: true,
+            genre: true,
+          },
+        },
+        requester: true,
+        owner: true,
+      },
+    });
+    if (!transaction) throw new Error("Transaction not found.");
+    if (transaction.ownerId !== userId && !isAdmin) {
+      throw new Error("Unauthorized.");
+    }
+    if (transaction.status !== "pending") {
+      throw new Error("This transaction has already been processed.");
+    }
+    const updatedTransaction = await prisma.$transaction(async (tx) => {
+      const tr = await tx.bookTransaction.update({
+        where: { id: transactionId },
+        data: {
+          status: "rejected",
+          respondedAt: new Date(),
+        },
+        include: {
+          book: {
+            include: {
+              owner: true,
+              genre: true,
+            },
+          },
+          requester: true,
+          owner: true,
+        },
+      });
+      const pendingCount = await tx.bookTransaction.count({
+        where: { bookId: transaction.bookId, status: "pending" },
+      });
+      const activeCount = await tx.bookTransaction.count({
+        where: {
+          bookId: transaction.bookId,
+          status: { in: ["active", "overdue", "return_pending"] },
+        },
+      });
+      if (pendingCount === 0 && activeCount === 0) {
+        await tx.book.update({
+          where: { id: transaction.bookId },
+          data: { availabilityStatus: "available" },
+        });
+      }
+      await tx.bookHistory.create({
+        data: {
+          bookId: transaction.bookId,
+          actorId: userId,
+          eventType: "request_rejected",
+          eventTitle: "Request rejected",
+          eventMessage: `${transaction.owner.fullName} rejected the request for ${transaction.book.title}.`,
+          transactionId: tr.id,
+        },
+      });
+      return tr;
+    });
+    return this.mapTransaction(updatedTransaction);
+  }
+  static async returnBook(userId: string, transactionId: string, isAdmin: boolean) {
+    const transaction = await prisma.bookTransaction.findUnique({
+      where: { id: transactionId },
+      include: {
+        book: {
+          include: {
+            owner: true,
+            genre: true,
+          },
+        },
+        requester: true,
+        owner: true,
+      },
+    });
+    if (!transaction) throw new Error("Transaction not found.");
+    if (transaction.requesterId !== userId && transaction.ownerId !== userId && !isAdmin) {
+      throw new Error("Unauthorized.");
+    }
+    if (!["active", "overdue", "return_pending"].includes(transaction.status)) {
+      throw new Error("This transaction cannot be returned.");
+    }
+    const updatedTransaction = await prisma.$transaction(async (tx) => {
+      const tr = await tx.bookTransaction.update({
+        where: { id: transactionId },
+        data: {
+          status: "returned",
+          returnedAt: new Date(),
+        },
+        include: {
+          book: {
+            include: {
+              owner: true,
+              genre: true,
+            },
+          },
+          requester: true,
+          owner: true,
+        },
+      });
+      await tx.book.update({
+        where: { id: transaction.bookId },
+        data: { availabilityStatus: "available" },
+      });
+      await tx.bookHistory.create({
+        data: {
+          bookId: transaction.bookId,
+          actorId: userId,
+          eventType: "book_returned",
+          eventTitle: "Book returned",
+          eventMessage: `${tr.requester.fullName} returned ${tr.book.title}.`,
+          transactionId: tr.id,
+        },
+      });
+      return tr;
+    });
+    return this.mapTransaction(updatedTransaction);
+  }
+  private static mapTransaction(transaction: any) {
+    return {
+      id: transaction.id,
+      status: transaction.status,
+      borrowedAt: transaction.borrowedAt,
+      dueAt: transaction.dueAt,
+      returnedAt: transaction.returnedAt,
+      borrowerReturnNote: transaction.borrowerReturnNote,
+      ownerReturnNote: transaction.ownerReturnNote,
+      returnConfirmedByOwner: transaction.returnConfirmedByOwner,
+      requestedLoanDays: transaction.requestedLoanDays,
+      borrowerNote: transaction.borrowerNote,
+      ownerResponseNote: transaction.ownerResponseNote,
+      requestedAt: transaction.requestedAt,
+      respondedAt: transaction.respondedAt,
+      book: transaction.book
+        ? {
+          id: transaction.book.id,
+          title: transaction.book.title,
+          author: transaction.book.author,
+          coverUrl: transaction.book.coverUrl,
+          coverColor: transaction.book.coverColor,
+          owner: transaction.book.owner
+            ? {
+              id: transaction.book.owner.id,
+              fullName: transaction.book.owner.fullName,
+            }
+            : transaction.owner
+              ? {
+                id: transaction.owner.id,
+                fullName: transaction.owner.fullName,
+              }
+              : null,
+        }
+        : null,
+      requester: transaction.requester
+        ? {
+          id: transaction.requester.id,
+          fullName: transaction.requester.fullName,
+          email: transaction.requester.email,
+          avatarUrl: transaction.requester.avatarUrl,
+          avatarInitials: transaction.requester.avatarInitials,
+        }
+        : null,
+      owner: transaction.owner
+        ? {
+          id: transaction.owner.id,
+          fullName: transaction.owner.fullName,
+          email: transaction.owner.email,
+        }
+        : null,
+    };
+  }
+}
+</file>
+
+<file path="src/utils/jwt.ts">
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+dotenv.config();
+const JWT_SECRET = process.env.JWT_SECRET || "very-secret-key-that-should-be-at-least-thirty-two-characters-long";
+const JWT_EXPIRATION = "24h";
+export const generateToken = (payload: object): string => {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRATION });
+};
+export const verifyToken = (token: string): any => {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (error) {
+    return null;
+  }
+};
+</file>
+
+<file path="src/utils/workato.ts">
+export async function callWorkatoSignupWebhook(user: any) {
+  if (!process.env.WORKATO_SIGNUP_WEBHOOK_URL) return;
+  try {
+    await fetch(process.env.WORKATO_SIGNUP_WEBHOOK_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: user.fullName,
+        email: user.email,
+        team: user.team,
+        role: user.role,
+      }),
+    });
+  } catch (error: any) {
+    console.error("Workato webhook failed:", error.message);
+  }
+}
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+
+    "module": "Node16",
+    "moduleResolution": "node16",
+    "target": "es2020",
+    "lib": ["es2020"],
+    "types": ["node"],
+
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+
+    "strict": true,
+    "skipLibCheck": true,
+
+    "sourceMap": true,
+    "declaration": false,
+
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": false,
+
+    "verbatimModuleSyntax": false,
+    "isolatedModules": false,
+    "moduleDetection": "auto"
+  },
+  "include": ["src"]
+}
+</file>
+
 <file path="index.html">
 <!doctype html>
 <html lang="en">
@@ -4068,6 +5794,114 @@ export function toBookForm(book) {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "vite": "^5.4.11"
+  }
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "booknook-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "dotenv": "^17.4.2",
+    "lucide-react": "^1.21.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^5.4.11"
+  }
+}
+</file>
+
+<file path=".gitignore">
+node_modules
+# Keep environment variables out of version control
+.env
+
+/generated/prisma
+</file>
+
+<file path="package.json">
+{
+  "name": "backend-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "prisma:generate": "prisma generate"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "prisma": "^6.2.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.5.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^6.0.3"
+  }
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "backend-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "prisma:generate": "prisma generate"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "prisma": "^6.2.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.5.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^6.0.3"
   }
 }
 </file>
