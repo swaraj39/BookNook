@@ -10,7 +10,7 @@ export function RequestModal({ book, onClose, onSave }) {
     borrowerNote: ""
   });
   const [errors, setErrors] = useState({});
-  function submit() {
+  async function submit() {
     const cleanedForm = {
       ...form,
       requestedLoanDays: parseInt(form.requestedLoanDays, 10),
@@ -19,7 +19,7 @@ export function RequestModal({ book, onClose, onSave }) {
     const nextErrors = validateRequestForm(cleanedForm);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length === 0) {
-      onSave(cleanedForm);
+      await onSave(cleanedForm);
     }
   }
   return (

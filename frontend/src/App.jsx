@@ -223,8 +223,8 @@ export default function App() {
   function askConfirm(message, onConfirm) {
     setConfirm({ message, onConfirm });
   }
-  function resolveConfirm(confirmed) {
-    if (confirmed && confirm?.onConfirm) confirm.onConfirm();
+  async function resolveConfirm(confirmed) {
+    if (confirmed && confirm?.onConfirm) await confirm.onConfirm();
     setConfirm(null);
   }
   async function loadRequests(page) {

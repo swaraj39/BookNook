@@ -1,6 +1,28 @@
 import React from "react";
 import { label, dateText, toBookForm } from "../utils/helpers";
 import { Pagination } from "../components/common/Pagination";
+
+function SpinnerInline() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+      style={{ animation: "btn-spin 0.7s linear infinite", flexShrink: 0 }}>
+      <path d="M12 2a10 10 0 0 1 10 10" />
+    </svg>
+  );
+}
+function ReturnButtonDetails({ book, returnBook }) {
+  const [loading, setLoading] = useState(false);
+  async function handle() {
+    setLoading(true);
+    try { await returnBook(book.activeLoanId, book.title); } finally { setLoading(false); }
+  }
+  return (
+    <button className="btn warn" onClick={handle} disabled={loading}>
+      {loading ? <><SpinnerInline /> Returning...</> : "Return this book"}
+    </button>
+  );
+}
+
 export function Details({ book, historyPage, onPageChange, me, setView, setBookModal, setRequestModal, returnBook }) {
   const isAdmin = me.role === "ADMIN";
   const ownedByMe = book.owner.id === me.id;
@@ -56,7 +78,7 @@ export function Details({ book, historyPage, onPageChange, me, setView, setBookM
 </div>
         <div className="card-actions detail-actions">
           {!ownedByMe && book.availabilityStatus === "available" && <button className="btn primary" onClick={() => setRequestModal(book)}>Request this book</button>}
-          {borrowedByMe && <button className="btn warn" onClick={() => returnBook(book.activeLoanId, book.title)}>Return this book</button>}
+          {borrowedByMe && <ReturnButtonDetails book={book} returnBook={returnBook} />}
           {(ownedByMe || isAdmin) && <button className="btn" onClick={() => setBookModal(toBookForm(book))}>Edit book</button>}
         </div>
         {/* <div className="timeline">
