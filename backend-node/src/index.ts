@@ -22,7 +22,6 @@ app.use(
 );
 app.use(express.json());
 
-
 // Auth routes
 app.post("/api/auth/register", AuthController.register);
 app.post("/api/auth/login", AuthController.login);

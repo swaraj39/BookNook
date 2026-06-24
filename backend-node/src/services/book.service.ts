@@ -14,19 +14,19 @@ export class BookService {
     }
 
     if (availability === "borrowed_by_me") {
-      where.loans = { some: { borrowerId: userId, status: { in: ["active", "overdue"] } } };
-    } else if (availability === "request_pending") {
-      where.availabilityStatus = "request_pending";
-      where.borrowRequests = { some: { requesterId: userId, status: "pending" } };
-    } else if (availability === "unavailable") {
-      where.availabilityStatus = { in: ["borrowed", "request_pending"] };
-      if (userId) {
-        where.NOT = [
-          { loans: { some: { borrowerId: userId, status: { in: ["active", "overdue"] } } } },
-          { borrowRequests: { some: { requesterId: userId, status: "pending" } } },
-        ];
-      }
-    } else if (availability && availability !== "all") {
+  where.transactions = { some: { requesterId: userId, status: { in: ["active", "overdue"] } } };
+} else if (availability === "request_pending") {
+  where.availabilityStatus = "request_pending";
+  where.transactions = { some: { requesterId: userId, status: "pending" } };
+} else if (availability === "unavailable") {
+  where.availabilityStatus = { in: ["borrowed", "request_pending"] };
+  if (userId) {
+    where.NOT = [
+      { transactions: { some: { requesterId: userId, status: { in: ["active", "overdue"] } } } },
+      { transactions: { some: { requesterId: userId, status: "pending" } } },
+    ];
+  }
+} else if (availability && availability !== "all") {
       where.availabilityStatus = availability;
     }
 
@@ -219,7 +219,7 @@ export class BookService {
     }
 
     // Check pending requests
-    const pendingRequests = await prisma.borrowRequest.count({
+    const pendingRequests = await prisma.bookTransaction.count({
       where: { bookId: id, status: "pending" },
     });
     if (pendingRequests > 0) {
@@ -227,7 +227,7 @@ export class BookService {
     }
 
     // Check active loans
-    const activeLoans = await prisma.loan.count({
+    const activeLoans = await prisma.bookTransaction.count({
       where: {
         bookId: id,
         status: { in: ["active", "overdue", "return_pending"] },

@@ -21,10 +21,8 @@ model User {
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   ownedBooks      Book[]          @relation("BookOwner")
-  borrowRequests  BorrowRequest[] @relation("Requester")
-  ownedRequests   BorrowRequest[] @relation("RequestOwner")
-  loans           Loan[]          @relation("Borrower")
-  ownedLoans      Loan[]          @relation("LoanOwner")
+  transactions     BookTransaction[] @relation("Requester")
+  ownedTransactions BookTransaction[] @relation("RequestOwner")
   bookHistory     BookHistory[]   @relation("Actor")
   notifications   Notification[]  @relation("Recipient")
   actedNotifications Notification[] @relation("NotificationActor")
@@ -63,8 +61,7 @@ model Book {
 
   owner             User     @relation("BookOwner", fields: [ownerId], references: [id])
   genre             Genre?   @relation(fields: [genreId], references: [id])
-  borrowRequests    BorrowRequest[]
-  loans             Loan[]
+  transactions      BookTransaction[]
   history           BookHistory[]
   notifications     Notification[]
   reviews           Review[]
@@ -72,40 +69,20 @@ model Book {
   @@map("books")
 }
 
-model BorrowRequest {
-  id                   String   @id @default(uuid())
-  bookId               String   @map("book_id")
-  requesterId          String   @map("requester_id")
-  ownerId              String   @map("owner_id")
-  status               String   @default("pending") @db.VarChar(40)
-  requestedLoanDays    Int      @default(14) @map("requested_loan_days")
-  borrowerNote         String?  @map("borrower_note") @db.Text
-  ownerResponseNote    String?  @map("owner_response_note") @db.Text
-  requestedAt          DateTime @default(now()) @map("requested_at") @db.Timestamp(6)
-  respondedAt          DateTime? @map("responded_at") @db.Timestamp(6)
-  expiresAt            DateTime? @map("expires_at") @db.Timestamp(6)
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
-
-  book                 Book     @relation(fields: [bookId], references: [id])
-  requester            User     @relation("Requester", fields: [requesterId], references: [id])
-  owner                User     @relation("RequestOwner", fields: [ownerId], references: [id])
-  loans                Loan[]
-  bookHistory          BookHistory[]
-  notifications        Notification[]
-
-  @@map("borrow_requests")
-}
-
-model Loan {
+model BookTransaction {
   id                    String   @id @default(uuid())
   bookId                String   @map("book_id")
-  borrowRequestId       String?  @map("borrow_request_id")
-  borrowerId            String   @map("borrower_id")
+  requesterId           String   @map("requester_id")
   ownerId               String   @map("owner_id")
-  status                String   @default("active") @db.VarChar(40)
-  borrowedAt            DateTime @default(now()) @map("borrowed_at") @db.Timestamp(6)
-  dueAt                 DateTime @map("due_at") @db.Timestamp(6)
+  status                String   @default("pending") @db.VarChar(40)
+  requestedLoanDays     Int      @default(14) @map("requested_loan_days")
+  borrowerNote          String?  @map("borrower_note") @db.Text
+  ownerResponseNote     String?  @map("owner_response_note") @db.Text
+  requestedAt           DateTime @default(now()) @map("requested_at") @db.Timestamp(6)
+  respondedAt           DateTime? @map("responded_at") @db.Timestamp(6)
+  expiresAt             DateTime? @map("expires_at") @db.Timestamp(6)
+  borrowedAt            DateTime? @map("borrowed_at") @db.Timestamp(6)
+  dueAt                 DateTime? @map("due_at") @db.Timestamp(6)
   returnedAt            DateTime? @map("returned_at") @db.Timestamp(6)
   borrowerReturnNote    String?  @map("borrower_return_note") @db.Text
   ownerReturnNote       String?  @map("owner_return_note") @db.Text
@@ -114,14 +91,13 @@ model Loan {
   updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   book                  Book     @relation(fields: [bookId], references: [id])
-  borrowRequest         BorrowRequest? @relation(fields: [borrowRequestId], references: [id])
-  borrower              User     @relation("Borrower", fields: [borrowerId], references: [id])
-  owner                 User     @relation("LoanOwner", fields: [ownerId], references: [id])
+  requester             User     @relation("Requester", fields: [requesterId], references: [id])
+  owner                 User     @relation("RequestOwner", fields: [ownerId], references: [id])
   bookHistory           BookHistory[]
   notifications         Notification[]
   reviews               Review[]
 
-  @@map("loans")
+  @@map("book_transactions")
 }
 
 model BookHistory {
@@ -131,14 +107,12 @@ model BookHistory {
   eventType       String   @map("event_type") @db.VarChar(80)
   eventTitle      String?  @map("event_title") @db.VarChar(180)
   eventMessage    String?  @map("event_message") @db.Text
-  borrowRequestId String?  @map("borrow_request_id")
-  loanId          String?  @map("loan_id")
+  transactionId   String?  @map("transaction_id")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   book            Book     @relation(fields: [bookId], references: [id])
   actor           User?    @relation("Actor", fields: [actorId], references: [id])
-  borrowRequest   BorrowRequest? @relation(fields: [borrowRequestId], references: [id])
-  loan            Loan?    @relation(fields: [loanId], references: [id])
+  transaction     BookTransaction? @relation(fields: [transactionId], references: [id])
 
   @@map("book_history")
 }
@@ -148,20 +122,17 @@ model Notification {
   recipientId     String   @map("recipient_id")
   actorId         String?  @map("actor_id")
   type            String   @db.VarChar(80)
-  title           String   @db.VarChar(180)
-  message         String?  @db.Text
+  title           String   @map("title") @db.VarChar(180)
+  message         String?  @map("message") @db.Text
   bookId          String?  @map("book_id")
-  borrowRequestId String?  @map("borrow_request_id")
-  loanId          String?  @map("loan_id")
+  transactionId   String?  @map("transaction_id")
   channel         String?  @default("in_app") @db.VarChar(40)
-  readAt          DateTime? @map("read_at") @db.Timestamp(6)
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   recipient       User     @relation("Recipient", fields: [recipientId], references: [id])
   actor           User?    @relation("NotificationActor", fields: [actorId], references: [id])
   book            Book?    @relation(fields: [bookId], references: [id])
-  borrowRequest   BorrowRequest? @relation(fields: [borrowRequestId], references: [id])
-  loan            Loan?    @relation(fields: [loanId], references: [id])
+  transaction     BookTransaction? @relation(fields: [transactionId], references: [id])
 
   @@map("notifications")
 }
@@ -169,7 +140,7 @@ model Notification {
 model Review {
   id              String   @id @default(uuid())
   bookId          String   @map("book_id")
-  loanId          String?  @map("loan_id")
+  transactionId   String?  @map("transaction_id")
   reviewerId      String   @map("reviewer_id")
   rating          Int?
   comment         String?  @db.Text
@@ -177,7 +148,7 @@ model Review {
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   book            Book     @relation(fields: [bookId], references: [id])
-  loan            Loan?    @relation(fields: [loanId], references: [id])
+  transaction     BookTransaction? @relation(fields: [transactionId], references: [id])
   reviewer        User     @relation(fields: [reviewerId], references: [id])
 
   @@map("reviews")
