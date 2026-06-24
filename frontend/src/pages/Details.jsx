@@ -98,7 +98,7 @@ export function Details({ book, historyPage, onPageChange, me, setView, setBookM
   )}
 </div>
         <div className="card-actions detail-actions">
-          {!ownedByMe && book.availabilityStatus === "available" && <button className="btn primary" onClick={() => setRequestModal(book)}>Request this book</button>}
+          {!ownedByMe && book.availabilityStatus === "available" && <button className="btn primary" onClick={() => setRequestModal(book)}>Request the book</button>}
           {borrowedByMe && <ReturnButtonDetails book={book} returnBook={returnBook} />}
           {(ownedByMe || isAdmin) && <button className="btn" onClick={() => setBookModal(toBookForm(book))}>Edit book</button>}
         </div>

@@ -94,6 +94,7 @@ function HomePage({ stats, dailyThought, setView, setFilters, setBookModal }) {
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
   const [view, setView] = useState("home");
   const [darkMode, setDarkMode] = useState(localStorage.getItem("bn_theme") === "dark");
   const [me, setMe] = useState(null);
@@ -149,6 +150,7 @@ export default function App() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
   useEffect(() => {
     if (isAuthenticated) {
       loadBootstrap();
@@ -165,6 +167,38 @@ export default function App() {
       loadCatalog();
     }
   }, [filters, isAuthenticated]);
+
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const user = await api.me();
+
+        setMe(user);
+        setIsAuthenticated(true);
+      } catch (error) {
+        setMe(null);
+        setIsAuthenticated(false);
+      } finally {
+        setAuthChecking(false);
+      }
+    }
+
+    checkAuth();
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      setMe(null);
+      setIsAuthenticated(false);
+    };
+
+    window.addEventListener("auth-expired", handler);
+
+    return () => {
+      window.removeEventListener("auth-expired", handler);
+    };
+  }, []);
+
   async function handleLogin(token, user) {
     setMe(user);
     setIsAuthenticated(true);
@@ -358,6 +392,11 @@ export default function App() {
       ]
     }
   ];
+
+  if (authChecking) {
+    return <div>Loading...</div>;
+  }
+
   if (!isAuthenticated) {
     return (
       <>

@@ -12,11 +12,8 @@ async function request(path, options = {}) {
     headers
   });
   if (response.status === 401) {
-    const isAuthEndpoint = path.includes("/auth/");
-    if (!isAuthEndpoint) {
-      window.location.reload();
-      throw new Error("Session expired. Please login again.");
-    }
+    window.dispatchEvent(new CustomEvent("auth-expired"));
+    throw new Error("Unauthorized");
   }
   const text = await response.text();
   if (!response.ok) {

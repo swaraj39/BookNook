@@ -108,22 +108,18 @@ CMD ["nginx", "-g", "daemon off;"]
 <file path="src/api/index.js">
 const API_URL = "http://localhost:8080/api";
 async function request(path, options = {}) {
-  const token = localStorage.getItem("bn_token");
   const headers = {
     "Content-Type": "application/json",
     ...(options.headers || {})
   };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
+    credentials: "include",
     headers
   });
   if (response.status === 401) {
     const isAuthEndpoint = path.includes("/auth/");
     if (!isAuthEndpoint) {
-      localStorage.removeItem("bn_token");
       window.location.reload();
       throw new Error("Session expired. Please login again.");
     }
@@ -175,9 +171,7 @@ export const api = {
     const token = localStorage.getItem("bn_token");
     const response = await fetch(`${API_URL}/all/books`, {
       method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      credentials: "include",
     });
     if (!response.ok) {
       throw new Error("Failed to export books");
@@ -289,7 +283,8 @@ function HomePage({ stats, dailyThought, setView, setFilters, setBookModal }) {
   );
 }
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem("bn_token"));
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
   const [view, setView] = useState("home");
   const [darkMode, setDarkMode] = useState(localStorage.getItem("bn_theme") === "dark");
   const [me, setMe] = useState(null);
@@ -356,16 +351,34 @@ export default function App() {
       loadCatalog();
     }
   }, [filters, isAuthenticated]);
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const user = await api.me();
+        setMe(user);
+        setIsAuthenticated(true);
+      } catch {
+        setIsAuthenticated(false);
+      } finally {
+        setAuthChecking(false);
+      }
+    }
+    checkAuth();
+  }, []);
   async function handleLogin(token, user) {
-    localStorage.setItem("bn_token", token);
     setMe(user);
     setIsAuthenticated(true);
     notify("Welcome , " + user.fullName + "!");
     setView("home");
   }
-  function handleLogout() {
+  async function handleLogout() {
     setShowProfileDropdown(false);
-    localStorage.removeItem("bn_token");
+    try {
+      await fetch("http://localhost:8080/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch { }
     setIsAuthenticated(false);
     setMe(null);
     notify("Logged out successfully.");
@@ -535,6 +548,9 @@ export default function App() {
       ]
     }
   ];
+  if (authChecking) {
+    return <div>Loading...</div>;
+  }
   if (!isAuthenticated) {
     return (
       <>
@@ -708,7 +724,6 @@ export function BookCard({ book, me, openDetails, setRequestModal, setBookModal,
         <div>
           <div className="flex-between">
             <h3>{book.title}</h3>
-            {isAdmin && <span className="admin-tag">Admin</span>}
           </div>
           <div className="author">{book.author}</div>
           <div className="chips">
@@ -900,72 +915,35 @@ function SpinnerInline() {
 
 <file path="src/components/common/Pagination.jsx">
 import React from "react";
-import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 export function Pagination({ page, totalPages, totalElements, onPageChange }) {
-  const currentPage = Number(page);
-  const total = Number(totalPages);
-  const isFirst = currentPage === 0;
+  const currentPage = Number(page ?? 0);
+  const total = Number(totalPages ?? 1);
+  const isFirst = currentPage <= 0;
   const isLast = currentPage >= total - 1;
-  const getPageNumbers = () => {
-    const current = page + 1;
-    const last = totalPages;
-    const delta = 1;
-    const left = current - delta;
-    const right = current + delta + 1;
-    const range = [];
-    const rangeWithDots = [];
-    let l;
-    for (let i = 1; i <= last; i++) {
-      if (i === 1 || i === last || (i >= left && i < right)) range.push(i);
-    }
-    for (let i of range) {
-      if (l) {
-        if (i - l === 2) rangeWithDots.push(l + 1);
-        else if (i - l !== 1) rangeWithDots.push("...");
-      }
-      rangeWithDots.push(i);
-      l = i;
-    }
-    return rangeWithDots;
-  };
-  const pages = getPageNumbers();
   return (
-    <div className="pagination">
-      <div className="pagination-info">({totalElements} total items)</div>
+    <div className="pagination two-block-pagination">
+      <div className="pagination-info">
+        {totalElements} total items · Page {currentPage + 1} of {total}
+      </div>
       <div className="pagination-controls">
         <button
-          className="btn icon-only"
+          type="button"
+          className="btn pagination-block"
           disabled={isFirst}
-          aria-label="Previous page"
-          onClick={() => onPageChange(currentPage - 1)}
+          onClick={() => !isFirst && onPageChange(currentPage - 1)}
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={10} />
+          Previous
         </button>
-        <div className="pagination-numbers">
-          {pages.map((p, i) => {
-            if (p === "...") return (
-              <span key={`e-${i}`} className="pagination-ellipsis">
-                <MoreHorizontal size={16} />
-              </span>
-            );
-            return (
-              <button
-                key={p}
-                className={`btn pagination-num ${page === p - 1 ? "active" : ""}`}
-                onClick={() => onPageChange(p - 1)}
-              >
-                {p}
-              </button>
-            );
-          })}
-        </div>
         <button
-          className="btn icon-only"
+          type="button"
+          className="btn pagination-block"
           disabled={isLast}
-          aria-label="Next page"
-          onClick={() => onPageChange(currentPage + 1)}
+          onClick={() => !isLast && onPageChange(currentPage + 1)}
         >
-          <ChevronRight size={16} />
+          Next
+          <ChevronRight size={10} />
         </button>
       </div>
     </div>
@@ -1290,7 +1268,9 @@ export function Borrowed({ page, onPageChange, returnBook, openDetails }) {
           </tr>
         ))}
       </Table>
-      <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
+      {page.totalPages > 1 && (
+        <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
+      )}
     </Panel>
   );
 }
@@ -1396,7 +1376,7 @@ export function Catalog({
         )}
       </div>
     </div>
-    {!loading && page.content.length > 0 && (
+    {!loading && page.content.length > 0 && page.totalPages > 1 && (
       <Pagination
         page={page.page}
         totalPages={page.totalPages}
@@ -1500,7 +1480,7 @@ export function Details({ book, historyPage, onPageChange, me, setView, setBookM
   )}
 </div>
         <div className="card-actions detail-actions">
-          {!ownedByMe && book.availabilityStatus === "available" && <button className="btn primary" onClick={() => setRequestModal(book)}>Request this book</button>}
+          {!ownedByMe && book.availabilityStatus === "available" && <button className="btn primary" onClick={() => setRequestModal(book)}>Request the book</button>}
           {borrowedByMe && <ReturnButtonDetails book={book} returnBook={returnBook} />}
           {(ownedByMe || isAdmin) && <button className="btn" onClick={() => setBookModal(toBookForm(book))}>Edit book</button>}
         </div>
@@ -1628,12 +1608,14 @@ export function LoanHistory({ page, onPageChange }) {
           </tr>
         ))}
       </Table>
-      <Pagination
-        page={page.page || page.pageNumber || 0}
-        totalPages={page.totalPages || 0}
-        totalElements={page.totalElements || 0}
-        onPageChange={onPageChange}
-      />
+      {(page.totalPages || 0) > 1 && (
+        <Pagination
+          page={page.page || page.pageNumber || 0}
+          totalPages={page.totalPages || 0}
+          totalElements={page.totalElements || 0}
+          onPageChange={onPageChange}
+        />
+      )}
     </Panel>
   );
 }
@@ -1686,7 +1668,7 @@ export function Login({ onLogin }) {
       } else {
         result = await api.login(form.email, form.password);
       }
-      onLogin(result.token, result.user);
+      onLogin(null, result.user);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1862,7 +1844,9 @@ export function MyBooks({ page, onPageChange, setBookModal, deleteBook, openDeta
           </tr>
         ))}
       </Table>
-      <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
+      {page.totalPages > 1 && (
+        <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
+      )}
     </Panel>
   );
 }
@@ -1947,7 +1931,9 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails 
             <RequestRow key={row.id} row={row} me={me} isAdmin={isAdmin} approve={approve} reject={reject} openDetails={openDetails} />
           ))}
         </Table>
-        <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
+        {page.totalPages > 1 && (
+          <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
+        )}
       </Panel>
     </div>
   );
@@ -3861,8 +3847,42 @@ td:last-child, th:last-child {
   .nav-item-content svg { width: 14px; height: 14px; }
   .top-nav-actions { margin-left: 8px; }
   .main { padding: 16px 14px 36px; }
-  .pagination { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
-  .pagination-controls { justify-content: center; flex-wrap: wrap; }
+  .pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.pagination-controls {
+  display: flex;
+  gap: 8px;
+}
+.pagination-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+}
+}
+.two-block-pagination .pagination-controls {
+  display: flex;
+  gap: 10px;
+}
+.two-block-pagination .pagination-block {
+  width: auto !important;
+  min-width: 110px;
+  height: 40px;
+  padding: 0 16px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 10px;
+}
+.two-block-pagination .pagination-block svg {
+  flex-shrink: 0;
 }
 .home-quote-card {
   max-width: 1200px;
@@ -4792,16 +4812,31 @@ export class AuthController {
   static async login(req: Request, res: Response) {
     try {
       const result = await AuthService.login(req.body);
-      res.json(result);
+      res.cookie("token", result.token, {
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+      res.json({
+        user: result.user,
+      });
     } catch (error: any) {
       res.status(401).json({ message: error.message });
     }
+  }
+  static async logout(req: Request, res: Response) {
+    res.clearCookie("token");
+    res.json({
+      message: "Logged out successfully",
+    });
   }
 }
 </file>
 
 <file path="src/index.ts">
 import express from "express";
+import cookieParser from "cookie-parser";
 import cors from "cors";
 import dotenv from "dotenv";
 import { AuthController } from "./controllers/auth.controller";
@@ -4821,9 +4856,12 @@ app.use(
     credentials: true,
   })
 );
+app.use(cookieParser());
+app.use(cookieParser());
 app.use(express.json());
 app.post("/api/auth/register", AuthController.register);
 app.post("/api/auth/login", AuthController.login);
+app.post("/api/auth/logout", AuthController.logout);
 app.get("/api/me", authenticate, AppController.me);
 app.get("/api/genres", authenticate, AppController.genres);
 app.get("/api/dashboard", authenticate, AppController.dashboard);
@@ -4874,13 +4912,19 @@ import { verifyToken } from "../utils/jwt";
 import prisma from "../config/prisma";
 export interface AuthRequest extends Request {
   user?: any;
+  cookies: {
+    token?: string;
+  };
 }
-export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+export const authenticate = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  const token = req.cookies?.token;
+  if (!token) {
     return res.status(401).json({ message: "Unauthorized" });
   }
-  const token = authHeader.split(" ")[1];
   const decoded = verifyToken(token);
   if (!decoded || !decoded.email) {
     return res.status(401).json({ message: "Invalid or expired token" });
@@ -5038,12 +5082,12 @@ export class BookService {
       }),
     ]);
     return {
-      content: content.map(this.mapBook),
-      totalElements,
-      totalPages: Math.ceil(totalElements / size),
-      pageNumber: page,
-      pageSize: size,
-    };
+  content: content.map(this.mapBook),
+  totalElements,
+  totalPages: Math.ceil(totalElements / size),
+  page,
+  pageSize: size,
+};
   }
   static async get(id: string) {
     const book = await prisma.book.findUnique({
@@ -5846,7 +5890,9 @@ node_modules
   "type": "commonjs",
   "dependencies": {
     "@prisma/client": "^6.2.1",
+    "@types/cookie-parser": "^1.4.8",
     "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
@@ -5885,7 +5931,9 @@ node_modules
   "type": "commonjs",
   "dependencies": {
     "@prisma/client": "^6.2.1",
+    "@types/cookie-parser": "^1.4.8",
     "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
