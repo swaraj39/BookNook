@@ -116,9 +116,12 @@ async function request(path, options = {}) {
     headers
   });
   if (response.status === 401) {
-    localStorage.removeItem("bn_token");
-    window.location.reload();
-    throw new Error("Session expired. Please login again.");
+    const isAuthEndpoint = path.includes("/auth/");
+    if (!isAuthEndpoint) {
+      localStorage.removeItem("bn_token");
+      window.location.reload();
+      throw new Error("Session expired. Please login again.");
+    }
   }
   const text = await response.text();
   if (!response.ok) {
@@ -164,26 +167,26 @@ export const api = {
   loanHistory: (page = 0, size = 20) => request(`/loans/history?page=${page}&size=${size}`),
   returnBook: (id) => request(`/loans/${id}/return`, { method: "POST" }),
   exportBooks: async () => {
-  const token = localStorage.getItem("bn_token");
-  const response = await fetch(`${API_URL}/all/books`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  if (!response.ok) {
-    throw new Error("Failed to export books");
+    const token = localStorage.getItem("bn_token");
+    const response = await fetch(`${API_URL}/all/books`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error("Failed to export books");
+    }
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "books.csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
   }
-  const blob = await response.blob();
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "books.csv";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  window.URL.revokeObjectURL(url);
-}
 };
 </file>
 
@@ -247,7 +250,7 @@ function HomePage({ stats, dailyThought, setView, setFilters, setBookModal }) {
         </p>
         <div className="new-hero-actions">
           <button className="new-btn-primary" onClick={() => setView("catalog")}>Browse the shelf</button>
-          <button className="new-btn-outline" onClick={() => setBookModal({ ...blankBook })}>Lend a book</button>
+          <button className="new-btn-outline" onClick={() => setBookModal({ ...blankBook })}>Add Book</button>
         </div>
         {dailyThought && (
           <div className="new-hero-quote">
@@ -292,7 +295,7 @@ export default function App() {
   const [historyPage, setHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
   const [bookHistoryPage, setBookHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
   const [selectedBook, setSelectedBook] = useState(null);
-  const [filters, setFilters] = useState({ search: "", genreId: "", availability: "all", sort: "title", page: 0 });
+  const [filters, setFilters] = useState({ search: "", genreId: "", availability: "available", sort: "title", page: 0 });
   const [searchTerm, setSearchTerm] = useState("");
   const [bookModal, setBookModal] = useState(null);
   const [requestModal, setRequestModal] = useState(null);
@@ -586,7 +589,7 @@ export default function App() {
               <h2>BA Reading Community Tracker</h2>
               <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
             </div>
-            <div className="actions">
+            <div>
               <button className="btn primary" onClick={() => setBookModal({ ...blankBook })}><Plus size={17} /> Add book</button>
             </div>
           </section>
@@ -675,14 +678,15 @@ export function BookCard({ book, me, openDetails, setRequestModal, setBookModal,
             {isAdmin && <span className="admin-tag">Admin</span>}
           </div>
           <div className="author">{book.author}</div>
-          <div className="chips">
+          <div className="$chips">
             <span className={`chip ${book.availabilityStatus}`}>{label(book.availabilityStatus)}</span>
             {borrowedByMe && <span className="chip returned">Borrowed by you</span>}
           </div>
         </div>
       </div>
       <div className="book-body">
-        <p className="book-desc">{book.description}</p>
+        {}
+        {}
         <div className="mini-meta">
           <span>
             <strong>Owner:</strong> {book.owner.fullName}
@@ -1186,6 +1190,14 @@ export function Catalog({
   page, genres, filters, setFilters, searchTerm, setSearchTerm,
   loading, me, openDetails, setRequestModal, setBookModal, returnBook
 }) {
+  const showingBorrowed = filters.availability === "all" || filters.availability === "borrowed";
+  function toggleBorrowed() {
+    setFilters({
+      ...filters,
+      availability: showingBorrowed ? "available" : "all",
+      page: 0
+    });
+  }
   return (
     <section>
       <div className="section-heading">
@@ -1193,8 +1205,8 @@ export function Catalog({
           <p className="page-kicker">Browse</p>
           <h3>Books on the shelf</h3>
         </div>
+        <button className="btn" onClick={() => handleExportBooks()}>Export CSV</button>
       </div>
-      <button className="btn btn-outline" onClick={() => handleExportBooks()}>Export CSV</button>
       <div className="toolbar">
         <div className="search-wrap">
           <Search size={17} />
@@ -1209,17 +1221,19 @@ export function Catalog({
           <option value="">All genres</option>
           {genres.map((genre) => <option key={genre.id} value={genre.id}>{genre.name}</option>)}
         </select>
-        <select className="select" value={filters.availability} onChange={(e) => setFilters({ ...filters, availability: e.target.value, page: 0 })}>
-          <option value="all">All availability</option>
-          <option value="available">Available</option>
-          <option value="borrowed">Borrowed</option>
-          <option value="request_pending">Pending request</option>
-        </select>
         <select className="select" value={filters.sort} onChange={(e) => setFilters({ ...filters, sort: e.target.value, page: 0 })}>
           <option value="title">Sort by title</option>
           <option value="newest">Newest first</option>
           <option value="due">Due date</option>
         </select>
+        <button
+          className={`btn catalog-borrowed-toggle ${showingBorrowed ? "active" : ""}`}
+          onClick={toggleBorrowed}
+          title={showingBorrowed ? "Hide borrowed books" : "Show borrowed books"}
+        >
+          <span className={`catalog-toggle-dot ${showingBorrowed ? "on" : "off"}`} />
+          {showingBorrowed ? "Showing borrowed" : "Hide borrowed"}
+        </button>
       </div>
       <div className="grid catalog">
         {loading ? (
@@ -1489,13 +1503,14 @@ export function Login({ onLogin }) {
               <label className="field full">
                 <span>Full Name</span>
                 <input
-                  type="text"
-                  className="input"
-                  value={form.fullName}
-                  onChange={(e) => updateForm("fullName", e.target.value)}
-                  required
-                  placeholder="Gaurav Choudhary"
-                />
+              type="text"
+              className="input"
+              value={form.fullName}
+              onChange={(e) => updateForm("fullName", e.target.value)}
+              required
+              placeholder="Enter your name"
+              maxLength={60}
+            />
               </label>
               <label className="field full">
                 <span>Capability</span>
@@ -1524,6 +1539,7 @@ export function Login({ onLogin }) {
               onChange={(e) => updateForm("email", e.target.value)}
               required
               placeholder="Email"
+              maxLength={100}
             />
           </label>
           <label className="field full">
@@ -1535,6 +1551,7 @@ export function Login({ onLogin }) {
               onChange={(e) => updateForm("password", e.target.value)}
               required
               placeholder="Password"
+              maxLength={72}
             />
           </label>
           {error && <div className="error-box">{error}</div>}
@@ -1589,7 +1606,7 @@ export function MyBooks({ page, onPageChange, setBookModal, deleteBook, openDeta
             <td><span className={`chip ${book.availabilityStatus}`}>{label(book.availabilityStatus)}</span></td>
             <td><div className="row-actions">
               <button className="btn" onClick={() => setBookModal(toBookForm(book))}>Edit</button>
-              <button className="btn" onClick={() => openDetails(book)}>Details</button>
+              <button className="btn" onClick={() => openDetails(book)}>View</button>
               <button className="btn danger" onClick={() => deleteBook(book.id)}>Delete</button>
             </div></td>
           </tr>
@@ -1629,10 +1646,16 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails 
             <td><strong>{row.book.title}</strong><br /><span>{row.book.author}</span></td>
             <td>{row.requester.fullName}</td>
             <td>{row.owner.fullName}</td>
-            <td><span className={`chip ${row.status}`}>{label(row.status)}</span></td>
+            <td>
+              <span className={`chip ${row.status}`}>
+                {row.status === "converted_to_loan"
+                  ? "Reading"
+                  : label(row.status)}
+              </span>
+            </td>
             <td>{dateText(row.requestedAt)}</td>
             <td><div className="row-actions">
-              {(row.owner.id === me.id || isAdmin) && row.status === "pending" && <><button className="btn primary" onClick={() => approve(row.id)}>Approve</button><button className="btn danger" onClick={() => reject(row.id)}>Reject</button></>}
+              {(row.owner.id === me.id || isAdmin) && row.status === "pending" && <><button className="btn approve" onClick={() => approve(row.id)}>Approve</button><button className="btn danger" onClick={() => reject(row.id)}>Reject</button></>}
               <button className="btn" onClick={() => openDetails(row.book)}>Book</button>
             </div></td>
           </tr>
@@ -2282,7 +2305,9 @@ button { cursor: pointer; }
   font-weight: 800;
 }
 .chip.available { color: #065f46; background: #dff6ec; }
-.chip.borrowed, .chip.request_pending, .chip.pending, .chip.converted_to_loan { color: #92400e; background: #fff3d8; }
+.chip.borrowed, .chip.request_pending { color: #92400e; background: #fff3d8; }
+.chip.pending { color: #1e40af; background: #dbeafe; }
+.chip.converted_to_loan { color: #045741; background: #a0face; }
 .chip.overdue, .chip.rejected, .chip.expired { color: #991b1b; background: #fee2e2; }
 .chip.returned { color: #315b58; background: #e2f6f2; }
 .book-body {
@@ -3060,7 +3085,7 @@ tr:last-child td { border-bottom: 0; }
   margin: 0 auto;
   padding: clamp(18px, 3vw, 44px) clamp(16px, 4vw, 64px) 56px;
 }
-.topbar, .grid, .toolbar { max-width: none; }
+.topbar, .grid, .toolbar { max-width: 1240px; margin-left: auto; margin-right: auto; }
 .home-page { display: flex; flex-direction: column; gap: 24px; }
 .new-hero {
   display: flex;
@@ -3562,6 +3587,39 @@ tr:last-child td { border-bottom: 0; }
   color: var(--brand);
   font-style: normal;
 }
+.catalog-borrowed-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  white-space: nowrap;
+  border-color: var(--line);
+  color: var(--muted);
+  transition: all 0.2s ease;
+}
+.catalog-borrowed-toggle.active {
+  border-color: var(--brand);
+  color: var(--brand-dark);
+  background: var(--brand-soft);
+}
+.catalog-toggle-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+}
+.catalog-toggle-dot.on  { background: var(--brand); }
+.catalog-toggle-dot.off { background: var(--muted); }
+.btn.approve, .btn.success {
+  color: white !important;
+  background: #16a34a !important;
+  border-color: #16a34a !important;
+}
+.btn.approve:hover, .btn.success:hover {
+  background: #15803d !important;
+  border-color: #15803d !important;
+}
 </file>
 
 <file path="src/utils/helpers.js">
@@ -3920,7 +3978,7 @@ export class AppController {
         sort: queryString(sort),
         page: queryNumber(page, 0),
         size: queryNumber(size, 20),
-      });
+      }, req.user.id);
       res.json(result);
     } catch (error: any) {
       res.status(400).json({ message: error.message });
@@ -4277,11 +4335,14 @@ export class AuthService {
 <file path="src/services/book.service.ts">
 import prisma from "../config/prisma";
 export class BookService {
-  static async catalog(params: any) {
+  static async catalog(params: any, userId?: string) {
     const { search = "", genreId, availability = "all", sort = "title", page = 0, size = 20 } = params;
     const where: any = {
       visibilityStatus: "visible",
     };
+    if (userId) {
+      where.ownerId = { not: userId };
+    }
     if (genreId) {
       where.genreId = genreId;
     }

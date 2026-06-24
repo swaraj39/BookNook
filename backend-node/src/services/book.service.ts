@@ -26,29 +26,29 @@ export class BookService {
       ];
     }
 
-    let orderBy: any = {};
-    if (sort === "newest") {
-      orderBy = { createdAt: "desc" };
-    } else if (sort === "title") {
-      orderBy = { title: "asc" };
-    }
+    let secondaryOrder: any = { title: "asc" };
+    if (sort === "newest") secondaryOrder = { createdAt: "desc" };
 
-    const [totalElements, content] = await Promise.all([
+    const statusOrder = ["available", "request_pending", "borrowed"];
+
+    const [totalElements, allContent] = await Promise.all([
       prisma.book.count({ where }),
       prisma.book.findMany({
         where,
-        include: {
-          owner: true,
-          genre: true,
-        },
-        orderBy,
+        include: { owner: true, genre: true },
+        orderBy: secondaryOrder,
         skip: page * size,
         take: size,
       }),
     ]);
 
-    const totalPages = Math.ceil(totalElements / size);
+    const content = allContent.sort((a, b) => {
+      const ai = statusOrder.indexOf(a.availabilityStatus) === -1 ? 99 : statusOrder.indexOf(a.availabilityStatus);
+      const bi = statusOrder.indexOf(b.availabilityStatus) === -1 ? 99 : statusOrder.indexOf(b.availabilityStatus);
+      return ai - bi;
+    });
 
+    const totalPages = Math.ceil(totalElements / size);
     return {
       content: content.map(this.mapBook),
       totalElements,
@@ -56,6 +56,30 @@ export class BookService {
       pageNumber: page,
       pageSize: size,
     };
+
+    // const [totalElements, content] = await Promise.all([
+    //   prisma.book.count({ where }),
+    //   prisma.book.findMany({
+    //     where,
+    //     include: {
+    //       owner: true,
+    //       genre: true,
+    //     },
+    //     orderBy,
+    //     skip: page * size,
+    //     take: size,
+    //   }),
+    // ]);
+
+    // const totalPages = Math.ceil(totalElements / size);
+
+    // return {
+    //   content: content.map(this.mapBook),
+    //   totalElements,
+    //   totalPages,
+    //   pageNumber: page,
+    //   pageSize: size,
+    // };
   }
 
   static async myBooks(userId: string, page = 0, size = 20) {
