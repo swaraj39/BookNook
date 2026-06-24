@@ -142,7 +142,7 @@ export const api = {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "books.csv";
+    a.download = "booknook.csv";
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -370,8 +370,8 @@ export default function App() {
   function askConfirm(message, onConfirm) {
     setConfirm({ message, onConfirm });
   }
-  function resolveConfirm(confirmed) {
-    if (confirmed && confirm?.onConfirm) confirm.onConfirm();
+  async function resolveConfirm(confirmed) {
+    if (confirmed && confirm?.onConfirm) await confirm.onConfirm();
     setConfirm(null);
   }
   async function loadRequests(page) {
@@ -693,10 +693,10 @@ export function BookModal({ book, genres, onClose, onSave }) {
   if (!book) return null;
   const [form, setForm] = useState({ ...book, genreId: book.genreId || book.genre?.id || genres[0]?.id || "" });
   const [errors, setErrors] = useState({});
-  function submit() {
+  async function submit() {
     const nextErrors = validateBookForm(form);
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length === 0) onSave({
+    if (Object.keys(nextErrors).length === 0) await onSave({
       ...form,
       defaultLoanDays: Math.floor(Number(form.defaultLoanDays)),
       title: form.title.trim(),
@@ -1098,7 +1098,7 @@ export function RequestModal({ book, onClose, onSave }) {
     borrowerNote: ""
   });
   const [errors, setErrors] = useState({});
-  function submit() {
+  async function submit() {
     const cleanedForm = {
       ...form,
       requestedLoanDays: parseInt(form.requestedLoanDays, 10),
@@ -1107,7 +1107,7 @@ export function RequestModal({ book, onClose, onSave }) {
     const nextErrors = validateRequestForm(cleanedForm);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length === 0) {
-      onSave(cleanedForm);
+      await onSave(cleanedForm);
     }
   }
   return (
@@ -1533,16 +1533,29 @@ export function LoanHistory({ page, onPageChange }) {
       <Table headers={["Book", "Borrower", "Owner", "Status", "Opened", "Closed"]}>
         {page.content.map((row) => (
           <tr key={row.id}>
-            <td><strong>{row.book.title}</strong><br />{row.book.author}</td>
-            <td>{row.borrower.fullName}</td>
-            <td>{row.owner.fullName}</td>
-            <td><span className={`chip ${row.status}`}>{label(row.status)}</span></td>
+            <td>
+              <strong>{row.book?.title || "-"}</strong>
+              <br />
+              {row.book?.author || "-"}
+            </td>
+            <td>{row.requester?.fullName || row.borrower?.fullName || "-"}</td>
+            <td>{row.owner?.fullName || row.book?.owner?.fullName || "-"}</td>
+            <td>
+              <span className={`chip ${row.status}`}>
+                {label(row.status)}
+              </span>
+            </td>
             <td>{dateText(row.borrowedAt)}</td>
             <td>{dateText(row.returnedAt)}</td>
           </tr>
         ))}
       </Table>
-      <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
+      <Pagination
+        page={page.page || page.pageNumber || 0}
+        totalPages={page.totalPages || 0}
+        totalElements={page.totalElements || 0}
+        onPageChange={onPageChange}
+      />
     </Panel>
   );
 }
@@ -1559,14 +1572,33 @@ export function Login({ onLogin }) {
     email: "",
     password: "",
     fullName: "",
-    team: "APIM"
+    team: "APIM",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const passwordRules = {
+    minLength: form.password.length >= 8,
+    lowercase: /[a-z]/.test(form.password),
+    uppercase: /[A-Z]/.test(form.password),
+    number: /\d/.test(form.password),
+    special: /[!@#$%^&*(),.?":{}|<>]/.test(form.password),
+  };
+  const isPasswordValid =
+    passwordRules.minLength &&
+    passwordRules.lowercase &&
+    passwordRules.uppercase &&
+    passwordRules.number &&
+    passwordRules.special;
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.email || !form.password) return;
     if (isRegister && (!form.fullName || !form.team)) return;
+    if (isRegister && !isPasswordValid) {
+      setError(
+        "Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number, and one special character."
+      );
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -1583,30 +1615,35 @@ export function Login({ onLogin }) {
       setLoading(false);
     }
   }
-  const updateForm = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
+  const updateForm = (key, value) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
   return (
     <div className="login-page">
       <div className="login-card">
         <div className="brand-large">
-          <img className ="brand-mark"  src={logo} alt="Book Nook Logo" />
+          <img className="brand-mark" src={logo} alt="Book Nook Logo" />
           <h1>Book Nook</h1>
         </div>
         <h2>{isRegister ? "Create an account" : "Sign in to your account"}</h2>
-        <p>{isRegister ? "Join the community library today." : "Enter your credentials to access the community library."}</p>
+        <p>
+          {isRegister
+            ? "Join the community library today."
+            : "Enter your credentials to access the community library."}
+        </p>
         <form onSubmit={handleSubmit} className="form-grid">
           {isRegister && (
             <>
               <label className="field full">
                 <span>Full Name</span>
                 <input
-              type="text"
-              className="input"
-              value={form.fullName}
-              onChange={(e) => updateForm("fullName", e.target.value)}
-              required
-              placeholder="Enter your name"
-              maxLength={60}
-            />
+                  type="text"
+                  className="input"
+                  value={form.fullName}
+                  onChange={(e) => updateForm("fullName", e.target.value)}
+                  required
+                  placeholder="Enter your name"
+                  maxLength={60}
+                />
               </label>
               <label className="field full">
                 <span>Capability</span>
@@ -1649,20 +1686,59 @@ export function Login({ onLogin }) {
               placeholder="Password"
               maxLength={72}
             />
+            {isRegister && (
+              <div className="password-rules">
+                <small>Password must contain:</small>
+                <ul>
+                  <li className={passwordRules.lowercase ? "valid" : ""}>
+                    Lowercase letter
+                  </li>
+                  <li className={passwordRules.uppercase ? "valid" : ""}>
+                    Uppercase letter
+                  </li>
+                  <li className={passwordRules.number ? "valid" : ""}>
+                    Number
+                  </li>
+                  <li className={passwordRules.special ? "valid" : ""}>
+                    Special character
+                  </li>
+                  <li className={passwordRules.minLength ? "valid" : ""}>
+                    Minimum 8 characters
+                  </li>
+                </ul>
+              </div>
+            )}
           </label>
           {error && <div className="error-box">{error}</div>}
           <button type="submit" className="btn primary full" disabled={loading}>
-            {loading ? (isRegister ? "Creating account..." : "Signing in...") : (
-              isRegister ? <><UserPlus size={18} /> Create Account</> : <><LogIn size={18} /> Sign In</>
+            {loading ? (
+              isRegister ? (
+                "Creating account..."
+              ) : (
+                "Signing in..."
+              )
+            ) : isRegister ? (
+              <>
+                <UserPlus size={18} /> Create Account
+              </>
+            ) : (
+              <>
+                <LogIn size={18} /> Sign In
+              </>
             )}
           </button>
         </form>
         <div className="login-toggle">
-          <button className="btn-link" onClick={() => {
-            setIsRegister(!isRegister);
-            setError("");
-          }}>
-            {isRegister ? "Already have an account? Sign in" : "Don't have an account? Sign up"}
+          <button
+            className="btn-link"
+            onClick={() => {
+              setIsRegister(!isRegister);
+              setError("");
+            }}
+          >
+            {isRegister
+              ? "Already have an account? Sign in"
+              : "Don't have an account? Sign up"}
           </button>
         </div>
       </div>
@@ -2518,6 +2594,47 @@ button { cursor: pointer; }
   justify-content: space-between;
   padding: 16px 18px;
   border-bottom: 1px solid var(--line);
+}
+.password-rules {
+  margin-top: 10px;
+  padding: 19px 19px;
+  font-size: 13px;
+  background: #fff5f5;
+  border: 1px solid #ffd6d6;
+  border-radius: 10px;
+  color: #555;
+}
+.password-rules small {
+  display: block;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+.password-rules ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.password-rules li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: #d32f2f;
+  transition: color 0.2s ease;
+}
+.password-rules li:last-child {
+  margin-bottom: 0;
+}
+.password-rules li::before {
+  content: "✗";
+  font-weight: bold;
+}
+.password-rules li.valid {
+  color: #2e7d32;
+}
+.password-rules li.valid::before {
+  content: "✓";
 }
 .panel-head h3 { margin: 0; font-size: 19px; }
 .table-wrap { overflow-x: auto; }

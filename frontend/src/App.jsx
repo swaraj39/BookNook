@@ -116,6 +116,7 @@ export default function App() {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
   const [confirm, setConfirm] = useState(null); // { message, onConfirm }
+  const [detailsLoading, setDetailsLoading] = useState(false);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
@@ -244,10 +245,15 @@ export default function App() {
     try { setBookHistoryPage(await api.bookHistory(id, page)); } catch (e) { notify(e.message, "error"); }
   }
   async function openDetails(book) {
-    const freshBook = await api.book(book.id);
-    setSelectedBook(freshBook);
-    await loadBookHistory(book.id, 0);
-    setView("detail");
+    setDetailsLoading(true);
+    try {
+      const freshBook = await api.book(book.id);
+      setSelectedBook(freshBook);
+      await loadBookHistory(book.id, 0);
+      setView("detail");
+    } finally {
+      setDetailsLoading(false);
+    }
   }
   async function saveBook(payload) {
     try {
@@ -475,6 +481,16 @@ export default function App() {
         onConfirm={() => resolveConfirm(true)}
         onCancel={() => resolveConfirm(false)}
       />
+      {detailsLoading && (
+        <div className="details-loader-overlay">
+          <div className="details-loader-box">
+            <svg className="details-loader-spinner" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M12 2a10 10 0 0 1 10 10" />
+            </svg>
+            <span>Loading book details...</span>
+          </div>
+        </div>
+      )}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );
