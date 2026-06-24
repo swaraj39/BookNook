@@ -205,6 +205,8 @@ import {
   Sun,
   Undo2,
   Search,
+  BookOpenText,
+  Globe,
   User as UserIcon,
   ChevronDown
 } from "lucide-react";
@@ -295,7 +297,7 @@ export default function App() {
   const [historyPage, setHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
   const [bookHistoryPage, setBookHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
   const [selectedBook, setSelectedBook] = useState(null);
-  const [filters, setFilters] = useState({ search: "", genreId: "", availability: "available", sort: "title", page: 0 });
+  const [filters, setFilters] = useState({ search: "", genreId: "", availability: "all", sort: "title", page: 0 });
   const [searchTerm, setSearchTerm] = useState("");
   const [bookModal, setBookModal] = useState(null);
   const [requestModal, setRequestModal] = useState(null);
@@ -310,7 +312,7 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-    fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+    fetch("http://localhost:8080/api/quote/today")
       .then((response) => response.ok ? response.json() : null)
       .then((quote) => {
         if (quote) setDailyThought(quote);
@@ -509,7 +511,7 @@ export default function App() {
       label: "Discovery",
       items: [
         ["home", "Home", HomeIcon],
-        ["catalog", "Browse", BookOpen]
+        ["catalog", "Browse", Globe]
       ]
     },
     {
@@ -517,7 +519,7 @@ export default function App() {
       items: [
         ["requests", "Requests", CheckSquare, stats?.pendingApprovals],
         ["myBooks", "My Shelf", LibraryBig],
-        ["borrowed", "Currently Reading", Undo2, stats?.activeBorrowed],
+        ["borrowed", "Currently Reading", BookOpenText, stats?.activeBorrowed],
         ["history", "History", History]
       ]
     }
@@ -582,7 +584,7 @@ export default function App() {
         </div>
       </aside>
       <main className="main">
-        {view !== "home" && (
+        {view !== "home" && view !== "catalog" && (
           <section className="topbar">
             <div className="page-title">
               <div className="page-kicker">Community library tracker</div>
@@ -661,7 +663,7 @@ export function BookCard({ book, me, openDetails, setRequestModal, setBookModal,
   const borrowedByMe = book.activeLoanId && book.activeLoanBorrowerId === me.id;
   return (
     <article
-      className={`book-card book-card-clickable ${isAdmin ? "admin-border" : ""}`}
+      className={`book-card book-card-clickable ${isAdmin ? "admin-border" : ""} ${book.availabilityStatus === "borrowed" ? "status-borrowed" : ""}`}
       onClick={() => openDetails(book)}
     >
       <div className="cover">
@@ -835,6 +837,8 @@ export function Modal({ title, onClose, onSubmit, children }) {
 import React from "react";
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 export function Pagination({ page, totalPages, totalElements, onPageChange }) {
+  const isFirst = page === 0;
+  const isLast = page >= totalPages - 1;
   const getPageNumbers = () => {
     const current = page + 1;
     const last = totalPages;
@@ -851,11 +855,8 @@ export function Pagination({ page, totalPages, totalElements, onPageChange }) {
     }
     for (let i of range) {
       if (l) {
-        if (i - l === 2) {
-          rangeWithDots.push(l + 1);
-        } else if (i - l !== 1) {
-          rangeWithDots.push('...');
-        }
+        if (i - l === 2) rangeWithDots.push(l + 1);
+        else if (i - l !== 1) rangeWithDots.push('...');
       }
       rangeWithDots.push(i);
       l = i;
@@ -866,13 +867,13 @@ export function Pagination({ page, totalPages, totalElements, onPageChange }) {
   return (
     <div className="pagination">
       <div className="pagination-info">
-         ({totalElements} total items)
+        ({totalElements} total items)
       </div>
       <div className="pagination-controls">
         <button
           className="btn icon-only"
-          disabled={page === 0}
-          onClick={() => onPageChange(page - 1)}
+          disabled={isFirst}
+          onClick={(e) => { if (isFirst) { e.preventDefault(); return; } onPageChange(page - 1); }}
           aria-label="Previous page"
         >
           <ChevronLeft size={16} />
@@ -895,8 +896,8 @@ export function Pagination({ page, totalPages, totalElements, onPageChange }) {
         </div>
         <button
           className="btn icon-only"
-          disabled={page >= totalPages - 1}
-          onClick={() => onPageChange(page + 1)}
+          disabled={isLast}
+          onClick={(e) => { if (isLast) { e.preventDefault(); return; } onPageChange(page + 1); }}
           aria-label="Next page"
         >
           <ChevronRight size={16} />
@@ -1174,7 +1175,7 @@ export function Borrowed({ page, onPageChange, returnBook, openDetails }) {
 <file path="src/pages/Catalog.jsx">
 import React from "react";
 import { api } from "../api";
-import { Search, Download } from "lucide-react";
+import { Search, Download, Plus } from "lucide-react";
 import { BookCard } from "../components/BookCard";
 import { Pagination } from "../components/common/Pagination";
 import { BookCardSkeleton } from "../components/common/Skeleton";
@@ -1190,22 +1191,28 @@ export function Catalog({
   page, genres, filters, setFilters, searchTerm, setSearchTerm,
   loading, me, openDetails, setRequestModal, setBookModal, returnBook
 }) {
-  const showingBorrowed = filters.availability === "all" || filters.availability === "borrowed";
-  function toggleBorrowed() {
-    setFilters({
-      ...filters,
-      availability: showingBorrowed ? "available" : "all",
-      page: 0
-    });
+  const capsules = [
+    { label: "All", value: "all" },
+    { label: "Available", value: "available" },
+    { label: "Request Pending", value: "request_pending" },
+    { label: "Borrowed by me", value: "borrowed_by_me" },
+    { label: "Unavailable", value: "unavailable" },
+  ];
+  function setCapsule(value) {
+    setFilters({ ...filters, availability: value, page: 0 });
   }
   return (
-    <section>
-      <div className="section-heading">
-        <div>
-          <p className="page-kicker">Browse</p>
+    <section className="catalog-page">
+      <div className="catalog-header">
+        <div className="catalog-header-left">
           <h3>Books on the shelf</h3>
         </div>
-        <button className="btn" onClick={() => handleExportBooks()}>Export CSV</button>
+        <div className="catalog-header-right">
+          <button className="btn" onClick={() => handleExportBooks()}>Export</button>
+          <button className="btn primary" onClick={() => setBookModal({ title: "", author: "", genreId: "", condition: "good", exchangeLocation: "", defaultLoanDays: 14, description: "" })}>
+            <Plus size={15} /> Add book
+          </button>
+        </div>
       </div>
       <div className="toolbar">
         <div className="search-wrap">
@@ -1226,14 +1233,17 @@ export function Catalog({
           <option value="newest">Newest first</option>
           <option value="due">Due date</option>
         </select>
-        <button
-          className={`btn catalog-borrowed-toggle ${showingBorrowed ? "active" : ""}`}
-          onClick={toggleBorrowed}
-          title={showingBorrowed ? "Hide borrowed books" : "Show borrowed books"}
-        >
-          <span className={`catalog-toggle-dot ${showingBorrowed ? "on" : "off"}`} />
-          {showingBorrowed ? "Showing borrowed" : "Hide borrowed"}
-        </button>
+      </div>
+      <div className="catalog-capsules">
+        {capsules.map((c) => (
+          <button
+            key={c.value}
+            className={`catalog-capsule ${filters.availability === c.value ? "active" : ""}`}
+            onClick={() => setCapsule(c.value)}
+          >
+            {c.label}
+          </button>
+        ))}
       </div>
       <div className="grid catalog">
         {loading ? (
@@ -2120,7 +2130,18 @@ button { cursor: pointer; }
   box-shadow: 0 2px 0 rgba(15, 23, 42, 0.03);
   transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, background 150ms ease;
 }
-.btn:hover { border-color: var(--brand); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.btn:hover:not([disabled]) { border-color: var(--brand); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.btn[disabled],
+.btn:disabled {
+  opacity: 0.38 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  transform: none !important;
+  box-shadow: none !important;
+  border-color: var(--line) !important;
+  background: var(--card-bg) !important;
+  color: var(--muted) !important;
+}
 .btn.primary {
   color: white;
   border-color: var(--brand);
@@ -2305,7 +2326,8 @@ button { cursor: pointer; }
   font-weight: 800;
 }
 .chip.available { color: #065f46; background: #dff6ec; }
-.chip.borrowed, .chip.request_pending { color: #92400e; background: #fff3d8; }
+.chip.borrowed { color: #991b1b; background: #fee2e2; }
+.chip.request_pending { color: #92400e; background: #fff3d8; }
 .chip.pending { color: #1e40af; background: #dbeafe; }
 .chip.converted_to_loan { color: #045741; background: #a0face; }
 .chip.overdue, .chip.rejected, .chip.expired { color: #991b1b; background: #fee2e2; }
@@ -3085,7 +3107,7 @@ tr:last-child td { border-bottom: 0; }
   margin: 0 auto;
   padding: clamp(18px, 3vw, 44px) clamp(16px, 4vw, 64px) 56px;
 }
-.topbar, .grid, .toolbar { max-width: 1240px; margin-left: auto; margin-right: auto; }
+.topbar, .grid, .toolbar, .catalog-header { max-width: 1240px; margin-left: auto; margin-right: auto; }
 .home-page { display: flex; flex-direction: column; gap: 24px; }
 .new-hero {
   display: flex;
@@ -3253,7 +3275,7 @@ tr:last-child td { border-bottom: 0; }
   align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
-  max-width: none;
+  max-width: 1240px;
   margin: 0 auto 12px;
 }
 .section-heading h3 { margin: 0; font-size: clamp(24px, 3vw, 36px); }
@@ -3349,16 +3371,18 @@ tr:last-child td { border-bottom: 0; }
   justify-content: flex-start;
 }
 .book-card {
-  flex: 1 1 280px;
+  flex: 0 1 280px;
   max-width: calc(33.333% - 14px);
 }
 @media (max-width: 1100px) {
   .book-card {
+    flex: 0 1 calc(50% - 10px);
     max-width: calc(50% - 10px);
   }
 }
 @media (max-width: 768px) {
   .book-card {
+    flex: 0 1 100%;
     max-width: 100%;
   }
 }
@@ -3380,15 +3404,40 @@ tr:last-child td { border-bottom: 0; }
 .toolbar {
   display: flex;
   flex-direction: row;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 12px;
-  max-width: none;
+  max-width: 1240px;
+  width: 100%;
   margin: 18px auto 20px;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--card-bg);
   box-shadow: var(--shadow-sm);
+}
+.catalog-page {
+  display: flex;
+  flex-direction: column;
+}
+.catalog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1240px;
+  width: 100%;
+  margin: 0 auto 12px;
+}
+.catalog-header-left h3 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 36px);
+  font-weight: 700;
+}
+.catalog-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 .search-wrap {
   flex: 1 1 280px;
@@ -3619,6 +3668,71 @@ tr:last-child td { border-bottom: 0; }
 .btn.approve:hover, .btn.success:hover {
   background: #15803d !important;
   border-color: #15803d !important;
+}
+.book-card.status-borrowed {
+  opacity: 0.55;
+  filter: grayscale(0.4);
+}
+.book-card.status-borrowed:hover {
+  opacity: 0.55;
+  filter: grayscale(0.4);
+}
+.catalog-page {
+  display: flex;
+  flex-direction: column;
+}
+.catalog-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1240px;
+  width: 100%;
+  margin: 0 auto 12px;
+}
+.catalog-header-left p {
+  margin: 0 0 6px;
+}
+.catalog-header-left h3 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 36px);
+  font-weight: 700;
+}
+.catalog-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.catalog-capsules {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  max-width: 1240px;
+  margin: 0 auto 16px;
+}
+.catalog-capsule {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 16px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.catalog-capsule:hover {
+  border-color: var(--brand);
+  color: var(--brand-dark);
+}
+.catalog-capsule.active {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand-dark);
 }
 </file>
 
@@ -4346,7 +4460,20 @@ export class BookService {
     if (genreId) {
       where.genreId = genreId;
     }
-    if (availability !== "all") {
+    if (availability === "borrowed_by_me") {
+      where.loans = { some: { borrowerId: userId, status: { in: ["active", "overdue"] } } };
+    } else if (availability === "request_pending") {
+      where.availabilityStatus = "request_pending";
+      where.borrowRequests = { some: { requesterId: userId, status: "pending" } };
+    } else if (availability === "unavailable") {
+      where.availabilityStatus = { in: ["borrowed", "request_pending"] };
+      if (userId) {
+        where.NOT = [
+          { loans: { some: { borrowerId: userId, status: { in: ["active", "overdue"] } } } },
+          { borrowRequests: { some: { requesterId: userId, status: "pending" } } },
+        ];
+      }
+    } else if (availability && availability !== "all") {
       where.availabilityStatus = availability;
     }
     if (search) {
@@ -4357,25 +4484,24 @@ export class BookService {
         { owner: { fullName: { contains: search } } },
       ];
     }
-    let orderBy: any = {};
-    if (sort === "newest") {
-      orderBy = { createdAt: "desc" };
-    } else if (sort === "title") {
-      orderBy = { title: "asc" };
-    }
-    const [totalElements, content] = await Promise.all([
+    let secondaryOrder: any = { title: "asc" };
+    if (sort === "newest") secondaryOrder = { createdAt: "desc" };
+    const statusOrder = ["available", "request_pending", "borrowed"];
+    const [totalElements, allContent] = await Promise.all([
       prisma.book.count({ where }),
       prisma.book.findMany({
         where,
-        include: {
-          owner: true,
-          genre: true,
-        },
-        orderBy,
+        include: { owner: true, genre: true },
+        orderBy: secondaryOrder,
         skip: page * size,
         take: size,
       }),
     ]);
+    const content = allContent.sort((a, b) => {
+      const ai = statusOrder.indexOf(a.availabilityStatus) === -1 ? 99 : statusOrder.indexOf(a.availabilityStatus);
+      const bi = statusOrder.indexOf(b.availabilityStatus) === -1 ? 99 : statusOrder.indexOf(b.availabilityStatus);
+      return ai - bi;
+    });
     const totalPages = Math.ceil(totalElements / size);
     return {
       content: content.map(this.mapBook),
@@ -5101,7 +5227,7 @@ export const verifyToken = (token: string): any => {
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "dotenv": "^17.4.2",
-    "lucide-react": "^0.468.0",
+    "lucide-react": "^1.21.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "vite": "^5.4.11"
@@ -5123,7 +5249,7 @@ export const verifyToken = (token: string): any => {
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "dotenv": "^17.4.2",
-    "lucide-react": "^0.468.0",
+    "lucide-react": "^1.21.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "vite": "^5.4.11"

@@ -17,27 +17,33 @@ export function Catalog({
   page, genres, filters, setFilters, searchTerm, setSearchTerm,
   loading, me, openDetails, setRequestModal, setBookModal, returnBook
 }) {
-  // const showingBorrowed = filters.availability === "all" || filters.availability === "borrowed";
+  const capsules = [
+    { label: "All", value: "all" },
+    { label: "Available", value: "available" },
+    { label: "Request Pending", value: "request_pending" },
+    { label: "Borrowed by me", value: "borrowed_by_me" },
+    { label: "Unavailable", value: "unavailable" },
+  ];
 
-  // function toggleBorrowed() {
-  //   setFilters({
-  //     ...filters,
-  //     availability: showingBorrowed ? "available" : "all",
-  //     page: 0
-  //   });
-  // }
+  function setCapsule(value) {
+    setFilters({ ...filters, availability: value, page: 0 });
+  }
 
   return (
-    <section className="catalog-page">
-      <div className="catalog-header">
-        <div className="catalog-header-left">
-          <h3>Books on the shelf</h3>
-        </div>
-        <div className="catalog-header-right">
-          <button className="btn" onClick={() => handleExportBooks()}>Export</button>
-          <button className="btn primary" onClick={() => setBookModal({ title: "", author: "", genreId: "", condition: "good", exchangeLocation: "", defaultLoanDays: 14, description: "" })}><Plus size={15} /> Add book</button>
-        </div>
+  <section className="catalog-page">
+    <div className="catalog-header">
+      <div className="catalog-header-left">
+        <h3>Books on the shelf</h3>
       </div>
+      <div className="catalog-header-right">
+        <button className="btn" onClick={() => handleExportBooks()}>Export</button>
+        <button className="btn primary" onClick={() => setBookModal({ title: "", author: "", genreId: "", condition: "good", exchangeLocation: "", defaultLoanDays: 14, description: "" })}>
+          <Plus size={15} /> Add book
+        </button>
+      </div>
+    </div>
+
+    <div className="catalog-content">
       <div className="toolbar">
         <div className="search-wrap">
           <Search size={17} />
@@ -58,7 +64,20 @@ export function Catalog({
           <option value="due">Due date</option>
         </select>
       </div>
-      <div className="grid catalog">
+
+      <div className="catalog-capsules">
+        {capsules.map((c) => (
+          <button
+            key={c.value}
+            className={`catalog-capsule ${filters.availability === c.value ? "active" : ""}`}
+            onClick={() => setCapsule(c.value)}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="catalog">
         {loading ? (
           Array.from({ length: 6 }).map((_, i) => <BookCardSkeleton key={i} />)
         ) : page.content.length === 0 ? (
@@ -83,14 +102,16 @@ export function Catalog({
           ))
         )}
       </div>
-      {!loading && page.content.length > 0 && (
-        <Pagination
-          page={page.page}
-          totalPages={page.totalPages}
-          totalElements={page.totalElements}
-          onPageChange={(p) => setFilters({ ...filters, page: p })}
-        />
-      )}
-    </section>
-  );
+    </div>
+
+    {!loading && page.content.length > 0 && (
+      <Pagination
+        page={page.page}
+        totalPages={page.totalPages}
+        totalElements={page.totalElements}
+        onPageChange={(p) => setFilters({ ...filters, page: p })}
+      />
+    )}
+  </section>
+);
 }

@@ -23,7 +23,7 @@ export function BookCard({ book, me, openDetails, setRequestModal, setBookModal,
             {isAdmin && <span className="admin-tag">Admin</span>}
           </div>
           <div className="author">{book.author}</div>
-          <div className="$chips">
+          <div className="chips">
             <span className={`chip ${book.availabilityStatus}`}>{label(book.availabilityStatus)}</span>
 
             {borrowedByMe && <span className="chip returned">Borrowed by you</span>}

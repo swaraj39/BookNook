@@ -456,7 +456,19 @@ button { cursor: pointer; }
   box-shadow: 0 2px 0 rgba(15, 23, 42, 0.03);
   transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, background 150ms ease;
 }
-.btn:hover { border-color: var(--brand); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.btn:hover:not([disabled]) { border-color: var(--brand); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.btn[disabled],
+.btn:disabled {
+  opacity: 0.38 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+  transform: none !important;
+  box-shadow: none !important;
+  border-color: var(--line) !important;
+  background: var(--card-bg) !important;
+  color: var(--muted) !important;
+}
+
 .btn.primary {
   color: white;
   border-color: var(--brand);
@@ -580,12 +592,35 @@ button { cursor: pointer; }
   border-color: var(--focus);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
-.catalog { grid-template-columns: repeat(3, minmax(280px, 1fr)); }
+
+.catalog-content {
+  display: grid;
+  /* flex: 1 1 auto; */
+  /* max-width: 1386.090; */
+  max-width: 100%;
+}
+
+.catalog {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  width: 100%;
+  margin: 0;
+}
+@media (max-width: 1100px) {
+  .catalog { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 768px) {
+  .catalog { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .catalog { grid-template-columns: 1fr; }
+}
 .full { grid-column: 1 / -1; }
+
 .book-card {
   display: flex;
   flex-direction: column;
-  min-height: 382px;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -601,15 +636,19 @@ button { cursor: pointer; }
 .book-card-clickable {
   cursor: pointer;
 }
+
 .cover {
   display: grid;
   grid-template-columns: 86px 1fr;
   gap: 16px;
-  min-height: 154px;
+  height: 154px;
   padding: 18px 18px 17px;
   background: var(--bg);
   border-bottom: 1px solid var(--line);
+  align-items: start;
+  overflow: hidden;
 }
+
 .cover-art {
   position: relative;
   display: flex;
@@ -1844,7 +1883,7 @@ tr:last-child td { border-bottom: 0; }
 }
 
 /* Catalog Page Flex Grid */
-.catalog {
+/* .catalog {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -1866,8 +1905,8 @@ tr:last-child td { border-bottom: 0; }
     flex: 0 1 100%;
     max-width: 100%;
   }
-}
-.cover {
+} */
+/* .cover {
   display: flex;
   flex-direction: row;
   gap: 16px;
@@ -1878,7 +1917,7 @@ tr:last-child td { border-bottom: 0; }
 }
 .cover-art {
   flex: 0 0 86px;
-}
+} */
 
 @media (min-width: 1500px) {
   .book-card { border-radius: 16px; }
@@ -1890,7 +1929,7 @@ tr:last-child td { border-bottom: 0; }
   flex-direction: row;
   flex-wrap: nowrap;
   gap: 12px;
-  max-width: 1240px;
+  max-width: 100%;
   width: 100%;
   margin: 18px auto 20px;
   padding: 12px;
@@ -2192,7 +2231,8 @@ tr:last-child td { border-bottom: 0; }
   align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
-  max-width: 1240px;
+  /* max-width: 1240px; */
+  max-width: 100%;
   width: 100%;
   margin: 0 auto 12px;
 }
@@ -2209,4 +2249,56 @@ tr:last-child td { border-bottom: 0; }
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.catalog-capsules {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+  justify-content: left;
+  overflow-x: auto;
+  max-width: 1240px;
+  margin: 0 auto 16px;
+  margin-left: 0;
+}
+
+.catalog-capsules::-webkit-scrollbar {
+  display: none;
+}
+
+.catalog-capsules {
+  scrollbar-width: none;
+}
+
+.catalog-capsule {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 16px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 0;
+}
+.catalog-capsule:hover {
+  border-color: var(--brand);
+  color: var(--brand-dark);
+}
+.catalog-capsule.active {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+}
+
+.btn[disabled],
+.btn:disabled {
+  opacity: 0.38 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
 }
