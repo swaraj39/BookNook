@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { label, dateText, toBookForm } from "../utils/helpers";
 import { Pagination } from "../components/common/Pagination";
 
@@ -27,6 +27,27 @@ export function Details({ book, historyPage, onPageChange, me, setView, setBookM
   const isAdmin = me.role === "ADMIN";
   const ownedByMe = book.owner.id === me.id;
   const borrowedByMe = book.activeLoanId && book.activeLoanBorrowerId === me.id;
+  const [navigating, setNavigating] = useState(false);
+
+  async function handleBack() {
+    setNavigating(true);
+    await new Promise((res) => setTimeout(res, 400));
+    setView("catalog");
+  }
+
+  if (navigating) {
+    return (
+      <div className="details-loader-overlay">
+        <div className="details-loader-box">
+          <svg className="details-loader-spinner" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M12 2a10 10 0 0 1 10 10" />
+          </svg>
+          <span>Going back to browse...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="detail-layout">
       <div className="detail-cover">
@@ -40,7 +61,7 @@ export function Details({ book, historyPage, onPageChange, me, setView, setBookM
       </div>
       <div className="panel detail-panel">
         <div className="flex-between">
-          <button className="btn" onClick={() => setView("catalog")}>Back to browse</button>
+          <button className="btn" onClick={handleBack}>Back to browse</button>
           {isAdmin && <span className="admin-badge">Admin Mode</span>}
         </div>
         <h3>{book.title}</h3>
