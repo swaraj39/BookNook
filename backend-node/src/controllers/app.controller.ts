@@ -34,12 +34,12 @@ export class AppController {
     });
 
     const result = books.map(book => ({
-      title: book.title,
-      author: book.author,
-      genre: book.genre?.name ?? "",
-      owner: book.owner?.fullName ?? "",
-      availabilityStatus: book.availabilityStatus,
-      createdAt: book.createdAt.toISOString(),
+      Title: book.title,
+      Author: book.author,
+      Genre: book.genre?.name ?? "",
+      Owner: book.owner?.fullName ?? "",
+      AvailabilityStatus: book.availabilityStatus,
+      CreatedAt: book.createdAt.toISOString(),
     }));
 
     const headers = Object.keys(result[0] || {});
@@ -86,6 +86,7 @@ export class AppController {
       }, req.user.id);
       res.json(result);
     } catch (error: any) {
+      console.error("Error in AppController:", error);
       res.status(400).json({ message: error.message });
     }
   }
@@ -102,6 +103,7 @@ export class AppController {
 
       res.json(result);
     } catch (error: any) {
+      console.error("Error in AppController:", error);
       res.status(400).json({ message: error.message });
     }
   }
@@ -120,6 +122,7 @@ export class AppController {
       const result = await BookService.create(req.user.id, req.body);
       res.status(201).json(result);
     } catch (error: any) {
+      console.error("Error in AppController:", error);
       res.status(400).json({ message: error.message });
     }
   }
@@ -135,6 +138,7 @@ export class AppController {
 
       res.json(result);
     } catch (error: any) {
+      console.error("Error in AppController:", error);
       res.status(400).json({ message: error.message });
     }
   }
@@ -149,6 +153,7 @@ export class AppController {
 
       res.status(204).send();
     } catch (error: any) {
+      console.error("Error in AppController:", error);
       res.status(400).json({ message: error.message });
     }
   }
@@ -166,6 +171,7 @@ export class AppController {
 
       res.json(result);
     } catch (error: any) {
+      console.error("Error in AppController:", error);
       res.status(400).json({ message: error.message });
     }
   }
@@ -175,6 +181,7 @@ export class AppController {
       const result = await WorkflowService.requestBook(req.user.id, req.body);
       res.status(201).json(result);
     } catch (error: any) {
+      console.error("Error in AppController:", error);
       res.status(400).json({ message: error.message });
     }
   }
@@ -189,6 +196,7 @@ export class AppController {
 
       res.json(result);
     } catch (error: any) {
+      console.error("Error in AppController:", error);
       res.status(400).json({ message: error.message });
     }
   }
@@ -203,6 +211,7 @@ export class AppController {
 
       res.json(result);
     } catch (error: any) {
+      console.error("Error in AppController:", error);
       res.status(400).json({ message: error.message });
     }
   }
@@ -219,6 +228,7 @@ export class AppController {
 
       res.json(result);
     } catch (error: any) {
+      console.error("Error in AppController:", error);
       res.status(400).json({ message: error.message });
     }
   }
@@ -236,6 +246,7 @@ export class AppController {
 
       res.json(result);
     } catch (error: any) {
+      console.error("Error in AppController:", error);
       res.status(400).json({ message: error.message });
     }
   }
@@ -250,6 +261,7 @@ export class AppController {
 
       res.json(result);
     } catch (error: any) {
+      console.error("Error in AppController:", error);
       res.status(400).json({ message: error.message });
     }
   }
@@ -259,6 +271,7 @@ export class AppController {
       const result = await LookupService.genres();
       res.json(result);
     } catch (error: any) {
+      console.error("Error in AppController:", error);
       res.status(400).json({ message: error.message });
     }
   }
@@ -268,6 +281,7 @@ export class AppController {
       const result = await LookupService.dashboard(req.user.id);
       res.json(result);
     } catch (error: any) {
+      console.error("Error in AppController:", error);
       res.status(400).json({ message: error.message });
     }
   }
@@ -284,6 +298,7 @@ export class AppController {
 
       res.json(result);
     } catch (error: any) {
+      console.error("Error in AppController:", error);
       res.status(400).json({ message: error.message });
     }
   }

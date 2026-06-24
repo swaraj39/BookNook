@@ -206,7 +206,7 @@ export class BookService {
     }
 
     // Check pending requests
-    const pendingRequests = await prisma.borrowRequest.count({
+    const pendingRequests = await prisma.bookTransaction.count({
       where: { bookId: id, status: "pending" },
     });
     if (pendingRequests > 0) {
@@ -214,7 +214,7 @@ export class BookService {
     }
 
     // Check active loans
-    const activeLoans = await prisma.loan.count({
+    const activeLoans = await prisma.bookTransaction.count({
       where: {
         bookId: id,
         status: { in: ["active", "overdue", "return_pending"] },

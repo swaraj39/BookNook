@@ -82,7 +82,7 @@ export const api = {
 
     const a = document.createElement("a");
     a.href = url;
-    a.download = "books.csv";
+    a.download = "booknook.csv";
     document.body.appendChild(a);
     a.click();
 

@@ -50,14 +50,14 @@ export class LookupService {
     const [totalBooks, availableBooks, pendingRequests, activeLoans, overdueLoans] = await Promise.all([
       prisma.book.count({ where: { visibilityStatus: "visible" } }),
       prisma.book.count({ where: { visibilityStatus: "visible", availabilityStatus: "available" } }),
-      prisma.borrowRequest.count({
+      prisma.bookTransaction.count({
         where: { ownerId: userId, status: "pending" },
       }),
-      prisma.loan.count({
-        where: { borrowerId: userId, status: { in: ["active", "overdue", "return_pending"] } },
+      prisma.bookTransaction.count({
+        where: { requesterId: userId, status: { in: ["active", "overdue", "return_pending"] } },
       }),
-      prisma.loan.count({
-        where: { borrowerId: userId, status: "active", dueAt: { lt: now } },
+      prisma.bookTransaction.count({
+        where: { requesterId: userId, status: "active", dueAt: { lt: now } },
       }),
     ]);
 

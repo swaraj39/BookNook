@@ -1,0 +1,20 @@
+export async function callWorkatoSignupWebhook(user: any) {
+  if (!process.env.WORKATO_SIGNUP_WEBHOOK_URL) return;
+
+  try {
+    await fetch(process.env.WORKATO_SIGNUP_WEBHOOK_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: user.fullName,
+        email: user.email,
+        team: user.team,
+        role: user.role,
+      }),
+    });
+  } catch (error: any) {
+    console.error("Workato webhook failed:", error.message);
+  }
+}
