@@ -34,7 +34,7 @@ export function BookCard({ book, me, openDetails, setRequestModal, setBookModal,
         <div>
           <div className="flex-between">
             <h3>{book.title}</h3>
-            {isAdmin && <span className="admin-tag">Admin</span>}
+            
           </div>
           <div className="author">{book.author}</div>
           <div className="chips">

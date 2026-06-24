@@ -56,7 +56,9 @@ export function Borrowed({ page, onPageChange, returnBook, openDetails }) {
           </tr>
         ))}
       </Table>
-      <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
+      {page.totalPages > 1 && (
+        <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
+      )}
     </Panel>
   );
 }

@@ -34,7 +34,9 @@ export function MyBooks({ page, onPageChange, setBookModal, deleteBook, openDeta
           </tr>
         ))}
       </Table>
-      <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
+      {page.totalPages > 1 && (
+        <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
+      )}
     </Panel>
   );
 }

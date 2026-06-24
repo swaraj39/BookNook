@@ -104,7 +104,7 @@ export function Catalog({
       </div>
     </div>
 
-    {!loading && page.content.length > 0 && (
+    {!loading && page.content.length > 0 && page.totalPages > 1 && (
       <Pagination
         page={page.page}
         totalPages={page.totalPages}
