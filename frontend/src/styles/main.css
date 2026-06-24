@@ -697,6 +697,25 @@ button { cursor: pointer; }
   padding: 16px 18px;
   border-bottom: 1px solid var(--line);
 }
+.password-rules {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #666;
+}
+
+.password-rules ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.password-rules li {
+  color: #d32f2f;
+  margin-bottom: 2px;
+}
+
+.password-rules li.valid {
+  color: #2e7d32;
+}
 .panel-head h3 { margin: 0; font-size: 19px; }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; min-width: 760px; border-collapse: collapse; background: transparent; }
