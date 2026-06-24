@@ -6,7 +6,7 @@ export function BookCard({ book, me, openDetails, setRequestModal, setBookModal,
   const borrowedByMe = book.activeLoanId && book.activeLoanBorrowerId === me.id;
   return (
     <article
-      className={`book-card book-card-clickable ${isAdmin ? "admin-border" : ""}`}
+      className={`book-card book-card-clickable ${isAdmin ? "admin-border" : ""} ${book.availabilityStatus === "borrowed" ? "status-borrowed" : ""}`}
       onClick={() => openDetails(book)}
     >
       <div className="cover">

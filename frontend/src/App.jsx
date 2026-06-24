@@ -12,6 +12,8 @@ import {
   Sun,
   Undo2,
   Search,
+  BookOpenText,
+  Globe,
   User as UserIcon,
   ChevronDown
 } from "lucide-react";
@@ -104,7 +106,7 @@ export default function App() {
   const [historyPage, setHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
   const [bookHistoryPage, setBookHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
   const [selectedBook, setSelectedBook] = useState(null);
-  const [filters, setFilters] = useState({ search: "", genreId: "", availability: "available", sort: "title", page: 0 });
+  const [filters, setFilters] = useState({ search: "", genreId: "", availability: "all", sort: "title", page: 0 });
   const [searchTerm, setSearchTerm] = useState("");
   const [bookModal, setBookModal] = useState(null);
   const [requestModal, setRequestModal] = useState(null);
@@ -330,7 +332,7 @@ export default function App() {
       label: "Discovery",
       items: [
         ["home", "Home", HomeIcon],
-        ["catalog", "Browse", BookOpen]
+        ["catalog", "Browse", Globe]
       ]
     },
     {
@@ -338,7 +340,7 @@ export default function App() {
       items: [
         ["requests", "Requests", CheckSquare, stats?.pendingApprovals],
         ["myBooks", "My Shelf", LibraryBig],
-        ["borrowed", "Currently Reading", Undo2, stats?.activeBorrowed],
+        ["borrowed", "Currently Reading", BookOpenText, stats?.activeBorrowed],
         ["history", "History", History]
       ]
     }
@@ -403,7 +405,7 @@ export default function App() {
         </div>
       </aside>
       <main className="main">
-        {view !== "home" && (
+        {view !== "home" && view !== "catalog" && (
           <section className="topbar">
             <div className="page-title">
               <div className="page-kicker">Community library tracker</div>

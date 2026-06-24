@@ -28,7 +28,7 @@ export function MyBooks({ page, onPageChange, setBookModal, deleteBook, openDeta
             <td><span className={`chip ${book.availabilityStatus}`}>{label(book.availabilityStatus)}</span></td>
             <td><div className="row-actions">
               <button className="btn" onClick={() => setBookModal(toBookForm(book))}>Edit</button>
-              <button className="btn" onClick={() => openDetails(book)}>Details</button>
+              <button className="btn" onClick={() => openDetails(book)}>View</button>
               <button className="btn danger" onClick={() => deleteBook(book.id)}>Delete</button>
             </div></td>
           </tr>
