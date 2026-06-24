@@ -6,10 +6,10 @@ export function BookModal({ book, genres, onClose, onSave }) {
   if (!book) return null;
   const [form, setForm] = useState({ ...book, genreId: book.genreId || book.genre?.id || genres[0]?.id || "" });
   const [errors, setErrors] = useState({});
-  function submit() {
+  async function submit() {
     const nextErrors = validateBookForm(form);
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length === 0) onSave({
+    if (Object.keys(nextErrors).length === 0) await onSave({
       ...form,
       defaultLoanDays: Math.floor(Number(form.defaultLoanDays)),
       title: form.title.trim(),
