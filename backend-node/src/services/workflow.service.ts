@@ -127,47 +127,53 @@ export class WorkflowService {
       throw new Error("This book is not available.");
     }
 
-    const transaction = await prisma.$transaction(async (tx) => {
-      const tr = await tx.bookTransaction.create({
-        data: {
-          bookId: payload.bookId,
-          requesterId: userId,
-          ownerId: book.ownerId,
-          status: "pending",
-          requestedLoanDays,
-          borrowerNote: payload.borrowerNote || null,
-          requestedAt: new Date(),
-        },
-        include: {
-          book: {
-            include: {
-              owner: true,
-              genre: true,
-            },
+    const transaction = await prisma.$transaction(
+  async (tx) => {
+    const tr = await tx.bookTransaction.create({
+      data: {
+        bookId: payload.bookId,
+        requesterId: userId,
+        ownerId: book.ownerId,
+        status: "pending",
+        requestedLoanDays,
+        borrowerNote: payload.borrowerNote || null,
+        requestedAt: new Date(),
+      },
+      include: {
+        book: {
+          include: {
+            owner: true,
+            genre: true,
           },
-          requester: true,
-          owner: true,
         },
-      });
-
-      await tx.book.update({
-        where: { id: payload.bookId },
-        data: { availabilityStatus: "request_pending" },
-      });
-
-      await tx.bookHistory.create({
-        data: {
-          bookId: book.id,
-          actorId: userId,
-          eventType: "request_created",
-          eventTitle: "Borrow request created",
-          eventMessage: `${tr.requester.fullName} requested ${book.title}.`,
-          transactionId: tr.id,
-        },
-      });
-
-      return tr;
+        requester: true,
+        owner: true,
+      },
     });
+
+    await tx.book.update({
+      where: { id: payload.bookId },
+      data: { availabilityStatus: "request_pending" },
+    });
+
+    await tx.bookHistory.create({
+      data: {
+        bookId: book.id,
+        actorId: userId,
+        eventType: "request_created",
+        eventTitle: "Borrow request created",
+        eventMessage: `${tr.requester.fullName} requested ${book.title}.`,
+        transactionId: tr.id,
+      },
+    });
+
+    return tr;
+  },
+  {
+    timeout: 20000,
+    maxWait: 10000,
+  }
+);
 
     return this.mapTransaction(transaction);
   }
