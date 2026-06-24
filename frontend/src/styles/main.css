@@ -2096,10 +2096,47 @@ td:last-child, th:last-child {
   .nav-item-content svg { width: 14px; height: 14px; }
   .top-nav-actions { margin-left: 8px; }
   .main { padding: 16px 14px 36px; }
-  .pagination { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
-  .pagination-controls { justify-content: center; flex-wrap: wrap; }
+  .pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
+.pagination-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.pagination-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+}
+}
+.two-block-pagination .pagination-controls {
+  display: flex;
+  gap: 10px;
+}
+
+.two-block-pagination .pagination-block {
+  width: auto !important;
+  min-width: 110px;
+  height: 40px;
+  padding: 0 16px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 10px;
+}
+
+.two-block-pagination .pagination-block svg {
+  flex-shrink: 0;
+}
 /* Daily Thought Card */
 .home-quote-card {
   max-width: 1200px;

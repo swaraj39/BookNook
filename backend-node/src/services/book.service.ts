@@ -116,12 +116,12 @@ export class BookService {
     ]);
 
     return {
-      content: content.map(this.mapBook),
-      totalElements,
-      totalPages: Math.ceil(totalElements / size),
-      pageNumber: page,
-      pageSize: size,
-    };
+  content: content.map(this.mapBook),
+  totalElements,
+  totalPages: Math.ceil(totalElements / size),
+  page,              // was: pageNumber: page,
+  pageSize: size,
+};
   }
 
   static async get(id: string) {

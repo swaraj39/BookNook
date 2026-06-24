@@ -28,12 +28,14 @@ export function LoanHistory({ page, onPageChange }) {
         ))}
       </Table>
 
-      <Pagination
-        page={page.page || page.pageNumber || 0}
-        totalPages={page.totalPages || 0}
-        totalElements={page.totalElements || 0}
-        onPageChange={onPageChange}
-      />
+      {(page.totalPages || 0) > 1 && (
+        <Pagination
+          page={page.page || page.pageNumber || 0}
+          totalPages={page.totalPages || 0}
+          totalElements={page.totalElements || 0}
+          onPageChange={onPageChange}
+        />
+      )}
     </Panel>
   );
 }

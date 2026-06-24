@@ -85,7 +85,9 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails 
             <RequestRow key={row.id} row={row} me={me} isAdmin={isAdmin} approve={approve} reject={reject} openDetails={openDetails} />
           ))}
         </Table>
-        <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
+        {page.totalPages > 1 && (
+          <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
+        )}
       </Panel>
     </div>
   );
