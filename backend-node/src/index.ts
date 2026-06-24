@@ -13,15 +13,26 @@ const port = process.env.PORT || 8080;
 const frontendUrl = "https://book-nook-ba.vercel.app";
 app.use(
   cors({
-    origin: [
-      "https://book-nook-ba.vercel.app",
-      "http://127.0.0.1:5173",
-    ],
+    origin: function (origin, callback) {
+      const allowedOrigins = [
+        "https://book-nook-ba.vercel.app",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+      ];
+
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
-app.use(express.json());
 
+app.options("*", cors());
 
 // Auth routes
 app.post("/api/auth/register", AuthController.register);
