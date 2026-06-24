@@ -14,7 +14,7 @@ const frontendUrl = "https://book-nook-ba.vercel.app";
 app.use(
   cors({
     origin: [
-      "https://book-nook-ba.vercel.app/",
+      "https://book-nook-ba.vercel.app",
       "http://127.0.0.1:5173",
     ],
     credentials: true,
