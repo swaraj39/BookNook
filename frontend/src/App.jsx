@@ -408,7 +408,7 @@ export default function App() {
         {view !== "home" && view !== "catalog" && (
           <section className="topbar">
             <div className="page-title">
-              <div className="page-kicker">Community library tracker</div>
+              {/* <div className="page-kicker">Community library tracker</div> */}
               <h2>BA Reading Community Tracker</h2>
               <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
             </div>

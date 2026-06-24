@@ -399,7 +399,7 @@ button { cursor: pointer; }
   gap: 22px;
   align-items: center;
   justify-content: space-between;
-  max-width: 1240px;
+  max-width: 100%;
   margin: 0 auto 20px;
   padding: 10px 0 8px;
 }
@@ -720,9 +720,9 @@ button { cursor: pointer; }
 .card-actions { margin-top: auto; padding-top: 2px; }
 .card-actions .btn { min-height: 36px; padding: 8px 11px; font-size: 13px; }
 .panel {
-  max-width: 1240px;
-  margin-right: auto;
-  margin-left: auto;
+  max-width: 100%;
+  margin-right: 0;
+  margin-left: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--card-bg);
@@ -740,9 +740,22 @@ button { cursor: pointer; }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; min-width: 760px; border-collapse: collapse; background: transparent; }
 th, td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
-th { color: var(--muted); background: var(--bg); font-size: 11px; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase; }
+th {  color: var(--muted); background: var(--bg); font-size: 11px; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase; }
 tbody tr:hover { background: var(--bg); }
 tr:last-child td { border-bottom: 0; }
+
+.table-wrap table {
+  table-layout: fixed;
+}
+.table-wrap th,
+.table-wrap td {
+  width: 25%;
+}
+
+.table-wrap td:last-child {
+  white-space: nowrap;
+}
+
 .empty { padding: 34px 18px; color: var(--muted); text-align: center; background: var(--bg); }
 .empty-state-box {
   display: flex;
@@ -1542,7 +1555,8 @@ tr:last-child td { border-bottom: 0; }
   margin: 0 auto;
   padding: clamp(18px, 3vw, 44px) clamp(16px, 4vw, 64px) 56px;
 }
-.topbar, .grid, .toolbar, .catalog-header { max-width: 1240px; margin-left: auto; margin-right: auto; }
+.grid, .toolbar, .catalog-header { max-width: 1240px; margin-left: auto; margin-right: auto; }
+
 
 .home-page { display: flex; flex-direction: column; gap: 24px; }
 
@@ -2253,4 +2267,11 @@ tr:last-child td { border-bottom: 0; }
   opacity: 0.38 !important;
   cursor: not-allowed !important;
   pointer-events: none !important;
+}
+
+.request-container {
+  display: grid;
+  /* flex: 1 1 auto; */
+  max-width: 100%;
+  width: 1386.090;
 }

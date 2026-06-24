@@ -18,6 +18,7 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails 
     );
   }
   return (
+    <div className="request-container">
     <Panel title="Borrow Requests" >
       <Table headers={["Book", "Borrower", "Owner", "Status", "Requested", "Actions"]}>
         {page.content.map((row) => (
@@ -42,5 +43,6 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails 
       </Table>
       <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
     </Panel>
+    </div>
   );
 }
