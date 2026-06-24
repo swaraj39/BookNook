@@ -10,11 +10,11 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 8080;
-const frontendUrl = "http://localhost:5173";
+const frontendUrl = "https://book-nook-ba.vercel.app";
 app.use(
   cors({
     origin: [
-      "http://localhost:5173",
+      "https://book-nook-ba.vercel.app/",
       "http://127.0.0.1:5173",
     ],
     credentials: true,
