@@ -210,6 +210,7 @@ export default function App() {
     setShowProfileDropdown(false);
     try {
       await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {  // ← not localhost
+      // await fetch("http://localhost:8080/api/auth/logout", {  // ← localhost
         method: "POST",
         credentials: "include",
       });
