@@ -31,26 +31,74 @@ export function Login({ onLogin }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.email || !form.password) return;
-    if (isRegister && (!form.fullName || !form.team)) return;
+
+    if (!form.email.trim() || !form.password) {
+      setError("Please enter your email and password.");
+      return;
+    }
+
+    if (isRegister && (!form.fullName.trim() || !form.team)) {
+      setError("Please complete all required fields.");
+      return;
+    }
+
     if (isRegister && !isPasswordValid) {
       setError(
         "Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number, and one special character."
       );
       return;
     }
+
     setLoading(true);
     setError("");
+
     try {
       let result;
+
       if (isRegister) {
-        result = await api.register(form);
+        result = await api.register({
+          ...form,
+          email: form.email.trim(),
+          fullName: form.fullName.trim(),
+        });
       } else {
-        result = await api.login(form.email, form.password);
+        result = await api.login(
+          form.email.trim(),
+          form.password
+        );
       }
+
       onLogin(null, result.user);
+
     } catch (err) {
-      setError(err.message);
+      switch (err.message) {
+        case "Incorrect email or password.":
+        case "Invalid email or password":
+          setError("Incorrect email or password.");
+          break;
+
+        case "An account with this email already exists. Please sign in instead.":
+        case "Email already exists.":
+          setError(
+            "An account with this email already exists. Please sign in instead."
+          );
+          break;
+
+        case "Unauthorized":
+          setError("Your session has expired. Please sign in again.");
+          break;
+
+        case "Failed to fetch":
+          setError(
+            "Unable to connect to the server. Please check your internet connection."
+          );
+          break;
+
+        default:
+          setError(
+            err.message || "Something went wrong. Please try again."
+          );
+      }
     } finally {
       setLoading(false);
     }
