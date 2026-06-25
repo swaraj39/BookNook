@@ -7,63 +7,173 @@ import { label, dateText } from "../utils/helpers";
 
 function SpinnerInline() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-      style={{ animation: "btn-spin 0.7s linear infinite", flexShrink: 0 }}>
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      style={{ animation: "btn-spin 0.7s linear infinite", flexShrink: 0 }}
+    >
       <path d="M12 2a10 10 0 0 1 10 10" />
     </svg>
   );
 }
 
-function RequestRow({ row, me, isAdmin, approve, reject, openDetails }) {
+function RequestRow({ row, me, approve, reject, openDetails }) {
   const [approvingId, setApprovingId] = useState(null);
   const [rejectingId, setRejectingId] = useState(null);
+  const [showApproveConfirm, setShowApproveConfirm] = useState(false);
 
-  async function handleApprove(id) {
-    setApprovingId(id);
-    try { await approve(id); } finally { setApprovingId(null); }
-  }
-
-  async function handleReject(id) {
-    setRejectingId(id);
-    try { await reject(id); } finally { setRejectingId(null); }
-  }
+  const isMyRequest = row.requester.id === me.id;
+  const isReceivedRequest = row.owner.id === me.id;
 
   const isApproving = approvingId === row.id;
   const isRejecting = rejectingId === row.id;
   const busy = isApproving || isRejecting;
 
+  async function handleApprove() {
+    setApprovingId(row.id);
+
+    try {
+      await approve(row.id);
+    } finally {
+      setApprovingId(null);
+      setShowApproveConfirm(false);
+    }
+  }
+
+  async function handleReject(id) {
+    setRejectingId(id);
+
+    try {
+      await reject(id);
+    } finally {
+      setRejectingId(null);
+    }
+  }
+
   return (
-    <tr key={row.id}>
-      <td><strong>{row.book.title}</strong><br /><span>{row.book.author}</span></td>
-      <td>{row.requester.fullName}</td>
-      <td>{row.owner.fullName}</td>
-      <td>
-        <span className={`chip ${row.status}`}>
-          {row.status === "converted_to_loan" ? "Reading" : label(row.status)}
-        </span>
-      </td>
-      <td>{dateText(row.requestedAt)}</td>
-      <td>
-        <div className="row-actions">
-          {(row.owner.id === me.id || isAdmin) && row.status === "pending" && (
-            <>
-              <button className="btn approve" onClick={() => handleApprove(row.id)} disabled={busy}>
-                {isApproving ? <><SpinnerInline /> Approving...</> : "Approve"}
-              </button>
-              <button className="btn danger" onClick={() => handleReject(row.id)} disabled={busy}>
-                {isRejecting ? <><SpinnerInline /> Rejecting...</> : "Reject"}
-              </button>
-            </>
+    <>
+      <tr>
+        <td>
+          {isReceivedRequest ? (
+            <span className="chip received">For My Book</span>
+          ) : isMyRequest ? (
+            <span className="chip mine">My Request</span>
+          ) : (
+            <span className="chip">Other</span>
           )}
-          <button className="btn" onClick={() => openDetails(row.book)}>Book</button>
+        </td>
+
+        <td>
+          <strong>{row.book.title}</strong>
+          <br />
+          <span>{row.book.author}</span>
+        </td>
+
+        <td>{isMyRequest ? "You" : row.requester.fullName}</td>
+        <td>{isReceivedRequest ? "You" : row.owner.fullName}</td>
+
+        <td>
+          <span className={`chip ${row.status}`}>
+            {row.status === "converted_to_loan" ? "Reading" : label(row.status)}
+          </span>
+        </td>
+
+        <td>{dateText(row.requestedAt)}</td>
+
+        <td>
+          <div className="row-actions">
+            {isReceivedRequest && row.status === "pending" && (
+              <>
+                <button
+                  className="btn approve"
+                  disabled={busy}
+                  onClick={() => setShowApproveConfirm(true)}
+                >
+                  {isApproving ? (
+                    <>
+                      <SpinnerInline /> Approving...
+                    </>
+                  ) : (
+                    "Approve"
+                  )}
+                </button>
+
+                <button
+                  className="btn danger"
+                  disabled={busy}
+                  onClick={() => handleReject(row.id)}
+                >
+                  {isRejecting ? (
+                    <>
+                      <SpinnerInline /> Rejecting...
+                    </>
+                  ) : (
+                    "Reject"
+                  )}
+                </button>
+              </>
+            )}
+
+            <button className="btn" onClick={() => openDetails(row.book)}>
+              Book
+            </button>
+          </div>
+        </td>
+      </tr>
+
+      {showApproveConfirm && (
+        <div className="custom-confirm-overlay">
+          <div className="custom-confirm-modal">
+            <h3>Approve Request</h3>
+
+            <p>
+              Are you sure you want to approve the request for{" "}
+              <strong>{row.book.title}</strong>?
+            </p>
+
+            <div className="custom-confirm-actions">
+              <button
+                className="btn"
+                disabled={isApproving}
+                onClick={() => setShowApproveConfirm(false)}
+              >
+                Cancel
+              </button>
+
+              <button
+                className="btn approve"
+                disabled={isApproving}
+                onClick={handleApprove}
+              >
+                {isApproving ? (
+                  <>
+                    <SpinnerInline /> Approving...
+                  </>
+                ) : (
+                  "Yes, Approve"
+                )}
+              </button>
+            </div>
+          </div>
         </div>
-      </td>
-    </tr>
+      )}
+    </>
   );
 }
 
 export function Requests({ page, onPageChange, me, approve, reject, openDetails }) {
-  const isAdmin = me.role === "ADMIN";
+  const [filter, setFilter] = useState("all");
+
+  const filteredContent = page.content.filter((row) => {
+    if (filter === "mine") return row.requester.id === me.id;
+    if (filter === "owner") return row.owner.id === me.id;
+    return true;
+  });
 
   if (page.content.length === 0) {
     return (
@@ -80,13 +190,67 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails 
   return (
     <div className="request-container">
       <Panel title="Borrow Requests">
-        <Table headers={["Book", "Borrower", "Owner", "Status", "Requested", "Actions"]}>
-          {page.content.map((row) => (
-            <RequestRow key={row.id} row={row} me={me} isAdmin={isAdmin} approve={approve} reject={reject} openDetails={openDetails} />
-          ))}
-        </Table>
+        <div className="request-filters">
+          <button
+            className={`filter-btn ${filter === "all" ? "active" : ""}`}
+            onClick={() => setFilter("all")}
+          >
+            All
+          </button>
+
+          <button
+            className={`filter-btn ${filter === "mine" ? "active" : ""}`}
+            onClick={() => setFilter("mine")}
+          >
+            My Requests
+          </button>
+
+          <button
+            className={`filter-btn ${filter === "owner" ? "active" : ""}`}
+            onClick={() => setFilter("owner")}
+          >
+            Requests for My Books
+          </button>
+        </div>
+
+        {filteredContent.length === 0 ? (
+          <EmptyState
+            icon="ClipboardCheck"
+            title="No matching requests"
+            message="There are no requests for this selected filter."
+          />
+        ) : (
+          <Table
+            headers={[
+              "Type",
+              "Book",
+              "Borrower",
+              "Owner",
+              "Status",
+              "Requested",
+              "Actions",
+            ]}
+          >
+            {filteredContent.map((row) => (
+              <RequestRow
+                key={row.id}
+                row={row}
+                me={me}
+                approve={approve}
+                reject={reject}
+                openDetails={openDetails}
+              />
+            ))}
+          </Table>
+        )}
+
         {page.totalPages > 1 && (
-          <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={onPageChange} />
+          <Pagination
+            page={page.page}
+            totalPages={page.totalPages}
+            totalElements={page.totalElements}
+            onPageChange={onPageChange}
+          />
         )}
       </Panel>
     </div>

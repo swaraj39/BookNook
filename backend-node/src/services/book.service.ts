@@ -168,7 +168,18 @@ export class BookService {
     return this.mapBook(book);
   }
 
+  private static validateBookPayload(payload: any) {
+    if (!payload.title?.trim()) throw new Error("Title is required.");
+    if (!payload.author?.trim()) throw new Error("Author is required.");
+    if (!payload.genreId) throw new Error("Genre is required.");
+    const loanDays = Number(payload.defaultLoanDays);
+    if (!Number.isInteger(loanDays) || loanDays < 3 || loanDays > 60) {
+      throw new Error("Default loan days must be a whole number between 3 and 60.");
+    }
+  }
+
   static async create(userId: string, payload: any) {
+    this.validateBookPayload(payload);
     const coverColor = this.pickCoverColor(payload.title);
 
     const book = await prisma.book.create({
@@ -205,6 +216,7 @@ export class BookService {
   }
 
   static async update(userId: string, id: string, payload: any, isAdmin: boolean) {
+    this.validateBookPayload(payload);
     const book = await prisma.book.findUnique({
       where: { id },
     });

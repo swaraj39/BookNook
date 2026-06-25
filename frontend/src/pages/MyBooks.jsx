@@ -27,9 +27,13 @@ export function MyBooks({ page, onPageChange, setBookModal, deleteBook, openDeta
             <td>{book.genre?.name}</td>
             <td><span className={`chip ${book.availabilityStatus}`}>{label(book.availabilityStatus)}</span></td>
             <td><div className="row-actions">
-              <button className="btn" onClick={() => setBookModal(toBookForm(book))}>Edit</button>
+              {book.availabilityStatus !== 'borrowed' && (
+                <>
+                  <button className="btn" onClick={() => setBookModal(toBookForm(book))}>Edit</button>
+                  <button className="btn danger" onClick={() => deleteBook(book.id)}>Delete</button>
+                </>
+              )}
               <button className="btn" onClick={() => openDetails(book)}>View</button>
-              <button className="btn danger" onClick={() => deleteBook(book.id)}>Delete</button>
             </div></td>
           </tr>
         ))}

@@ -15,7 +15,7 @@ export function validateBookForm(form) {
   if (!form.genreId) errors.genreId = "Genre is required.";
   const loanDays = Number(form.defaultLoanDays);
   if (!Number.isInteger(loanDays) || loanDays < 3 || loanDays > 60) {
-    errors.defaultLoanDays = "Default loan days must be an integer between 3 and 60.";
+    errors.defaultLoanDays = "How long are they holding it hostage? Pick a number between 3 and 60 days.";
   }
   return errors;
 }
@@ -23,7 +23,7 @@ export function validateRequestForm(form) {
   const errors = {};
   const loanDays = Number(form.requestedLoanDays);
   if (!Number.isInteger(loanDays) || loanDays < 3 || loanDays > 60) {
-    errors.requestedLoanDays = "Borrow days must be an integer between 3 and 60.";
+    errors.requestedLoanDays = "Let's be realistic! Request the book for 3 to 60 days.";
   }
   return errors;
 }

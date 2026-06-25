@@ -33,6 +33,25 @@ import { Details } from "./pages/Details";
 import { initials } from "./utils/helpers";
 import { ConfirmDialog } from "./components/common/ConfirmDialog";
 import logo from "./styles/blue_altair_logo-removebg-preview.png";
+
+const VALID_VIEWS = new Set(["home", "catalog", "requests", "myBooks", "borrowed", "history", "detail"]);
+
+function getStoredView() {
+  const storedView = localStorage.getItem("bn_view") || "home";
+  return VALID_VIEWS.has(storedView) ? storedView : "home";
+}
+
+function getStoredNavStack(currentView) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("bn_navStack") || "[]");
+    const stack = Array.isArray(parsed) ? parsed.filter((item) => VALID_VIEWS.has(item)) : [];
+    if (stack.length === 0) return currentView === "home" ? ["home"] : ["home", currentView];
+    return stack[stack.length - 1] === currentView ? stack : [...stack, currentView];
+  } catch {
+    return currentView === "home" ? ["home"] : ["home", currentView];
+  }
+}
+
 const blankBook = {
   title: "",
   author: "",
@@ -42,8 +61,7 @@ const blankBook = {
   description: "",
   coverUrl: ""
 };
-
-function HomePage({ stats, dailyThought, setView, setFilters, setBookModal }) {
+function HomePage({ stats, dailyThought, navigateTo, setFilters, setBookModal }) {
   return (
     <section className="home-page">
       <div className="new-hero">
@@ -59,7 +77,7 @@ function HomePage({ stats, dailyThought, setView, setFilters, setBookModal }) {
           borrow one you've been meaning to read, and swap stories along the way.
         </p>
         <div className="new-hero-actions">
-          <button className="new-btn-primary" onClick={() => setView("catalog")}>Browse the shelf</button>
+          <button className="new-btn-primary" onClick={() => navigateTo("catalog")}>Browse the shelf</button>
           <button className="new-btn-outline" onClick={() => setBookModal({ ...blankBook })}>Add Book</button>
         </div>
         {dailyThought && (
@@ -91,11 +109,98 @@ function HomePage({ stats, dailyThought, setView, setFilters, setBookModal }) {
     </section>
   );
 }
-
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
-  const [view, setView] = useState("home");
+  const initialView = getStoredView();
+  const [view, setView] = useState(initialView);
+  const [navStack, setNavStack] = useState(() => getStoredNavStack(initialView));
+  const [selectedBookId, setSelectedBookId] = useState(localStorage.getItem("bn_selectedBookId") || null);
+  useEffect(() => {
+    localStorage.setItem("bn_view", view);
+    localStorage.setItem("bn_navStack", JSON.stringify(navStack));
+    if (view === "detail" && selectedBookId) {
+      localStorage.setItem("bn_selectedBookId", selectedBookId);
+    } else {
+      localStorage.removeItem("bn_selectedBookId");
+    }
+  }, [view, navStack, selectedBookId]);
+
+  useEffect(() => {
+    const safeStack = navStack.length ? navStack : [view];
+
+    window.history.replaceState(
+      { view: safeStack[0], selectedBookId: null, navStack: [safeStack[0]] },
+      "",
+      window.location.href
+    );
+
+    safeStack.slice(1).forEach((stackView, index) => {
+      const stackUntilHere = safeStack.slice(0, index + 2);
+      window.history.pushState(
+        {
+          view: stackView,
+          selectedBookId: stackView === "detail" ? selectedBookId : null,
+          navStack: stackUntilHere
+        },
+        "",
+        window.location.href
+      );
+    });
+
+    function handleBrowserBack(event) {
+      const state = event.state;
+      if (!state?.view || !VALID_VIEWS.has(state.view)) return;
+
+      setView(state.view);
+      setSelectedBookId(state.selectedBookId || null);
+      setNavStack(Array.isArray(state.navStack) && state.navStack.length ? state.navStack : [state.view]);
+    }
+
+    window.addEventListener("popstate", handleBrowserBack);
+    return () => window.removeEventListener("popstate", handleBrowserBack);
+    // Run once so a refresh recreates the in-app browser history from localStorage.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function navigateTo(newView, options = {}) {
+    if (!VALID_VIEWS.has(newView)) return;
+
+    const nextBookId = newView === "detail" ? (options.bookId || selectedBookId) : null;
+    const nextStack = options.replace
+      ? [...navStack.slice(0, -1), newView]
+      : navStack[navStack.length - 1] === newView
+        ? navStack
+        : [...navStack, newView];
+
+    setView(newView);
+    setSelectedBookId(nextBookId);
+    setNavStack(nextStack);
+
+    if (!options.skipHistory) {
+      window.history.pushState(
+        { view: newView, selectedBookId: nextBookId, navStack: nextStack },
+        "",
+        window.location.href
+      );
+    }
+  }
+
+  function navigateBack(options = {}) {
+    if (navStack.length <= 1) return;
+
+    const newStack = navStack.slice(0, -1);
+    const previousView = newStack[newStack.length - 1] || "home";
+    const previousBookId = previousView === "detail" ? selectedBookId : null;
+
+    setNavStack(newStack);
+    setView(previousView);
+    setSelectedBookId(previousBookId);
+
+    if (!options.skipHistory) {
+      window.history.back();
+    }
+  }
   const [darkMode, setDarkMode] = useState(localStorage.getItem("bn_theme") === "dark");
   const [me, setMe] = useState(null);
   const [stats, setStats] = useState(null);
@@ -118,13 +223,11 @@ export default function App() {
   const profileDropdownRef = useRef(null);
   const [confirm, setConfirm] = useState(null); // { message, onConfirm }
   const [detailsLoading, setDetailsLoading] = useState(false);
-
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-    // fetch("https://booknook-gfb8.onrender.com/api/quote/today")
       fetch("http://localhost:8080/api/quote/today")
       .then((response) => response.ok ? response.json() : null)
       .then((quote) => {
@@ -133,7 +236,6 @@ export default function App() {
       })
       .catch(() => { });
   }, []);
-
   useEffect(() => {
     function handleClickOutside(event) {
       if (
@@ -143,14 +245,11 @@ export default function App() {
         setShowProfileDropdown(false);
       }
     }
-
     document.addEventListener("mousedown", handleClickOutside);
-
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
-
   useEffect(() => {
     if (isAuthenticated) {
       loadBootstrap();
@@ -169,10 +268,31 @@ export default function App() {
   }, [filters, isAuthenticated]);
 
   useEffect(() => {
+    async function restoreDetailPage() {
+      if (!isAuthenticated || view !== "detail" || !selectedBookId || selectedBook) return;
+
+      setDetailsLoading(true);
+      try {
+        const [freshBook, history] = await Promise.all([
+          api.book(selectedBookId),
+          api.bookHistory(selectedBookId, 0)
+        ]);
+        setSelectedBook(freshBook);
+        setBookHistoryPage(history);
+      } catch (error) {
+        notify(error.message || "Unable to load book details.", "error");
+        navigateTo("catalog", { replace: true });
+      } finally {
+        setDetailsLoading(false);
+      }
+    }
+
+    restoreDetailPage();
+  }, [isAuthenticated, view, selectedBookId, selectedBook]);
+  useEffect(() => {
     async function checkAuth() {
       try {
         const user = await api.me();
-
         setMe(user);
         setIsAuthenticated(true);
       } catch (error) {
@@ -182,42 +302,46 @@ export default function App() {
         setAuthChecking(false);
       }
     }
-
     checkAuth();
   }, []);
-
   useEffect(() => {
     const handler = () => {
       setMe(null);
       setIsAuthenticated(false);
     };
-
     window.addEventListener("auth-expired", handler);
-
     return () => {
       window.removeEventListener("auth-expired", handler);
     };
   }, []);
-
   async function handleLogin(token, user) {
     localStorage.setItem("bn_token", token);
     setMe(user);
     setIsAuthenticated(true);
     notify("Welcome, " + user.fullName + "!");
+    setSelectedBook(null);
+    setSelectedBookId(null);
+    setNavStack(["home"]);
     setView("home");
+    window.history.replaceState({ view: "home", selectedBookId: null, navStack: ["home"] }, "", window.location.href);
   }
   async function handleLogout() {
     setShowProfileDropdown(false);
     try {
-      await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {  // ← not localhost
-      // await fetch("http://localhost:8080/api/auth/logout", {  // ← localhost
+      await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
         method: "POST",
         credentials: "include",
       });
     } catch { }
-
     setIsAuthenticated(false);
     setMe(null);
+    setSelectedBook(null);
+    setSelectedBookId(null);
+    setNavStack(["home"]);
+    setView("home");
+    localStorage.removeItem("bn_view");
+    localStorage.removeItem("bn_navStack");
+    localStorage.removeItem("bn_selectedBookId");
     notify("Logged out successfully.");
   }
   async function loadBootstrap() {
@@ -262,7 +386,6 @@ export default function App() {
       setLoading(false);
     }
   }
-
   function askConfirm(message, onConfirm) {
     setConfirm({ message, onConfirm });
   }
@@ -290,8 +413,9 @@ export default function App() {
     try {
       const freshBook = await api.book(book.id);
       setSelectedBook(freshBook);
+      setSelectedBookId(book.id);
       await loadBookHistory(book.id, 0);
-      setView("detail");
+      navigateTo("detail", { bookId: book.id });
     } finally {
       setDetailsLoading(false);
     }
@@ -318,13 +442,6 @@ export default function App() {
       }
     });
     return;
-    // try {
-    //   await api.deleteBook(id);
-    //   notify("Book deleted.");
-    //   await refresh();
-    // } catch (error) {
-    //   notify(error.message, "error");
-    // }
   }
   async function sendRequest(payload) {
     try {
@@ -393,11 +510,9 @@ export default function App() {
       ]
     }
   ];
-
   if (authChecking) {
     return <div>Loading...</div>;
   }
-
   if (!isAuthenticated) {
     return (
       <>
@@ -409,7 +524,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <button className="brand" onClick={() => setView("home")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
+        <button className="brand" onClick={() => navigateTo("home")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
           <img className="brand-mark" src={logo} alt="Book Nook Logo" />
           <div>
             <h1>Book Nook</h1>
@@ -421,7 +536,7 @@ export default function App() {
             <div key={section.label} className="nav-section">
               <div className="nav-label">{section.label}</div>
               {section.items.map(([id, label, Icon, badge]) => (
-                <button key={id} className={`nav-item ${view === id ? "active" : ""}`} onClick={() => setView(id)}>
+                <button key={id} className={`nav-item ${view === id ? "active" : ""}`} onClick={() => navigateTo(id)}>
                   <div className="nav-item-content">
                     <Icon size={18} />
                     <span>{label}</span>
@@ -461,7 +576,7 @@ export default function App() {
         {view !== "home" && view !== "catalog" && (
           <section className="topbar">
             <div className="page-title">
-              {/* <div className="page-kicker">Community library tracker</div> */}
+              {}
               <h2>BA Reading Community Tracker</h2>
               <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
             </div>
@@ -470,18 +585,13 @@ export default function App() {
             </div>
           </section>
         )}
-        {/* {view === "home" && (
-          <div style={{ position: "fixed", top: "16px", right: "24px", zIndex: 200 }}>
-            <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
-              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
-          </div>
-        )} */}
+        {
+}
         {view === "home" && (
           <HomePage
             stats={stats}
             dailyThought={dailyThought}
-            setView={setView}
+            navigateTo={navigateTo}
             setFilters={setFilters}
             setBookModal={setBookModal}
           />
@@ -513,7 +623,8 @@ export default function App() {
             historyPage={bookHistoryPage}
             onPageChange={(p) => loadBookHistory(selectedBook.id, p)}
             me={me}
-            setView={setView}
+            navigateBack={navigateBack}
+            navigateTo={navigateTo}
             setBookModal={setBookModal}
             setRequestModal={setRequestModal}
             returnBook={returnBook}

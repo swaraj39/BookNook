@@ -25,7 +25,7 @@ export function RequestModal({ book, onClose, onSave }) {
   return (
     <Modal title={`Request: ${book.title}`} onClose={onClose} onSubmit={submit}>
       <FormInput
-        label="Borrow for days"
+        label="Borrow for days (3-60)"
         required
         error={errors.requestedLoanDays}
         type="number"

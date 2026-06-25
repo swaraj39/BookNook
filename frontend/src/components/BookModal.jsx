@@ -25,7 +25,7 @@ export function BookModal({ book, genres, onClose, onSave }) {
       <label className="field"><span>Genre <b>*</b></span><select className="select" value={form.genreId} onChange={(e) => setForm({ ...form, genreId: e.target.value })}>{genres.map((genre) => <option key={genre.id} value={genre.id}>{genre.name}</option>)}</select>{errors.genreId && <small>{errors.genreId}</small>}</label>
       <label className="field"><span>Condition <b>*</b></span><select className="select" value={form.condition} onChange={(e) => setForm({ ...form, condition: e.target.value })}><option value="like_new">Like new</option><option value="good">Good</option><option value="well_loved">Well loved</option><option value="damaged">Damaged</option></select></label>
       <FormInput
-        label="Default loan days"
+        label="Default loan days (3-60 days)"
         required
         error={errors.defaultLoanDays}
         type="number"

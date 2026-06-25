@@ -187,9 +187,11 @@ export class WorkflowService {
     });
 
     if (!transaction) throw new Error("Transaction not found.");
-    if (transaction.ownerId !== userId && !isAdmin) {
-      throw new Error("Unauthorized.");
+
+    if (transaction.ownerId !== userId) {
+      throw new Error("Only the book owner can approve this request.");
     }
+
     if (transaction.status !== "pending") {
       throw new Error("This transaction has already been processed.");
     }
@@ -281,12 +283,14 @@ export class WorkflowService {
     });
 
     if (!transaction) throw new Error("Transaction not found.");
-    if (transaction.ownerId !== userId && !isAdmin) {
-      throw new Error("Unauthorized.");
-    }
-    if (transaction.status !== "pending") {
-      throw new Error("This transaction has already been processed.");
-    }
+
+if (transaction.ownerId !== userId) {
+  throw new Error("Only the book owner can approve this request.");
+}
+
+if (transaction.status !== "pending") {
+  throw new Error("This transaction has already been processed.");
+}
 
     const updatedTransaction = await prisma.$transaction(async (tx) => {
       const tr = await tx.bookTransaction.update({
