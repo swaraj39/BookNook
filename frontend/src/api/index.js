@@ -2,20 +2,27 @@ const API_URL = "https://booknook-gfb8.onrender.com/api";
 // const API_URL = "http://localhost:8080/api";
 
 async function request(path, options = {}) {
+  const token = localStorage.getItem("bn_token");
+
   const headers = {
     "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {})
   };
+
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     credentials: "include",
     headers
   });
+
   if (response.status === 401) {
     window.dispatchEvent(new CustomEvent("auth-expired"));
     throw new Error("Unauthorized");
   }
+
   const text = await response.text();
+
   if (!response.ok) {
     let message = "Something went wrong.";
     try {
@@ -26,6 +33,7 @@ async function request(path, options = {}) {
     }
     throw new Error(message);
   }
+
   if (response.status === 204) return null;
   return text ? JSON.parse(text) : null;
 }
@@ -59,27 +67,29 @@ export const api = {
   loanHistory: (page = 0, size = 20) => request(`/loans/history?page=${page}&size=${size}`),
   returnBook: (id) => request(`/loans/${id}/return`, { method: "POST" }),
   exportBooks: async () => {
-    const token = localStorage.getItem("bn_token");
+  const token = localStorage.getItem("bn_token");
 
-    const response = await fetch(`${API_URL}/all/books`, {
-      method: "GET",
-      credentials: "include",
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to export books");
+  const response = await fetch(`${API_URL}/all/books`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
     }
+  });
 
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "booknook.csv";
-    document.body.appendChild(a);
-    a.click();
-
-    a.remove();
-    window.URL.revokeObjectURL(url);
+  if (!response.ok) {
+    throw new Error("Failed to export books");
   }
-};
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "booknook.csv";
+  document.body.appendChild(a);
+  a.click();
+
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}};
