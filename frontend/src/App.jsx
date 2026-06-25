@@ -15,7 +15,8 @@ import {
   BookOpenText,
   Globe,
   User as UserIcon,
-  ChevronDown
+  ChevronDown,
+  Info
 } from "lucide-react";
 import { api } from "./api";
 import { Profile } from "./components/Profile";
@@ -25,6 +26,7 @@ import { RequestModal } from "./components/RequestModal";
 import { ToastContainer } from "./components/common/Toast";
 import { Login } from "./pages/Login";
 import { Catalog } from "./pages/Catalog";
+import { Dashboard } from "./pages/Dashboard";
 import { Requests } from "./pages/Requests";
 import { MyBooks } from "./pages/MyBooks";
 import { Borrowed } from "./pages/Borrowed";
@@ -34,11 +36,10 @@ import { initials } from "./utils/helpers";
 import { ConfirmDialog } from "./components/common/ConfirmDialog";
 import logo from "./styles/blue_altair_logo-removebg-preview.png";
 
-const VALID_VIEWS = new Set(["home", "catalog", "requests", "myBooks", "borrowed", "history", "detail"]);
-
+const VALID_VIEWS = new Set(["dashboard", "home", "catalog", "requests", "myBooks", "borrowed", "history", "detail"]);
 function getStoredView() {
-  const storedView = localStorage.getItem("bn_view") || "home";
-  return VALID_VIEWS.has(storedView) ? storedView : "home";
+  const storedView = localStorage.getItem("bn_view") || "dashboard";
+  return VALID_VIEWS.has(storedView) ? storedView : "dashboard";
 }
 
 function getStoredNavStack(currentView) {
@@ -223,12 +224,14 @@ export default function App() {
   const profileDropdownRef = useRef(null);
   const [confirm, setConfirm] = useState(null); // { message, onConfirm }
   const [detailsLoading, setDetailsLoading] = useState(false);
+
+
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-      fetch("http://localhost:8080/api/quote/today")
+    fetch("http://localhost:8080/api/quote/today")
       .then((response) => response.ok ? response.json() : null)
       .then((quote) => {
         if (quote) setDailyThought(quote);
@@ -321,9 +324,9 @@ export default function App() {
     notify("Welcome, " + user.fullName + "!");
     setSelectedBook(null);
     setSelectedBookId(null);
-    setNavStack(["home"]);
-    setView("home");
-    window.history.replaceState({ view: "home", selectedBookId: null, navStack: ["home"] }, "", window.location.href);
+    setNavStack(["dashboard"]);
+    setView("dashboard");
+    window.history.replaceState({ view: "dashboard", selectedBookId: null, navStack: ["dashboard"] }, "", window.location.href);
   }
   async function handleLogout() {
     setShowProfileDropdown(false);
@@ -338,8 +341,8 @@ export default function App() {
     setMe(null);
     setSelectedBook(null);
     setSelectedBookId(null);
-    setNavStack(["home"]);
-    setView("home");
+    setNavStack(["dashboard"]);
+    setView("dashboard");
     localStorage.removeItem("bn_view");
     localStorage.removeItem("bn_navStack");
     localStorage.removeItem("bn_selectedBookId");
@@ -495,9 +498,9 @@ export default function App() {
   }
   const navSections = [
     {
-      label: "Discovery",
+      label: "Analytics & Shelf",
       items: [
-        ["home", "Home", HomeIcon],
+        ["dashboard", "Dashboard", CheckSquare],
         ["catalog", "Browse", Globe]
       ]
     },
@@ -508,6 +511,12 @@ export default function App() {
         ["myBooks", "My Shelf", LibraryBig],
         ["borrowed", "Currently Reading", BookOpenText, stats?.activeBorrowed],
         ["history", "History", History]
+      ]
+    },
+    {
+      label: "Overview",
+      items: [
+        ["home", "About", Info]
       ]
     }
   ];
@@ -525,7 +534,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <button className="brand" onClick={() => navigateTo("home")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
+        <button className="brand" onClick={() => navigateTo("dashboard")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
           <img className="brand-mark" src={logo} alt="Book Nook Logo" />
           <div>
             <h1>Book Nook</h1>
@@ -574,10 +583,18 @@ export default function App() {
         </div>
       </aside>
       <main className="main">
-        {view !== "home" && view !== "catalog" && (
+        {view === "dashboard" && stats && (
+          <Dashboard
+            stats={stats}
+            me={me}
+            dailyThought={dailyThought}
+            openDetails={openDetails}
+          />
+        )}
+        {view !== "home" && view !== "catalog" && view !== "dashboard" && (
           <section className="topbar">
             <div className="page-title">
-              {}
+              { }
               <h2>BA Reading Community Tracker</h2>
               <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
             </div>
@@ -587,7 +604,7 @@ export default function App() {
           </section>
         )}
         {
-}
+        }
         {view === "home" && (
           <HomePage
             stats={stats}
