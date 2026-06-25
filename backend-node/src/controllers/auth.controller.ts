@@ -4,16 +4,28 @@ import { callWorkatoSignupWebhook } from "../utils/workato";
 
 export class AuthController {
   static async register(req: Request, res: Response) {
-    try {
-      const result = await AuthService.register(req.body);
+  try {
+    const result = await AuthService.register(req.body);
 
-      await callWorkatoSignupWebhook(result.user);
+    const isProd = process.env.NODE_ENV === "production";
 
-      res.status(201).json(result);
-    } catch (error: any) {
-      res.status(400).json({ message: error.message });
-    }
+    res.cookie("token", result.token, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? "none" : "lax",
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    await callWorkatoSignupWebhook(result.user);
+
+    res.status(201).json({
+      user: result.user,
+    });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message });
   }
+}
 
   static async login(req: Request, res: Response) {
     try {
