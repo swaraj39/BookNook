@@ -1,7 +1,9 @@
 import prisma from "../config/prisma";
+import logger from "../utils/logger";
 
 export class BookService {
   static async catalog(params: any, userId?: string) {
+    
     const {
       search = "",
       genreId,
@@ -10,7 +12,9 @@ export class BookService {
       page = 0,
       size = 20,
     } = params;
-
+    logger.info(
+      `Fetching book catalog | User: ${userId ?? "Guest"} | Search: "${search}" | Availability: ${availability}`
+    );
     const currentPage = Number(page) || 0;
     const pageSize = Number(size) || 20;
 
@@ -124,7 +128,7 @@ export class BookService {
   static async myBooks(userId: string, page = 0, size = 20) {
     const currentPage = Number(page) || 0;
     const pageSize = Number(size) || 20;
-
+    logger.info(`Fetching books owned by user: ${userId}`);
     const where = {
       ownerId: userId,
       visibilityStatus: "visible",
@@ -155,6 +159,7 @@ export class BookService {
   }
 
   static async get(id: string) {
+    logger.info(`Fetching book details | Book ID: ${id}`);
     const book = await prisma.book.findUnique({
       where: { id },
       include: {
@@ -163,8 +168,11 @@ export class BookService {
       },
     });
 
-    if (!book) throw new Error("Book not found");
-
+    if (!book){
+      logger.warn(`Book not found | Book ID: ${id}`);
+      throw new Error("Book not found");
+    } 
+    
     return this.mapBook(book);
   }
 
@@ -181,7 +189,9 @@ export class BookService {
   static async create(userId: string, payload: any) {
     this.validateBookPayload(payload);
     const coverColor = this.pickCoverColor(payload.title);
-
+    logger.info(
+      `Creating book | Owner: ${userId} | Title: "${payload.title}"`
+    );
     const book = await prisma.book.create({
       data: {
         title: payload.title,
@@ -211,7 +221,9 @@ export class BookService {
         eventMessage: `${book.owner.fullName} added ${book.title}.`,
       },
     });
-
+    logger.info(
+      `Book created successfully | Book ID: ${book.id} | Title: "${book.title}"`
+    );
     return this.mapBook(book);
   }
 
@@ -220,10 +232,18 @@ export class BookService {
     const book = await prisma.book.findUnique({
       where: { id },
     });
-
-    if (!book) throw new Error("Book not found");
+    logger.info(
+      `Updating book | Book ID: ${id} | User: ${userId}`
+    );
+    if (!book){
+      logger.warn(`Update failed. Book not found | Book ID: ${id}`);
+      throw new Error("Book not found");
+    } 
 
     if (book.ownerId !== userId && !isAdmin) {
+      logger.warn(
+        `Unauthorized update attempt | Book ID: ${id} | User: ${userId}`
+      );
       throw new Error("Unauthorized");
     }
 
@@ -243,7 +263,9 @@ export class BookService {
         genre: true,
       },
     });
-
+    logger.info(
+      `Book updated successfully | Book ID: ${updatedBook.id}`
+    );
     await prisma.bookHistory.create({
       data: {
         bookId: updatedBook.id,
@@ -253,7 +275,7 @@ export class BookService {
         eventMessage: `${updatedBook.owner.fullName} updated ${updatedBook.title}.`,
       },
     });
-
+    
     return this.mapBook(updatedBook);
   }
 
@@ -261,10 +283,18 @@ export class BookService {
     const book = await prisma.book.findUnique({
       where: { id },
     });
-
-    if (!book) throw new Error("Book not found");
+    logger.info(
+      `Deleting book | Book ID: ${id} | User: ${userId}`
+    );
+    if (!book){
+      logger.warn(`Delete failed. Book not found | Book ID: ${id}`);
+      throw new Error("Book not found");
+    } 
 
     if (book.ownerId !== userId && !isAdmin) {
+      logger.warn(
+        `Unauthorized delete attempt | Book ID: ${id} | User: ${userId}`
+      );
       throw new Error("Unauthorized");
     }
 
@@ -276,6 +306,9 @@ export class BookService {
     });
 
     if (pendingRequests > 0) {
+      logger.warn(
+        `Delete blocked due to pending requests | Book ID: ${id}`
+      );
       throw new Error("Close pending requests before deleting this book.");
     }
 
@@ -289,6 +322,9 @@ export class BookService {
     });
 
     if (activeLoans > 0) {
+      logger.warn(
+        `Delete blocked because the book is currently borrowed | Book ID: ${id}`
+      );
       throw new Error("This book cannot be deleted while borrowed.");
     }
 
@@ -302,6 +338,9 @@ export class BookService {
         owner: true,
       },
     });
+    logger.info(
+      `Book deleted successfully | Book ID: ${id}`
+    );
 
     await prisma.bookHistory.create({
       data: {

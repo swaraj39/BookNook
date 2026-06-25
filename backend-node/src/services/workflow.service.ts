@@ -1,11 +1,13 @@
 import prisma from "../config/prisma";
-
+import logger from "../utils/logger";
 export class WorkflowService {
   static async myRequests(userId: string, isAdmin: boolean, page = 0, size = 20) {
     const where = {
       OR: [{ ownerId: userId }, { requesterId: userId }],
     };
-
+    logger.info(
+      `Fetching borrow requests | User: ${userId} | Admin: ${isAdmin}`
+    );
     const [totalElements, content] = await Promise.all([
       prisma.bookTransaction.count({ where }),
       prisma.bookTransaction.findMany({
@@ -40,7 +42,9 @@ export class WorkflowService {
       requesterId: userId,
       status: { in: ["active", "overdue", "return_pending"] },
     };
-
+    logger.info(
+      `Fetching borrowed books | User: ${userId}`
+    );
     const [totalElements, content] = await Promise.all([
       prisma.bookTransaction.count({ where }),
       prisma.bookTransaction.findMany({
@@ -72,7 +76,9 @@ export class WorkflowService {
 
   static async history(userId: string, isAdmin: boolean, page = 0, size = 20) {
     const where = isAdmin ? {} : { requesterId: userId };
-
+    logger.info(
+      `Fetching loan history | User: ${userId} | Admin: ${isAdmin}`
+    );
     const [totalElements, content] = await Promise.all([
       prisma.bookTransaction.count({ where }),
       prisma.bookTransaction.findMany({
@@ -104,7 +110,9 @@ export class WorkflowService {
 
   static async requestBook(userId: string, payload: any) {
     const requestedLoanDays = parseInt(payload.requestedLoanDays, 10);
-
+    logger.info(
+      `Borrow request initiated | User: ${userId} | Book: ${payload.bookId}`
+    );
     if (!Number.isInteger(requestedLoanDays) || requestedLoanDays < 1) {
       throw new Error("Borrow days must be a whole number.");
     }
@@ -114,14 +122,22 @@ export class WorkflowService {
       include: { owner: true, genre: true },
     });
 
-    if (!book) throw new Error("Book not found.");
+    if (!book){
+      logger.warn("Borrow request failed. Book not found.");
+      throw new Error("Book not found.");
+    } 
     if (book.visibilityStatus !== "visible") {
+
       throw new Error("This book is no longer listed.");
     }
     if (book.ownerId === userId) {
+      logger.warn("Borrow request rejected. User attempted to borrow own book.");
       throw new Error("You cannot request your own book.");
     }
     if (book.availabilityStatus !== "available") {
+          logger.warn(
+      `Borrow request rejected. Book unavailable | Book: ${payload.bookId}`
+    );
       throw new Error("This book is not available.");
     }
 
@@ -156,7 +172,9 @@ export class WorkflowService {
         maxWait: 10000,
       }
     );
-
+    logger.info(
+      `Borrow request created | Transaction: ${transaction.id}`
+    );
     await prisma.bookHistory.create({
       data: {
         bookId: book.id,
@@ -171,105 +189,60 @@ export class WorkflowService {
     return this.mapTransaction(transaction);
   }
 
-  static async approve(userId: string, transactionId: string, isAdmin: boolean) {
-    const transaction = await prisma.bookTransaction.findUnique({
-      where: { id: transactionId },
-      include: {
-        book: {
-          include: {
-            owner: true,
-            genre: true,
-          },
+static async approve(userId: string, transactionId: string, isAdmin: boolean) {
+  logger.info(
+    `Approving borrow request | Transaction: ${transactionId} | User: ${userId}`
+  );
+
+  const transaction = await prisma.bookTransaction.findUnique({
+    where: { id: transactionId },
+    include: {
+      book: {
+        include: {
+          owner: true,
+          genre: true,
         },
-        requester: true,
-        owner: true,
       },
-    });
+      requester: true,
+      owner: true,
+    },
+  });
 
-    if (!transaction) throw new Error("Transaction not found.");
-
-    if (transaction.ownerId !== userId) {
-      throw new Error("Only the book owner can approve this request.");
-    }
-
-    if (transaction.status !== "pending") {
-      throw new Error("This transaction has already been processed.");
-    }
-
-    const now = new Date();
-    const dueAt = new Date(
-      now.getTime() + transaction.requestedLoanDays * 24 * 60 * 60 * 1000
+  if (!transaction) {
+    logger.warn(
+      `Approval failed. Transaction not found | ${transactionId}`
     );
-
-    const updatedTransaction = await prisma.$transaction(async (tx) => {
-      const tr = await tx.bookTransaction.update({
-        where: { id: transactionId },
-        data: {
-          status: "active",
-          respondedAt: now,
-          borrowedAt: now,
-          dueAt,
-        },
-        include: {
-          book: {
-            include: {
-              owner: true,
-              genre: true,
-            },
-          },
-          requester: true,
-          owner: true,
-        },
-      });
-
-      await tx.book.update({
-        where: { id: transaction.bookId },
-        data: { availabilityStatus: "borrowed" },
-      });
-
-      await tx.bookTransaction.updateMany({
-        where: {
-          bookId: transaction.bookId,
-          status: "pending",
-          id: { not: transactionId },
-        },
-        data: {
-          status: "expired",
-          respondedAt: now,
-        },
-      });
-
-      await tx.bookHistory.create({
-        data: {
-          bookId: transaction.bookId,
-          actorId: userId,
-          eventType: "request_approved",
-          eventTitle: "Request approved",
-          eventMessage: `${transaction.owner.fullName} approved ${transaction.requester.fullName}'s request.`,
-          transactionId: tr.id,
-        },
-      });
-
-      await tx.bookHistory.create({
-        data: {
-          bookId: transaction.bookId,
-          actorId: userId,
-          eventType: "loan_started",
-          eventTitle: "Loan started",
-          eventMessage: `${tr.book.title} is due on ${dueAt.toISOString().split("T")[0]}.`,
-          transactionId: tr.id,
-        },
-      });
-
-      return tr;
-    });
-
-    return this.mapTransaction(updatedTransaction);
+    throw new Error("Transaction not found.");
   }
 
-  static async reject(userId: string, transactionId: string, isAdmin: boolean) {
-    const transaction = await prisma.bookTransaction.findUnique({
+  if (transaction.ownerId !== userId) {
+    logger.warn(
+      `Unauthorized approval attempt | Transaction: ${transactionId} | User: ${userId}`
+    );
+    throw new Error("Only the book owner can approve this request.");
+  }
+
+  if (transaction.status !== "pending") {
+    logger.warn(
+      `Approval failed. Transaction already processed | ${transactionId}`
+    );
+    throw new Error("This transaction has already been processed.");
+  }
+
+  const now = new Date();
+  const dueAt = new Date(
+    now.getTime() + transaction.requestedLoanDays * 24 * 60 * 60 * 1000
+  );
+
+  const updatedTransaction = await prisma.$transaction(async (tx) => {
+    const tr = await tx.bookTransaction.update({
       where: { id: transactionId },
+      data: {
+        status: "active",
+        respondedAt: now,
+        borrowedAt: now,
+        dueAt,
+      },
       include: {
         book: {
           include: {
@@ -282,73 +255,106 @@ export class WorkflowService {
       },
     });
 
-    if (!transaction) throw new Error("Transaction not found.");
-
-if (transaction.ownerId !== userId) {
-  throw new Error("Only the book owner can approve this request.");
-}
-
-if (transaction.status !== "pending") {
-  throw new Error("This transaction has already been processed.");
-}
-
-    const updatedTransaction = await prisma.$transaction(async (tx) => {
-      const tr = await tx.bookTransaction.update({
-        where: { id: transactionId },
-        data: {
-          status: "rejected",
-          respondedAt: new Date(),
-        },
-        include: {
-          book: {
-            include: {
-              owner: true,
-              genre: true,
-            },
-          },
-          requester: true,
-          owner: true,
-        },
-      });
-
-      const pendingCount = await tx.bookTransaction.count({
-        where: { bookId: transaction.bookId, status: "pending" },
-      });
-
-      const activeCount = await tx.bookTransaction.count({
-        where: {
-          bookId: transaction.bookId,
-          status: { in: ["active", "overdue", "return_pending"] },
-        },
-      });
-
-      if (pendingCount === 0 && activeCount === 0) {
-        await tx.book.update({
-          where: { id: transaction.bookId },
-          data: { availabilityStatus: "available" },
-        });
-      }
-
-      await tx.bookHistory.create({
-        data: {
-          bookId: transaction.bookId,
-          actorId: userId,
-          eventType: "request_rejected",
-          eventTitle: "Request rejected",
-          eventMessage: `${transaction.owner.fullName} rejected the request for ${transaction.book.title}.`,
-          transactionId: tr.id,
-        },
-      });
-
-      return tr;
+    await tx.book.update({
+      where: { id: transaction.bookId },
+      data: {
+        availabilityStatus: "borrowed",
+      },
     });
 
-    return this.mapTransaction(updatedTransaction);
+    await tx.bookTransaction.updateMany({
+      where: {
+        bookId: transaction.bookId,
+        status: "pending",
+        id: {
+          not: transactionId,
+        },
+      },
+      data: {
+        status: "expired",
+        respondedAt: now,
+      },
+    });
+
+    await tx.bookHistory.create({
+      data: {
+        bookId: transaction.bookId,
+        actorId: userId,
+        eventType: "request_approved",
+        eventTitle: "Request approved",
+        eventMessage: `${transaction.owner.fullName} approved ${transaction.requester.fullName}'s request.`,
+        transactionId: tr.id,
+      },
+    });
+
+    await tx.bookHistory.create({
+      data: {
+        bookId: transaction.bookId,
+        actorId: userId,
+        eventType: "loan_started",
+        eventTitle: "Loan started",
+        eventMessage: `${tr.book.title} is due on ${dueAt.toISOString().split("T")[0]}.`,
+        transactionId: tr.id,
+      },
+    });
+
+    return tr;
+  });
+
+  // Log after the transaction has completed successfully
+  logger.info(
+    `Borrow request approved | Transaction: ${updatedTransaction.id} | Owner: ${userId}`
+  );
+
+  return this.mapTransaction(updatedTransaction);
+}
+static async reject(userId: string, transactionId: string, isAdmin: boolean) {
+  logger.info(
+    `Rejecting borrow request | Transaction: ${transactionId} | User: ${userId}`
+  );
+
+  const transaction = await prisma.bookTransaction.findUnique({
+    where: { id: transactionId },
+    include: {
+      book: {
+        include: {
+          owner: true,
+          genre: true,
+        },
+      },
+      requester: true,
+      owner: true,
+    },
+  });
+
+  if (!transaction) {
+    logger.warn(
+      `Reject failed. Transaction not found | ${transactionId}`
+    );
+    throw new Error("Transaction not found.");
   }
 
-  static async returnBook(userId: string, transactionId: string, isAdmin: boolean) {
-    const transaction = await prisma.bookTransaction.findUnique({
+  if (transaction.ownerId !== userId) {
+    logger.warn(
+      `Unauthorized reject attempt | Transaction: ${transactionId} | User: ${userId}`
+    );
+    throw new Error("Only the book owner can reject this request.");
+  }
+
+  if (transaction.status !== "pending") {
+    logger.warn(
+      `Reject failed. Transaction already processed | ${transactionId}`
+    );
+    throw new Error("This transaction has already been processed.");
+  }
+
+  const updatedTransaction = await prisma.$transaction(async (tx) => {
+    const tr = await tx.bookTransaction.update({
       where: { id: transactionId },
+      data: {
+        status: "rejected",
+        respondedAt: new Date(),
+      },
       include: {
         book: {
           include: {
@@ -361,55 +367,143 @@ if (transaction.status !== "pending") {
       },
     });
 
-    if (!transaction) throw new Error("Transaction not found.");
-    if (transaction.requesterId !== userId && transaction.ownerId !== userId && !isAdmin) {
-      throw new Error("Unauthorized.");
-    }
-    if (!["active", "overdue", "return_pending"].includes(transaction.status)) {
-      throw new Error("This transaction cannot be returned.");
-    }
-
-    const updatedTransaction = await prisma.$transaction(async (tx) => {
-      const tr = await tx.bookTransaction.update({
-        where: { id: transactionId },
-        data: {
-          status: "returned",
-          returnedAt: new Date(),
-        },
-        include: {
-          book: {
-            include: {
-              owner: true,
-              genre: true,
-            },
-          },
-          requester: true,
-          owner: true,
-        },
-      });
-
-      await tx.book.update({
-        where: { id: transaction.bookId },
-        data: { availabilityStatus: "available" },
-      });
-
-      await tx.bookHistory.create({
-        data: {
-          bookId: transaction.bookId,
-          actorId: userId,
-          eventType: "book_returned",
-          eventTitle: "Book returned",
-          eventMessage: `${tr.requester.fullName} returned ${tr.book.title}.`,
-          transactionId: tr.id,
-        },
-      });
-
-      return tr;
+    const pendingCount = await tx.bookTransaction.count({
+      where: {
+        bookId: transaction.bookId,
+        status: "pending",
+      },
     });
 
-    return this.mapTransaction(updatedTransaction);
+    const activeCount = await tx.bookTransaction.count({
+      where: {
+        bookId: transaction.bookId,
+        status: {
+          in: ["active", "overdue", "return_pending"],
+        },
+      },
+    });
+
+    if (pendingCount === 0 && activeCount === 0) {
+      await tx.book.update({
+        where: { id: transaction.bookId },
+        data: {
+          availabilityStatus: "available",
+        },
+      });
+    }
+
+    await tx.bookHistory.create({
+      data: {
+        bookId: transaction.bookId,
+        actorId: userId,
+        eventType: "request_rejected",
+        eventTitle: "Request rejected",
+        eventMessage: `${transaction.owner.fullName} rejected the request for ${transaction.book.title}.`,
+        transactionId: tr.id,
+      },
+    });
+
+    return tr;
+  });
+
+  logger.info(
+    `Borrow request rejected | Transaction: ${updatedTransaction.id} | Owner: ${userId}`
+  );
+
+  return this.mapTransaction(updatedTransaction);
+}
+ static async returnBook(userId: string, transactionId: string, isAdmin: boolean) {
+  logger.info(
+    `Returning book | Transaction: ${transactionId} | User: ${userId}`
+  );
+
+  const transaction = await prisma.bookTransaction.findUnique({
+    where: { id: transactionId },
+    include: {
+      book: {
+        include: {
+          owner: true,
+          genre: true,
+        },
+      },
+      requester: true,
+      owner: true,
+    },
+  });
+
+  if (!transaction) {
+    logger.warn(
+      `Return failed. Transaction not found | ${transactionId}`
+    );
+    throw new Error("Transaction not found.");
   }
 
+  if (
+    transaction.requesterId !== userId &&
+    transaction.ownerId !== userId &&
+    !isAdmin
+  ) {
+    logger.warn(
+      `Unauthorized return attempt | Transaction: ${transactionId} | User: ${userId}`
+    );
+    throw new Error("Unauthorized.");
+  }
+
+  if (
+    !["active", "overdue", "return_pending"].includes(transaction.status)
+  ) {
+    logger.warn(
+      `Return rejected. Invalid transaction state | ${transactionId}`
+    );
+    throw new Error("This transaction cannot be returned.");
+  }
+
+  const updatedTransaction = await prisma.$transaction(async (tx) => {
+    const tr = await tx.bookTransaction.update({
+      where: { id: transactionId },
+      data: {
+        status: "returned",
+        returnedAt: new Date(),
+      },
+      include: {
+        book: {
+          include: {
+            owner: true,
+            genre: true,
+          },
+        },
+        requester: true,
+        owner: true,
+      },
+    });
+
+    await tx.book.update({
+      where: { id: transaction.bookId },
+      data: {
+        availabilityStatus: "available",
+      },
+    });
+
+    await tx.bookHistory.create({
+      data: {
+        bookId: transaction.bookId,
+        actorId: userId,
+        eventType: "book_returned",
+        eventTitle: "Book returned",
+        eventMessage: `${tr.requester.fullName} returned ${tr.book.title}.`,
+        transactionId: tr.id,
+      },
+    });
+
+    return tr;
+  });
+
+  logger.info(
+    `Book returned successfully | Transaction: ${updatedTransaction.id} | User: ${userId}`
+  );
+
+  return this.mapTransaction(updatedTransaction);
+}
   private static mapTransaction(transaction: any) {
     return {
       id: transaction.id,
