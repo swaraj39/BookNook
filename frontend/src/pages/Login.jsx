@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { LogIn, UserPlus } from "lucide-react";
+import { LogIn, UserPlus, Eye, EyeOff } from "lucide-react";
 import { api } from "../api";
 import logo from "../styles/blue_altair_logo-removebg-preview.png";
 
@@ -13,6 +13,7 @@ export function Login({ onLogin }) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const passwordRules = {
     minLength: form.password.length >= 8,
@@ -21,7 +22,6 @@ export function Login({ onLogin }) {
     number: /\d/.test(form.password),
     special: /[!@#$%^&*(),.?":{}|<>]/.test(form.password),
   };
-
   const isPasswordValid =
     passwordRules.minLength &&
     passwordRules.lowercase &&
@@ -31,29 +31,23 @@ export function Login({ onLogin }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-
     if (!form.email || !form.password) return;
     if (isRegister && (!form.fullName || !form.team)) return;
-
     if (isRegister && !isPasswordValid) {
       setError(
         "Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number, and one special character."
       );
       return;
     }
-
     setLoading(true);
     setError("");
-
     try {
       let result;
-
       if (isRegister) {
         result = await api.register(form);
       } else {
         result = await api.login(form.email, form.password);
       }
-
       onLogin(null, result.user);
     } catch (err) {
       setError(err.message);
@@ -72,15 +66,12 @@ export function Login({ onLogin }) {
           <img className="brand-mark" src={logo} alt="Book Nook Logo" />
           <h1>Book Nook</h1>
         </div>
-
         <h2>{isRegister ? "Create an account" : "Sign in to your account"}</h2>
-
         <p>
           {isRegister
             ? "Join the community library today."
             : "Enter your credentials to access the community library."}
         </p>
-
         <form onSubmit={handleSubmit} className="form-grid">
           {isRegister && (
             <>
@@ -96,7 +87,6 @@ export function Login({ onLogin }) {
                   maxLength={60}
                 />
               </label>
-
               <label className="field full">
                 <span>Capability</span>
                 <select
@@ -115,7 +105,6 @@ export function Login({ onLogin }) {
               </label>
             </>
           )}
-
           <label className="field full">
             <span>Email address</span>
             <input
@@ -128,70 +117,59 @@ export function Login({ onLogin }) {
               maxLength={100}
             />
           </label>
-
           <label className="field full">
             <span>Password</span>
-            <input
-              type="password"
-              className="input"
-              value={form.password}
-              onChange={(e) => updateForm("password", e.target.value)}
-              required
-              placeholder="Password"
-              maxLength={72}
-            />
-
+            <div className="password-input-wrap">
+              <input
+                type={showPassword ? "text" : "password"}
+                className="input"
+                value={form.password}
+                onChange={(e) => updateForm("password", e.target.value)}
+                required
+                placeholder="Password"
+                maxLength={72}
+              />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowPassword((v) => !v)}
+                tabIndex={-1}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+            </div>
             {isRegister && (
               <div className="password-rules">
                 <small>Password must contain:</small>
                 <ul>
-                  <li className={passwordRules.lowercase ? "valid" : ""}>
-                    Lowercase letter
-                  </li>
-                  <li className={passwordRules.uppercase ? "valid" : ""}>
-                    Uppercase letter
-                  </li>
-                  <li className={passwordRules.number ? "valid" : ""}>
-                    Number
-                  </li>
-                  <li className={passwordRules.special ? "valid" : ""}>
-                    Special character
-                  </li>
-                  <li className={passwordRules.minLength ? "valid" : ""}>
-                    Minimum 8 characters
-                  </li>
+                  <li className={passwordRules.lowercase ? "valid" : ""}>Lowercase letter</li>
+                  <li className={passwordRules.uppercase ? "valid" : ""}>Uppercase letter</li>
+                  <li className={passwordRules.number ? "valid" : ""}>Number</li>
+                  <li className={passwordRules.special ? "valid" : ""}>Special character</li>
+                  <li className={passwordRules.minLength ? "valid" : ""}>Minimum 8 characters</li>
                 </ul>
               </div>
             )}
           </label>
-
           {error && <div className="error-box">{error}</div>}
-
           <button type="submit" className="btn primary full" disabled={loading}>
             {loading ? (
-              isRegister ? (
-                "Creating account..."
-              ) : (
-                "Signing in..."
-              )
+              isRegister ? "Creating account..." : "Signing in..."
             ) : isRegister ? (
-              <>
-                <UserPlus size={18} /> Create Account
-              </>
+              <><UserPlus size={18} /> Create Account</>
             ) : (
-              <>
-                <LogIn size={18} /> Sign In
-              </>
+              <><LogIn size={18} /> Sign In</>
             )}
           </button>
         </form>
-
         <div className="login-toggle">
           <button
             className="btn-link"
             onClick={() => {
               setIsRegister(!isRegister);
               setError("");
+              setShowPassword(false);
             }}
           >
             {isRegister
