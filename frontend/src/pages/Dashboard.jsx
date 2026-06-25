@@ -43,12 +43,12 @@ export function Dashboard({ stats, me, dailyThought, openDetails }) {
       <section className="analytics-block-grid">
         <div className="stats-cards-quad">
           <article className="metrics-pill-card">
-            <label>Total Book Counts</label>
+            <label>Available Books</label>
             <strong>{stats?.totalBooks || 0}</strong>
           </article>
 
           <article className="metrics-pill-card">
-            <label>Books Currently Borrowed</label>
+            <label>Books Reading</label>
             <strong>{stats?.activeBorrowed || 0}</strong>
           </article>
 
