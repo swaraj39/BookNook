@@ -119,16 +119,26 @@ export function Login({ onLogin }) {
           </label>
           <label className="field full">
             <span>Password</span>
-            <input
-              type="password"
-              className="input"
-              value={form.password}
-              onChange={(e) => updateForm("password", e.target.value)}
-              required
-              placeholder="Password"
-              maxLength={72}
-            />
-
+            <div className="password-input-wrap">
+              <input
+                type={showPassword ? "text" : "password"}
+                className="input"
+                value={form.password}
+                onChange={(e) => updateForm("password", e.target.value)}
+                required
+                placeholder="Password"
+                maxLength={72}
+              />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowPassword((v) => !v)}
+                tabIndex={-1}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+            </div>
             {isRegister && !allPasswordRulesValid && (
               <div className="password-rules">
                 <small>Password must contain:</small>
