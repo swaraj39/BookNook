@@ -6,7 +6,7 @@ import { BookOpen, Calendar, Milestone, Sparkles, Tv } from "lucide-react";
 export function Dashboard({ stats, me, dailyThought, openDetails }) {
   // Hardcoded array of informative learning clips / music streams for readers
   const videoLinks = [
-    "https://www.youtube.com/watch?v=AUw7laSlcbo" // Why to read books
+    "https://www.youtube.com/embed/UKPkqrkgKmw?si=tQzi9y04wYKgGM23" // YouTube Embedded Players Demo
   ];
 
   // Deterministically select video item for the user matching array bounds
@@ -26,7 +26,7 @@ export function Dashboard({ stats, me, dailyThought, openDetails }) {
           <h1>Welcome, {me?.fullName || "Reader"}</h1>
           <p>Ready to look into another story tier today?</p>
         </div>
-        
+
         {dailyThought && (
           <div className="dashboard-quote-panel">
             <div className="quote-badge">
@@ -46,17 +46,17 @@ export function Dashboard({ stats, me, dailyThought, openDetails }) {
             <label>Total Book Counts</label>
             <strong>{stats?.totalBooks || 0}</strong>
           </article>
-          
+
           <article className="metrics-pill-card">
             <label>Books Currently Borrowed</label>
             <strong>{stats?.activeBorrowed || 0}</strong>
           </article>
-          
+
           <article className="metrics-pill-card">
             <label>Books Read This Month</label>
             <strong>{stats?.booksReadThisMonth || 0}</strong>
           </article>
-          
+
           <article className="metrics-pill-card">
             <label>Total Books Read</label>
             <strong>{stats?.totalBooksRead || 0}</strong>
@@ -130,13 +130,18 @@ export function Dashboard({ stats, me, dailyThought, openDetails }) {
               <h3>Community Spotlight Stream</h3>
             </div>
             <div className="iframe-video-wrapper">
-              <iframe
-                src={getSelectedVideo()}
-                title="Book Nook Streaming Hub"
-                frameBorder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
+              <div className="iframe-video-wrapper">
+                <iframe
+                  width="100%"
+                  height="100%"
+                  src={getSelectedVideo()}
+                  title="Book Nook Streaming Hub"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allowFullScreen
+                ></iframe>
+              </div>
             </div>
           </div>
 

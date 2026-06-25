@@ -509,7 +509,7 @@ export default function App() {
       items: [
         ["requests", "Requests", CheckSquare, stats?.pendingApprovals],
         ["myBooks", "My Shelf", LibraryBig],
-        ["borrowed", "Currently Reading", BookOpenText, stats?.activeBorrowed],
+        ["borrowed", "Currently Reading", BookOpenText],
         ["history", "History", History]
       ]
     },
