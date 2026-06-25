@@ -5,10 +5,9 @@ import { BookOpen, Calendar, Milestone, Sparkles, Tv } from "lucide-react";
 
 export function Dashboard({ stats, me, dailyThought, openDetails }) {
   // Hardcoded array of informative learning clips / music streams for readers
-  const videoLinks = [
-    "https://www.youtube.com/watch?v=AUw7laSlcbo" // Why to read books
-  ];
-
+const videoLinks = [
+  "https://www.youtube.com/embed/UKPkqrkgKmw?si=tQzi9y04wYKgGM23" // YouTube Embedded Players Demo
+];
   // Deterministically select video item for the user matching array bounds
   const getSelectedVideo = () => {
     if (!me?.id) return videoLinks[0];
@@ -130,14 +129,17 @@ export function Dashboard({ stats, me, dailyThought, openDetails }) {
               <h3>Community Spotlight Stream</h3>
             </div>
             <div className="iframe-video-wrapper">
-              <iframe
-                src={getSelectedVideo()}
-                title="Book Nook Streaming Hub"
-                frameBorder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
-            </div>
+  <iframe
+    width="100%"
+    height="100%"
+    src={getSelectedVideo()}
+    title="Book Nook Streaming Hub"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    referrerPolicy="strict-origin-when-cross-origin"
+    allowFullScreen
+  ></iframe>
+</div>
           </div>
 
           {/* Bottom Half Seeded Book of the Day Panel */}
