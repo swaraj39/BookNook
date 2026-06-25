@@ -473,7 +473,7 @@ button { cursor: pointer; }
   color: white;
   border-color: var(--brand);
   background: linear-gradient(135deg, var(--brand), var(--brand-dark));
-  box-shadow: 0 12px 24px rgba(22, 117, 111, 0.2);
+  box-shadow: 0 12px 24px rgba(255, 255, 255, 0.2);
 }
 .btn.warn { color: white; border-color: var(--accent); background: var(--accent); }
 
@@ -768,13 +768,17 @@ button { cursor: pointer; }
   margin: 0;
   padding: 0;
   list-style: none;
+
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 20px; /* row gap, column gap */
 }
 
 .password-rules li {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  margin: 0;
   color: #d32f2f;
   transition: color 0.2s ease;
 }

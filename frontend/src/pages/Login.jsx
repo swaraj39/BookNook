@@ -64,7 +64,7 @@ export function Login({ onLogin }) {
 
   const updateForm = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
-
+  const allPasswordRulesValid = Object.values(passwordRules).every(Boolean);
   return (
     <div className="login-page">
       <div className="login-card">
@@ -141,7 +141,7 @@ export function Login({ onLogin }) {
               maxLength={72}
             />
 
-            {isRegister && (
+            {isRegister && !allPasswordRulesValid && (
               <div className="password-rules">
                 <small>Password must contain:</small>
                 <ul>
