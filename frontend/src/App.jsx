@@ -15,7 +15,8 @@ import {
   BookOpenText,
   Globe,
   User as UserIcon,
-  ChevronDown
+  ChevronDown,
+  Info
 } from "lucide-react";
 import { api } from "./api";
 import { Profile } from "./components/Profile";
@@ -515,7 +516,7 @@ export default function App() {
     {
       label: "Overview",
       items: [
-        ["home", "Home", HomeIcon]
+        ["home", "About", Info]
       ]
     }
   ];
