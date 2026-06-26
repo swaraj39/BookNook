@@ -124,6 +124,19 @@ CMD ["nginx", "-g", "daemon off;"]
 
 <file path="src/api/index.js">
 const API_URL = "http://localhost:8080/api";
+function getFriendlyMessage(status, defaultMsg) {
+  const map = {
+    400: "Oops! Looks like you sent a faulty request. Check your input and try again.",
+    401: "Your session has expired. Please sign in again.",
+    403: "You don't have permission to do that. Are you trying to sneak in?",
+    404: "That resource seems to have gone on vacation. We can't find it.",
+    408: "Request timed out. The book is taking too long to flip pages.",
+    429: "Too many requests! Slow down, you're making the server dizzy.",
+    500: "Something went wrong on our end. Our tech wizards have been alerted and are brewing a fix.",
+    503: "The server is temporarily unavailable. Probably doing a book inventory."
+  };
+  return map[status] || defaultMsg || "Something unexpected happened. Please try again later.";
+}
 async function request(path, options = {}) {
   const token = localStorage.getItem("bn_token");
   const headers = {
@@ -131,31 +144,43 @@ async function request(path, options = {}) {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {}),
   };
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    credentials: "include",
-    headers,
-  });
-  if (
-    response.status === 401 &&
-    path !== "/auth/login" &&
-    path !== "/auth/register"
-  ) {
-    window.dispatchEvent(new CustomEvent("auth-expired"));
-  }
-  const text = await response.text();
-  if (!response.ok) {
-    let message = "Something went wrong.";
-    try {
-      const body = text ? JSON.parse(text) : {};
-      message = body.message || message;
-    } catch {
-      message = text || message;
+  try {
+    const response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      credentials: "include",
+      headers,
+    });
+    if (
+      response.status === 401 &&
+      path !== "/auth/login" &&
+      path !== "/auth/register"
+    ) {
+      window.dispatchEvent(new CustomEvent("auth-expired"));
     }
-    throw new Error(message);
+    const text = await response.text();
+    if (!response.ok) {
+      let message = "Something went wrong.";
+      try {
+        const body = text ? JSON.parse(text) : {};
+        message = body.message || message;
+      } catch {
+        message = text || message;
+      }
+      try{
+        const friendlyMsg = getFriendlyMessage(response.status, serverMsg);
+        throw new Error(friendlyMsg);
+      } catch(error){
+        throw new Error("There was some issue, please try again after some time.");
+      }
+    }
+    if (response.status === 204) return null;
+    return text ? JSON.parse(text) : null;
+  } catch (error) {
+    if (error.name === "TypeError" && error.message === "Failed to fetch") {
+      throw new Error("We couldn't reach the server. Maybe the library is closed? Check your connection and try again.");
+    }
+    throw error;
   }
-  if (response.status === 204) return null;
-  return text ? JSON.parse(text) : null;
 }
 export const api = {
   login: (email, password) =>
@@ -218,30 +243,39 @@ export const api = {
       method: "POST",
     }),
   exportBooks: async () => {
-    const token = localStorage.getItem("bn_token");
-    const response = await fetch(`${API_URL}/all/books`, {
-      method: "GET",
-      credentials: "include",
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    });
-    if (response.status === 401) {
-      window.dispatchEvent(new CustomEvent("auth-expired"));
-      throw new Error("Your session has expired. Please sign in again.");
+    try {
+      const token = localStorage.getItem("bn_token");
+      const response = await fetch(`${API_URL}/all/books`, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (response.status === 401) {
+        window.dispatchEvent(new CustomEvent("auth-expired"));
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+      if (!response.ok) {
+        const status = response.status;
+        const friendly = getFriendlyMessage(status, "Failed to export books.");
+        throw new Error(friendly);
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "booknook.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      if (error.name === "TypeError" && error.message === "Failed to fetch") {
+        throw new Error("We couldn't reach the server. Maybe the library is closed? Check your connection and try again.");
+      }
+      throw error;
     }
-    if (!response.ok) {
-      throw new Error("Failed to export books.");
-    }
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "booknook.csv";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
   },
 };
 </file>
@@ -5279,7 +5313,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -5900,10 +5934,32 @@ export const authenticate = async (
 
 <file path="src/middleware/error.ts">
 import { Request, Response, NextFunction } from "express";
-export const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
-  console.error(err);
-  const status = err.status || 500;
-  const message = err.message || "Something went wrong";
+import fs from "fs";
+import path from "path";
+const LOG_FILE = path.join(__dirname, "../../error-logged.txt");
+function logError(err: any) {
+  try {
+    const timestamp = new Date().toISOString();
+    const stack = err.stack || err.message || "No stack trace";
+    const logEntry = `[${timestamp}] ${stack}\n\n`;
+    fs.appendFileSync(LOG_FILE, logEntry);
+    console.log(`Error logged to ${LOG_FILE}`);
+  } catch (logError) {
+    console.error("Failed to write to log file:", logError);
+  }
+}
+export const errorHandler = (
+  err: any,
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  logError(err);
+  const status = err.status || err.statusCode || 500;
+  let message = err.message || "Something went wrong";
+  if (status >= 500) {
+    message = "Something went wrong on our end. Our tech wizards have been alerted and are brewing a fix.";
+  }
   res.status(status).json({ message });
 };
 </file>

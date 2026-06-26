@@ -218,12 +218,14 @@ export default function App() {
   const [bookModal, setBookModal] = useState(null);
   const [requestModal, setRequestModal] = useState(null);
   const [toasts, setToasts] = useState([]);
+  const [appError, setAppError] = useState(null); // High-end interstitial screen error catch state
   const [loading, setLoading] = useState(true);
   const [dailyThought, setDailyThought] = useState(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
   const [confirm, setConfirm] = useState(null); // { message, onConfirm }
   const [detailsLoading, setDetailsLoading] = useState(false);
+  
 
 
   useEffect(() => {
@@ -491,6 +493,10 @@ export default function App() {
     });
   }
   function notify(message, type = "success") {
+    if (type === "error") {
+      setAppError(message);
+      return;
+    }
     const id = Math.random().toString(36).substring(2, 9);
     setToasts((prev) => [...prev, { id, message, type }]);
   }
@@ -664,6 +670,18 @@ export default function App() {
               <path d="M12 2a10 10 0 0 1 10 10" />
             </svg>
             <span>Loading book details...</span>
+          </div>
+        </div>
+      )}
+      {appError && (
+        <div className="modern-error-backdrop" onClick={() => setAppError(null)}>
+          <div className="modern-error-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modern-error-icon-box">📘</div>
+            <h3>Chapter Interrupted</h3>
+            <p>{appError}</p>
+            <button className="modern-error-btn" onClick={() => setAppError(null)}>
+              Resume Reading
+            </button>
           </div>
         </div>
       )}

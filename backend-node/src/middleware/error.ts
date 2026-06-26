@@ -26,19 +26,18 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ) => {
-  // Log the full error details to file
   logError(err);
-
-  // Determine status code
+  
   const status = err.status || err.statusCode || 500;
   let message = err.message || "Something went wrong";
+  
+  // Check if the error looks like a raw system crash, Prisma string, or database trace
+  const isRawDatabaseError = message.includes("Prisma") || message.includes("SELECT") || message.includes("database") || message.includes("uid");
 
-  // For 500 errors, never expose internal details
-  if (status >= 500) {
-    message = "Something went wrong on our end. Our tech wizards have been alerted and are brewing a fix.";
+  if (status >= 500 || isRawDatabaseError) {
+    // Completely mask any bizarre long system strings from leaving the server
+    message = "The server dropped its giant stack of books. Our tech librarians are currently cleaning up the mess.";
   }
-  // For 4xx, we can keep the message as is (they are often user-friendly),
-  // but we can also sanitize if needed. For now we keep them.
-
+  
   res.status(status).json({ message });
 };
