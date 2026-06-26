@@ -238,9 +238,10 @@ export default function App() {
       .then((response) => response.ok ? response.json() : null)
       .then((quote) => {
         if (quote) setDailyThought(quote);
-        console.log(quote);
       })
-      .catch(() => { });
+      .catch((error) => {
+        console.error("Failed to fetch daily quote:", error);
+      });
   }, []);
   useEffect(() => {
     function handleClickOutside(event) {
@@ -351,6 +352,20 @@ export default function App() {
     localStorage.removeItem("bn_selectedBookId");
     notify("Logged out successfully.");
   }
+
+  setIsAuthenticated(false);
+  setMe(null);
+  setSelectedBook(null);
+  setSelectedBookId(null);
+  setNavStack(["dashboard"]);
+  setView("dashboard");
+
+  localStorage.removeItem("bn_view");
+  localStorage.removeItem("bn_navStack");
+  localStorage.removeItem("bn_selectedBookId");
+
+  notify("Logged out successfully.");
+}
   async function loadBootstrap() {
     try {
       setLoading(true);
@@ -688,4 +703,3 @@ export default function App() {
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );
-}

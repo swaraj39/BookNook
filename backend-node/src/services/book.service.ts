@@ -18,13 +18,8 @@ export class BookService {
       visibilityStatus: "visible",
     };
 
-    if (userId) {
-      where.ownerId = { not: userId };
-    }
-
-    if (genreId) {
-      where.genreId = genreId;
-    }
+    if (userId) where.ownerId = { not: userId };
+    if (genreId) where.genreId = genreId;
 
     if (availability === "borrowed_by_me") {
       where.transactions = {
@@ -77,11 +72,8 @@ export class BookService {
       ];
     }
 
-    let orderBy: any = { title: "asc" };
-
-    if (sort === "newest") {
-      orderBy = { createdAt: "desc" };
-    }
+    const orderBy: any =
+      sort === "newest" ? { createdAt: "desc" } : { title: "asc" };
 
     const [totalElements, books] = await Promise.all([
       prisma.book.count({ where }),
@@ -168,150 +160,189 @@ export class BookService {
     return this.mapBook(book);
   }
 
-  private static validateBookPayload(payload: any) {
-    if (!payload.title?.trim()) throw new Error("Title is required.");
-    if (!payload.author?.trim()) throw new Error("Author is required.");
-    if (!payload.genreId) throw new Error("Genre is required.");
-    const loanDays = Number(payload.defaultLoanDays);
-    if (!Number.isInteger(loanDays) || loanDays < 3 || loanDays > 60) {
-      throw new Error("Default loan days must be a whole number between 3 and 60.");
-    }
-  }
-
   static async create(userId: string, payload: any) {
     this.validateBookPayload(payload);
+
     const coverColor = this.pickCoverColor(payload.title);
 
-    const book = await prisma.book.create({
-      data: {
-        title: payload.title,
-        author: payload.author,
-        genreId: payload.genreId,
-        condition: payload.condition || "good",
-        defaultLoanDays: payload.defaultLoanDays || 14,
-        description: payload.description,
-        coverUrl: payload.coverUrl,
-        coverColor,
-        ownerId: userId,
-        availabilityStatus: "available",
-        visibilityStatus: "visible",
-      },
-      include: {
-        owner: true,
-        genre: true,
-      },
-    });
+    const book = await prisma.$transaction(
+      async (tx) => {
+        const createdBook = await tx.book.create({
+          data: {
+            title: payload.title.trim(),
+            author: payload.author.trim(),
+            genreId: payload.genreId,
+            condition: payload.condition || "good",
+            defaultLoanDays: Number(payload.defaultLoanDays) || 14,
+            description: payload.description,
+            coverUrl: payload.coverUrl,
+            coverColor,
+            ownerId: userId,
+            availabilityStatus: "available",
+            visibilityStatus: "visible",
+          },
+          include: {
+            owner: true,
+            genre: true,
+          },
+        });
 
-    await prisma.bookHistory.create({
-      data: {
-        bookId: book.id,
-        actorId: userId,
-        eventType: "book_added",
-        eventTitle: "Book added",
-        eventMessage: `${book.owner.fullName} added ${book.title}.`,
+        await tx.bookHistory.create({
+          data: {
+            bookId: createdBook.id,
+            actorId: userId,
+            eventType: "book_added",
+            eventTitle: "Book added",
+            eventMessage: `${createdBook.owner.fullName} added ${createdBook.title}.`,
+          },
+        });
+
+        return createdBook;
       },
-    });
+      {
+        maxWait: 10000,
+        timeout: 10000,
+      }
+    );
 
     return this.mapBook(book);
   }
 
-  static async update(userId: string, id: string, payload: any, isAdmin: boolean) {
+  static async update(
+    userId: string,
+    id: string,
+    payload: any,
+    isAdmin: boolean
+  ) {
     this.validateBookPayload(payload);
-    const book = await prisma.book.findUnique({
-      where: { id },
-    });
 
-    if (!book) throw new Error("Book not found");
+    const updatedBook = await prisma.$transaction(
+      async (tx) => {
+        const book = await tx.book.findUnique({
+          where: { id },
+        });
 
-    if (book.ownerId !== userId && !isAdmin) {
-      throw new Error("Unauthorized");
-    }
+        if (!book) throw new Error("Book not found");
 
-    const updatedBook = await prisma.book.update({
-      where: { id },
-      data: {
-        title: payload.title,
-        author: payload.author,
-        genreId: payload.genreId,
-        condition: payload.condition,
-        defaultLoanDays: payload.defaultLoanDays,
-        description: payload.description,
-        coverUrl: payload.coverUrl,
+        if (book.ownerId !== userId && !isAdmin) {
+          throw new Error("Unauthorized");
+        }
+
+        const result = await tx.book.update({
+          where: { id },
+          data: {
+            title: payload.title.trim(),
+            author: payload.author.trim(),
+            genreId: payload.genreId,
+            condition: payload.condition,
+            defaultLoanDays: Number(payload.defaultLoanDays),
+            description: payload.description,
+            coverUrl: payload.coverUrl,
+          },
+          include: {
+            owner: true,
+            genre: true,
+          },
+        });
+
+        await tx.bookHistory.create({
+          data: {
+            bookId: result.id,
+            actorId: userId,
+            eventType: "book_updated",
+            eventTitle: "Book updated",
+            eventMessage: `${result.owner.fullName} updated ${result.title}.`,
+          },
+        });
+
+        return result;
       },
-      include: {
-        owner: true,
-        genre: true,
-      },
-    });
-
-    await prisma.bookHistory.create({
-      data: {
-        bookId: updatedBook.id,
-        actorId: userId,
-        eventType: "book_updated",
-        eventTitle: "Book updated",
-        eventMessage: `${updatedBook.owner.fullName} updated ${updatedBook.title}.`,
-      },
-    });
+      {
+        maxWait: 10000,
+        timeout: 10000,
+      }
+    );
 
     return this.mapBook(updatedBook);
   }
 
   static async delete(userId: string, id: string, isAdmin: boolean) {
-    const book = await prisma.book.findUnique({
-      where: { id },
-    });
+    await prisma.$transaction(
+      async (tx) => {
+        const book = await tx.book.findUnique({
+          where: { id },
+        });
 
-    if (!book) throw new Error("Book not found");
+        if (!book) throw new Error("Book not found");
 
-    if (book.ownerId !== userId && !isAdmin) {
-      throw new Error("Unauthorized");
+        if (book.ownerId !== userId && !isAdmin) {
+          throw new Error("Unauthorized");
+        }
+
+        const pendingRequests = await tx.bookTransaction.count({
+          where: {
+            bookId: id,
+            status: "pending",
+          },
+        });
+
+        if (pendingRequests > 0) {
+          throw new Error("Close pending requests before deleting this book.");
+        }
+
+        const activeLoans = await tx.bookTransaction.count({
+          where: {
+            bookId: id,
+            status: {
+              in: ["active", "overdue", "return_pending"],
+            },
+          },
+        });
+
+        if (activeLoans > 0) {
+          throw new Error("This book cannot be deleted while borrowed.");
+        }
+
+        const deletedBook = await tx.book.update({
+          where: { id },
+          data: {
+            visibilityStatus: "deleted",
+            availabilityStatus: "unavailable",
+          },
+          include: {
+            owner: true,
+          },
+        });
+
+        await tx.bookHistory.create({
+          data: {
+            bookId: id,
+            actorId: userId,
+            eventType: "book_deleted",
+            eventTitle: "Book deleted",
+            eventMessage: `${deletedBook.owner.fullName} removed ${deletedBook.title}.`,
+          },
+        });
+      },
+      {
+        maxWait: 10000,
+        timeout: 10000,
+      }
+    );
+  }
+
+  private static validateBookPayload(payload: any) {
+    if (!payload.title?.trim()) throw new Error("Title is required.");
+    if (!payload.author?.trim()) throw new Error("Author is required.");
+    if (!payload.genreId) throw new Error("Genre is required.");
+
+    const loanDays = Number(payload.defaultLoanDays);
+
+    if (!Number.isInteger(loanDays) || loanDays < 3 || loanDays > 60) {
+      throw new Error(
+        "Default loan days must be a whole number between 3 and 60."
+      );
     }
-
-    const pendingRequests = await prisma.bookTransaction.count({
-      where: {
-        bookId: id,
-        status: "pending",
-      },
-    });
-
-    if (pendingRequests > 0) {
-      throw new Error("Close pending requests before deleting this book.");
-    }
-
-    const activeLoans = await prisma.bookTransaction.count({
-      where: {
-        bookId: id,
-        status: {
-          in: ["active", "overdue", "return_pending"],
-        },
-      },
-    });
-
-    if (activeLoans > 0) {
-      throw new Error("This book cannot be deleted while borrowed.");
-    }
-
-    const deletedBook = await prisma.book.update({
-      where: { id },
-      data: {
-        visibilityStatus: "deleted",
-        availabilityStatus: "unavailable",
-      },
-      include: {
-        owner: true,
-      },
-    });
-
-    await prisma.bookHistory.create({
-      data: {
-        bookId: id,
-        actorId: userId,
-        eventType: "book_deleted",
-        eventTitle: "Book deleted",
-        eventMessage: `${deletedBook.owner.fullName} removed ${deletedBook.title}.`,
-      },
-    });
   }
 
   private static mapBook(book: any) {
@@ -329,13 +360,15 @@ export class BookService {
       coverUrl: book.coverUrl,
       createdAt: book.createdAt,
       updatedAt: book.updatedAt,
-      owner: {
-        id: book.owner.id,
-        fullName: book.owner.fullName,
-        email: book.owner.email,
-        avatarUrl: book.owner.avatarUrl,
-        avatarInitials: book.owner.avatarInitials,
-      },
+      owner: book.owner
+        ? {
+            id: book.owner.id,
+            fullName: book.owner.fullName,
+            email: book.owner.email,
+            avatarUrl: book.owner.avatarUrl,
+            avatarInitials: book.owner.avatarInitials,
+          }
+        : null,
       genre: book.genre
         ? {
             id: book.genre.id,
