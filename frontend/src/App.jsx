@@ -231,8 +231,9 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-    fetch(`${API_URL}/api/quote/today`)
-      .then((response) => (response.ok ? response.json() : null))
+    // fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+    fetch("http://localhost:8080/api/quote/today")
+      .then((response) => response.ok ? response.json() : null)
       .then((quote) => {
         if (quote) setDailyThought(quote);
       })
@@ -330,15 +331,24 @@ export default function App() {
     window.history.replaceState({ view: "dashboard", selectedBookId: null, navStack: ["dashboard"] }, "", window.location.href);
   }
   async function handleLogout() {
-  setShowProfileDropdown(false);
-
-  try {
-    await fetch(`${API_URL}/api/auth/logout`, {
-      method: "POST",
-      credentials: "include",
-    });
-  } catch (error) {
-    console.error("Logout failed:", error);
+    setShowProfileDropdown(false);
+    try {
+      // await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
+      await fetch("http://localhost:8080/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch { }
+    setIsAuthenticated(false);
+    setMe(null);
+    setSelectedBook(null);
+    setSelectedBookId(null);
+    setNavStack(["dashboard"]);
+    setView("dashboard");
+    localStorage.removeItem("bn_view");
+    localStorage.removeItem("bn_navStack");
+    localStorage.removeItem("bn_selectedBookId");
+    notify("Logged out successfully.");
   }
 
   setIsAuthenticated(false);
@@ -675,4 +685,3 @@ export default function App() {
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );
-}
