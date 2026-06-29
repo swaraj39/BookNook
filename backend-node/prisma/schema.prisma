@@ -42,12 +42,21 @@ model Genre {
   @@map("genres")
 }
 
+model Author {
+  id        String   @id @default(uuid())
+  name      String   @unique @db.VarChar(180)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  books     Book[]
+
+  @@map("authors")
+}
+
 model Book {
   id                String   @id @default(uuid())
   ownerId           String   @map("owner_id")
   genreId           String?  @map("genre_id")
+  authorId          String   @map("author_id")
   title             String   @db.VarChar(220)
-  author            String   @db.VarChar(180)
   isbn              String?  @db.VarChar(30)
   description       String?  @db.Text
   condition         String   @default("good") @db.VarChar(40)
@@ -61,6 +70,7 @@ model Book {
 
   owner             User     @relation("BookOwner", fields: [ownerId], references: [id])
   genre             Genre?   @relation(fields: [genreId], references: [id])
+  author            Author   @relation(fields: [authorId], references: [id])
   transactions      BookTransaction[]
   history           BookHistory[]
   notifications     Notification[]

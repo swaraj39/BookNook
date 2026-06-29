@@ -158,4 +158,15 @@ export const api = {
     a.remove();
     window.URL.revokeObjectURL(url);
   },
+
+  authors: (search) => {
+    const query = search ? `?search=${encodeURIComponent(search)}` : "";
+    return request(`/authors${query}`);
+  },
+
+  createAuthor: (name) =>
+    request("/authors", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
 };

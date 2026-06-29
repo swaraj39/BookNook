@@ -74,7 +74,7 @@ export class LookupService {
     // Fetch user's comprehensive reading history (all statuses) sorted by timeline
     const rawLatestReadings = await prisma.bookTransaction.findMany({
       where: { requesterId: userId },
-      include: { book: { include: { genre: true } } },
+      include: { book: { include: { genre: true, author: true } } },
       orderBy: { requestedAt: "desc" },
       take: 15,
     });
@@ -89,7 +89,7 @@ export class LookupService {
       book: {
         id: t.book.id,
         title: t.book.title,
-        author: t.book.author,
+        author: t.book.author?.name ?? null,
         coverColor: t.book.coverColor,
         coverUrl: t.book.coverUrl,
         genreName: t.book.genre?.name ?? "N/A"
@@ -124,7 +124,7 @@ export class LookupService {
     // Deterministic Book of the Day selection (seeded by date string hash)
     const activeBooks = await prisma.book.findMany({
       where: { visibilityStatus: "visible" },
-      include: { owner: true, genre: true }
+      include: { owner: true, genre: true, author: true }
     });
 
     let bookOfTheDay = null;
@@ -135,7 +135,7 @@ export class LookupService {
       bookOfTheDay = {
         id: chosen.id,
         title: chosen.title,
-        author: chosen.author,
+        author: chosen.author?.name ?? null,
         coverColor: chosen.coverColor,
         coverUrl: chosen.coverUrl,
         description: chosen.description,

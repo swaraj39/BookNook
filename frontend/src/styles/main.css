@@ -1263,6 +1263,40 @@ th:last-child {
     font-size: 16px;
   }
 }
+.author-combobox {
+  position: relative;
+  width: 100%;
+}
+.author-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  margin-top: 4px;
+}
+.author-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.author-dropdown-item:hover {
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+}
 .toast-container {
   position: fixed;
   bottom: 24px;
@@ -1649,7 +1683,8 @@ th:last-child {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  background: var(--panel);
+  background: var(--sidebar-bg);
+  backdrop-filter: blur(12px);
   padding: 0 20px 0 16px;
   border-left: 1px solid var(--line);
   box-shadow: var(--shadow-sm);
