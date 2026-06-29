@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   BookOpen,
   CheckSquare,
@@ -16,6 +16,8 @@ import {
   Globe,
   User as UserIcon,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Info
 } from "lucide-react";
 import { api } from "./api";
@@ -265,6 +267,28 @@ export default function App() {
   const [dailyThought, setDailyThought] = useState(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
+  const navRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const checkNavScroll = useCallback(() => {
+    const el = navRef.current;
+    if (el) {
+      setCanScrollLeft(el.scrollLeft > 4);
+      setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4);
+    }
+  }, []);
+  const scrollNav = useCallback((dir) => {
+    const el = navRef.current;
+    if (el) el.scrollBy({ left: dir * 200, behavior: "smooth" });
+  }, []);
+  useEffect(() => {
+    checkNavScroll();
+    const el = navRef.current;
+    if (el) {
+      el.addEventListener("scroll", checkNavScroll);
+      return () => el.removeEventListener("scroll", checkNavScroll);
+    }
+  }, [view, stats, checkNavScroll]);
   const [confirm, setConfirm] = useState(null); // { message, onConfirm }
   const [detailsLoading, setDetailsLoading] = useState(false);
   const API_URL = import.meta.env.VITE_API_URL;
@@ -274,7 +298,8 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-    fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+    // fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+    fetch("http://localhost:8080/api/quote/today")
     // fetch(`${API_URL}/quote/today`)
       .then((response) => response.ok ? response.json() : null)
       .then((quote) => {
@@ -377,7 +402,7 @@ export default function App() {
     setShowProfileDropdown(false);
 
     try {
-      await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
+      await fetch("http://localhost:8080/api/auth/logout", {
         method: "POST",
         credentials: "include",
       });
@@ -562,12 +587,6 @@ const navSections = [
       ["borrowed", "Currently Reading", BookOpenText],
       ["history", "History", History]
     ]
-  },
-  {
-    label: "Overview",
-    items: [
-      ["home", "About", Info]
-    ]
   }
 ];
 if (authChecking) {
@@ -591,22 +610,30 @@ return (
           <p>BA Reading Community</p>
         </div>
       </button>
-      <nav className="nav">
-        {navSections.map((section) => (
-          <div key={section.label} className="nav-section">
-            <div className="nav-label">{section.label}</div>
-            {section.items.map(([id, label, Icon, badge]) => (
-              <button key={id} className={`nav-item ${view === id ? "active" : ""}`} onClick={() => navigateTo(id)}>
-                <div className="nav-item-content">
-                  <Icon size={18} />
-                  <span>{label}</span>
-                </div>
-                {badge > 0 && <span className="nav-badge">{badge}</span>}
-              </button>
-            ))}
-          </div>
-        ))}
-      </nav>
+      <div className="nav-scroll-wrap">
+        <button className={`nav-scroll-btn left ${canScrollLeft ? "" : "hidden"}`} onClick={() => scrollNav(-1)} aria-label="Scroll left">
+          <ChevronLeft size={18} />
+        </button>
+        <nav className="nav" ref={navRef} onScroll={checkNavScroll}>
+          {navSections.map((section) => (
+            <div key={section.label} className="nav-section">
+              <div className="nav-label">{section.label}</div>
+              {section.items.map(([id, label, Icon, badge]) => (
+                <button key={id} className={`nav-item ${view === id ? "active" : ""}`} onClick={() => navigateTo(id)}>
+                  <div className="nav-item-content">
+                    <Icon size={18} />
+                    <span>{label}</span>
+                  </div>
+                  {badge > 0 && <span className="nav-badge">{badge}</span>}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <button className={`nav-scroll-btn right ${canScrollRight ? "" : "hidden"}`} onClick={() => scrollNav(1)} aria-label="Scroll right">
+          <ChevronRight size={18} />
+        </button>
+      </div>
       <div className="top-nav-actions">
         <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
           {darkMode ? <Sun size={18} /> : <Moon size={18} />}
