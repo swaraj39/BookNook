@@ -30,6 +30,9 @@ app.use(express.json());
 app.post("/api/auth/register", AuthController.register);
 app.post("/api/auth/login", AuthController.login);
 app.post("/api/auth/logout", AuthController.logout);
+app.post("/api/auth/forgot-password/request", AuthController.forgotPasswordRequest);
+app.post("/api/auth/forgot-password/verify-otp", AuthController.forgotPasswordVerifyOtp);
+app.post("/api/auth/forgot-password/reset", AuthController.forgotPasswordReset);
 
 // App routes
 app.get("/api/me", authenticate, AppController.me);
@@ -60,7 +63,7 @@ app.get("/api/health", (req, res) => {
 });
 app.get("/api/quote/today", async (req, res) => {
   try {
-    const response = await fetch("https://dummyjson.com/quotes/random");
+    const response = await fetch("https://zenquotes.io/api/today");
 
     if (!response.ok) {
       return res.status(response.status).json({

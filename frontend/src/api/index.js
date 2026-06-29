@@ -126,6 +126,21 @@ export const api = {
       method: "POST",
     }),
 
+  forgotPasswordRequest: (email) =>
+    request("/auth/forgot-password/request", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+  forgotPasswordVerifyOtp: (email, otp) =>
+    request("/auth/forgot-password/verify-otp", {
+      method: "POST",
+      body: JSON.stringify({ email, otp }),
+    }),
+  forgotPasswordReset: (email, otp, password) =>
+    request("/auth/forgot-password/reset", {
+      method: "POST",
+      body: JSON.stringify({ email, otp, password }),
+    }),
   exportBooks: async () => {
     const token = localStorage.getItem("bn_token");
 

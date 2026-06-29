@@ -2,8 +2,10 @@ import React, { useState } from "react";
 import { LogIn, UserPlus, Eye, EyeOff } from "lucide-react";
 import { api } from "../api";
 import logo from "../styles/blue_altair_logo-removebg-preview.png";
+import { ForgotPassword } from "./ForgotPassword";
 
 export function Login({ onLogin }) {
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [isRegister, setIsRegister] = useState(false);
   const [form, setForm] = useState({
     email: "",
@@ -22,12 +24,15 @@ export function Login({ onLogin }) {
     number: /\d/.test(form.password),
     special: /[!@#$%^&*(),.?":{}|<>]/.test(form.password),
   };
-  const isPasswordValid =
-    passwordRules.minLength &&
-    passwordRules.lowercase &&
-    passwordRules.uppercase &&
-    passwordRules.number &&
-    passwordRules.special;
+
+  // Explicitly match the 'isPasswordValid' variable checked by handleSubmit
+  const isPasswordValid = Object.values(passwordRules).every(Boolean);
+  const allPasswordRulesValid = isPasswordValid;
+
+  // Moved safely below all hook declarations to satisfy React Rules of Hooks
+  if (showForgotPassword) {
+    return <ForgotPassword onBack={() => setShowForgotPassword(false)} />;
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -106,7 +111,7 @@ export function Login({ onLogin }) {
 
   const updateForm = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
-  const allPasswordRulesValid = Object.values(passwordRules).every(Boolean);
+
   return (
     <div className="login-page">
       <div className="login-card">
@@ -200,6 +205,20 @@ export function Login({ onLogin }) {
               </div>
             )}
           </label>
+          {!isRegister && (
+            <div className="forgot-link-wrapper">
+              <button
+                type="button"
+                className="btn-link forgot-password-trigger"
+                onClick={() => {
+                  setError("");
+                  setShowForgotPassword(true);
+                }}
+              >
+                Forgot your password?
+              </button>
+            </div>
+          )}
           {error && <div className="error-box">{error}</div>}
           <button type="submit" className="btn primary full" disabled={loading}>
             {loading ? (
@@ -213,6 +232,7 @@ export function Login({ onLogin }) {
         </form>
         <div className="login-toggle">
           <button
+            type="button"
             className="btn-link"
             onClick={() => {
               setIsRegister(!isRegister);

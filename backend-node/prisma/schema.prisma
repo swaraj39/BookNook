@@ -43,6 +43,18 @@ model User {
   @@map("users")
 }
 
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  email     String   @db.VarChar(180)
+  otpHash   String   @map("otp_hash") @db.VarChar(255)
+  expiresAt DateTime @map("expires_at") @db.Timestamp(6)
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([email])
+  @@map("password_reset_tokens")
+}
+
 model Genre {
   id           String   @id @default(uuid())
   name         String   @unique @db.VarChar(80)
