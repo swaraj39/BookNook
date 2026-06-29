@@ -1,5 +1,6 @@
 // src/services/lookup.service.ts
 import prisma from "../config/prisma";
+import { StatsCacheService } from "./stats-cache.service";
 
 export class LookupService {
   static async genres() {
@@ -48,17 +49,11 @@ export class LookupService {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Fetch baseline counters
-    const [
-      totalBooks, 
-      availableBooks, 
-      pendingRequests, 
-      activeBorrowed, 
-      booksReadThisMonth, 
-      totalBooksRead
-    ] = await Promise.all([
-      prisma.book.count({ where: { visibilityStatus: "visible" } }),
-      prisma.book.count({ where: { visibilityStatus: "visible", availabilityStatus: "available" } }),
+    // Point lookup from single-row aggregate statistics table
+    const cachedStats = await StatsCacheService.getStats();
+
+    // Fast lookups on single user indexes (low footprint)
+    const [pendingRequests, activeBorrowed, booksReadThisMonth, totalBooksRead] = await Promise.all([
       prisma.bookTransaction.count({ where: { ownerId: userId, status: "pending" } }),
       prisma.bookTransaction.count({
         where: { requesterId: userId, status: { in: ["active", "overdue"] } },
@@ -71,7 +66,6 @@ export class LookupService {
       }),
     ]);
 
-    // Fetch user's comprehensive reading history (all statuses) sorted by timeline
     const rawLatestReadings = await prisma.bookTransaction.findMany({
       where: { requesterId: userId },
       include: { book: { include: { genre: true, author: true } } },
@@ -96,32 +90,17 @@ export class LookupService {
       }
     }));
 
-    // Generate monthly data for past 6 months dynamically
-    const chartData = [];
-    const allUsersCount = await prisma.user.count({ where: { status: "active" } }) || 1;
+    // Math computation processed safely inside memory to bypass connection limits
+    const communityAverageRead = cachedStats.totalUsers > 0
+      ? parseFloat((cachedStats.totalBooksReadGlobal / cachedStats.totalUsers).toFixed(1))
+      : 0;
 
-    for (let i = 5; i >= 0; i--) {
-      const mStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const mEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
-      const monthLabel = mStart.toLocaleString("default", { month: "short" });
+    const chartData = [{
+      month: now.toLocaleString("default", { month: "short" }),
+      userCount: booksReadThisMonth,
+      globalAvg: communityAverageRead
+    }];
 
-      const [userMonthCount, totalGlobalMonthCount] = await Promise.all([
-        prisma.bookTransaction.count({
-          where: { requesterId: userId, status: "returned", returnedAt: { gte: mStart, lte: mEnd } }
-        }),
-        prisma.bookTransaction.count({
-          where: { status: "returned", returnedAt: { gte: mStart, lte: mEnd } }
-        })
-      ]);
-
-      chartData.push({
-        month: monthLabel,
-        userCount: userMonthCount,
-        globalAvg: parseFloat((totalGlobalMonthCount / allUsersCount).toFixed(1))
-      });
-    }
-
-    // Deterministic Book of the Day selection (seeded by date string hash)
     const activeBooks = await prisma.book.findMany({
       where: { visibilityStatus: "visible" },
       include: { owner: true, genre: true, author: true }
@@ -145,8 +124,10 @@ export class LookupService {
     }
 
     return {
-      totalBooks,
-      availableBooks,
+      totalBooks: cachedStats.totalBooks,
+      availableBooks: cachedStats.availableBooks,
+      totalUsers: cachedStats.totalUsers,
+      communityAverageRead,
       pendingRequests,
       activeBorrowed,
       booksReadThisMonth,

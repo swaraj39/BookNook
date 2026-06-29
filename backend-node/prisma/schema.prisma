@@ -7,6 +7,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model SystemStats {
+  id                 String   @id @default("GLOBAL") @db.VarChar(20)
+  totalBooks         Int      @default(0) @map("total_books")
+  availableBooks     Int      @default(0) @map("available_books")
+  totalUsers         Int      @default(0) @map("total_users")
+  totalBooksReadGlobal Int    @default(0) @map("total_books_read_global")
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("system_stats")
+}
+
 model User {
   id              String   @id @default(uuid())
   fullName        String   @map("full_name") @db.VarChar(120)

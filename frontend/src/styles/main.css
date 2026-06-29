@@ -2,6 +2,7 @@
   --ink: #1e293b;
   --muted: #64748b;
   --line: #e2e8f0;
+  --surface: #ffffff;
   --panel: #ffffff;
   --bg: #FDFBF7;
   --brand: #667FFF;
@@ -31,6 +32,7 @@
   --nav-bg: rgba(30, 41, 59, 0.8);
   --card-bg: #1e293b;
   --input-bg: #0f172a;
+  --surface: #0f172a; /* match your navbar background */
 }
 * { box-sizing: border-box; }
 body {
@@ -1683,11 +1685,29 @@ th:last-child {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  background: var(--sidebar-bg);
-  backdrop-filter: blur(12px);
+  background: var(--panel);
   padding: 0 20px 0 16px;
-  border-left: 1px solid var(--line);
-  box-shadow: var(--shadow-sm);
+
+  background: var(--surface);
+  border-left: none;
+  box-shadow: none;
+}
+
+.top-nav-actions::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -32px;
+  width: 32px;
+  height: 100%;
+  pointer-events: none;
+
+  background: linear-gradient(
+    to right,
+    rgba(255,255,255,0) 0%,
+    var(--surface) 40%,
+    var(--surface) 100%
+  );
 }
 
 /* Profile Dropdown Custom Styling */

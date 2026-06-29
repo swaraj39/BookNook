@@ -1,4 +1,5 @@
 import prisma from "../config/prisma";
+import { StatsCacheService } from "./stats-cache.service";
 
 export class BookService {
   static async catalog(params: any, userId?: string) {
@@ -219,6 +220,8 @@ export class BookService {
       }
     );
 
+    await StatsCacheService.adjustFields({ totalBooks: 1, availableBooks: 1 });
+
     return this.mapBook(book);
   }
 
@@ -292,7 +295,8 @@ export class BookService {
   }
 
   static async delete(userId: string, id: string, isAdmin: boolean) {
-    await prisma.$transaction(
+    // 1. Capture the returned value from the transaction by assigning it to 'deletedBook'
+    const deletedBook = await prisma.$transaction(
       async (tx) => {
         const book = await tx.book.findUnique({
           where: { id },
@@ -328,7 +332,8 @@ export class BookService {
           throw new Error("This book cannot be deleted while borrowed.");
         }
 
-        const deletedBook = await tx.book.update({
+        // Perform the soft delete update
+        const updatedBook = await tx.book.update({
           where: { id },
           data: {
             visibilityStatus: "deleted",
@@ -345,15 +350,25 @@ export class BookService {
             actorId: userId,
             eventType: "book_deleted",
             eventTitle: "Book deleted",
-            eventMessage: `${deletedBook.owner.fullName} removed ${deletedBook.title}.`,
+            eventMessage: `${updatedBook.owner.fullName} removed ${updatedBook.title}.`,
           },
         });
+
+        // We return the book state BEFORE the update here so we know if it was 'available'
+        // right up until the moment it was deleted.
+        return book;
       },
       {
         maxWait: 10000,
         timeout: 10000,
       }
     );
+
+    // 2. Now 'deletedBook' is defined and perfectly safe to use out here!
+    await StatsCacheService.adjustFields({
+      totalBooks: -1,
+      availableBooks: deletedBook.availabilityStatus === "available" ? -1 : 0
+    });
   }
 
   private static validateBookPayload(payload: any) {
@@ -388,18 +403,18 @@ export class BookService {
       updatedAt: book.updatedAt,
       owner: book.owner
         ? {
-            id: book.owner.id,
-            fullName: book.owner.fullName,
-            email: book.owner.email,
-            avatarUrl: book.owner.avatarUrl,
-            avatarInitials: book.owner.avatarInitials,
-          }
+          id: book.owner.id,
+          fullName: book.owner.fullName,
+          email: book.owner.email,
+          avatarUrl: book.owner.avatarUrl,
+          avatarInitials: book.owner.avatarInitials,
+        }
         : null,
       genre: book.genre
         ? {
-            id: book.genre.id,
-            name: book.genre.name,
-          }
+          id: book.genre.id,
+          name: book.genre.name,
+        }
         : null,
     };
   }

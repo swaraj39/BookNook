@@ -1,4 +1,5 @@
 import prisma from "../config/prisma";
+import { StatsCacheService } from "./stats-cache.service";
 
 const TX_OPTIONS = {
   maxWait: 10000,
@@ -10,8 +11,8 @@ export class WorkflowService {
     const where = isAdmin
       ? {}
       : {
-          OR: [{ ownerId: userId }, { requesterId: userId }],
-        };
+        OR: [{ ownerId: userId }, { requesterId: userId }],
+      };
 
     const [totalElements, content] = await Promise.all([
       prisma.bookTransaction.count({ where }),
@@ -231,16 +232,17 @@ export class WorkflowService {
             actorId: userId,
             eventType: "loan_started",
             eventTitle: "Loan started",
-            eventMessage: `${tr.book.title} is due on ${
-              dueAt.toISOString().split("T")[0]
-            }.`,
+            eventMessage: `${tr.book.title} is due on ${dueAt.toISOString().split("T")[0]
+              }.`,
             transactionId: tr.id,
           },
         ],
       });
-
       return tr;
     }, TX_OPTIONS);
+
+    // Decrement available inventory since book is now physically in 'borrowed' loop
+    await StatsCacheService.adjustFields({ availableBooks: -1 });
 
     return this.mapTransaction(updatedTransaction);
   }
@@ -248,7 +250,8 @@ export class WorkflowService {
   static async reject(userId: string, transactionId: string, isAdmin: boolean) {
     const now = new Date();
 
-    const updatedTransaction = await prisma.$transaction(async (tx) => {
+    // 1. Destructure everything returned from the transaction block
+    const { updatedTransaction, shouldMakeAvailable } = await prisma.$transaction(async (tx) => {
       const transaction = await tx.bookTransaction.findUnique({
         where: { id: transactionId },
         include: {
@@ -295,7 +298,9 @@ export class WorkflowService {
         },
       });
 
-      if (pendingCount === 0 && activeCount === 0) {
+      const isNowAvailable = pendingCount === 0 && activeCount === 0;
+
+      if (isNowAvailable) {
         await tx.book.update({
           where: { id: transaction.bookId },
           data: { availabilityStatus: "available" },
@@ -308,13 +313,22 @@ export class WorkflowService {
           actorId: userId,
           eventType: "request_rejected",
           eventTitle: "Request rejected",
-          eventMessage: `${transaction.owner.fullName} rejected the request for ${transaction.book.title}.`,
+          eventMessage: `${transaction.owner.fullName} rejected ${tr.requester.fullName}'s request.`,
           transactionId: tr.id,
         },
       });
 
-      return tr;
+      // Pass both variables safely out of the transaction scope
+      return { 
+        updatedTransaction: tr, 
+        shouldMakeAvailable: isNowAvailable 
+      };
     }, TX_OPTIONS);
+
+    // 2. Now 'shouldMakeAvailable' is perfectly safe to evaluate down here!
+    await StatsCacheService.adjustFields({
+      availableBooks: shouldMakeAvailable ? 1 : 0
+    });
 
     return this.mapTransaction(updatedTransaction);
   }
@@ -372,9 +386,12 @@ export class WorkflowService {
           transactionId: tr.id,
         },
       });
-
       return tr;
     }, TX_OPTIONS);
+
+    // This is where a real read completion happens!
+    // Increment the available count pool and elevate the global complete transaction stats.
+    await StatsCacheService.adjustFields({ availableBooks: 1, totalBooksReadGlobal: 1 });
 
     return this.mapTransaction(updatedTransaction);
   }
@@ -404,34 +421,29 @@ export class WorkflowService {
             coverColor: transaction.book.coverColor,
             owner: transaction.book.owner
               ? {
-                  id: transaction.book.owner.id,
-                  fullName: transaction.book.owner.fullName,
-                }
-              : transaction.owner
-              ? {
-                  id: transaction.owner.id,
-                  fullName: transaction.owner.fullName,
-                }
+                id: transaction.owner.id,
+                fullName: transaction.owner.fullName,
+              }
               : null,
-          }
+        }
         : null,
 
       requester: transaction.requester
         ? {
-            id: transaction.requester.id,
-            fullName: transaction.requester.fullName,
-            email: transaction.requester.email,
-            avatarUrl: transaction.requester.avatarUrl,
-            avatarInitials: transaction.requester.avatarInitials,
-          }
+          id: transaction.requester.id,
+          fullName: transaction.requester.fullName,
+          email: transaction.requester.email,
+          avatarUrl: transaction.requester.avatarUrl,
+          avatarInitials: transaction.requester.avatarInitials,
+        }
         : null,
 
       owner: transaction.owner
         ? {
-            id: transaction.owner.id,
-            fullName: transaction.owner.fullName,
-            email: transaction.owner.email,
-          }
+          id: transaction.owner.id,
+          fullName: transaction.owner.fullName,
+          email: transaction.owner.email,
+        }
         : null,
     };
   }
