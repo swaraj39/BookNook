@@ -6,3 +6,4 @@ target/
 *.log
 .env
 *.txt
+docker-compose.yml
