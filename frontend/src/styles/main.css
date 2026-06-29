@@ -2592,6 +2592,15 @@ th:last-child {
   padding-right: 44px;
 }
 
+.password-input-wrap input[type="password"]::-webkit-credentials-auto-fill-button,
+.password-input-wrap input[type="password"]::-webkit-reveal {
+  display: none;
+}
+
+.password-input-wrap input[type="password"]::-ms-reveal {
+  display: none;
+}
+
 .password-toggle-btn {
   position: absolute;
   right: 12px;
