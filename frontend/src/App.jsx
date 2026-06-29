@@ -274,8 +274,8 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-    // fetch("https://booknook-gfb8.onrender.com/api/quote/today")
-    fetch(`${API_URL}/quote/today`)
+    fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+    // fetch(`${API_URL}/quote/today`)
       .then((response) => response.ok ? response.json() : null)
       .then((quote) => {
         if (quote) setDailyThought(quote);
@@ -377,7 +377,7 @@ export default function App() {
     setShowProfileDropdown(false);
 
     try {
-      await fetch(`${API_URL}/auth/logout`, {
+      await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
         method: "POST",
         credentials: "include",
       });
