@@ -1613,12 +1613,33 @@ th:last-child {
 .nav-item.active::before { display: none; }
 
 .top-nav-actions {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
-  flex-shrink: 0;
-  margin-left: 16px;
+  gap: 8px;
+  padding: 0 20px 0 16px;
+  background: #fff;
+  border-left: none;
+  box-shadow: none;
+}
+
+.top-nav-actions::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -20px;
+  width: 20px;
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0),
+    #fff 100%
+  );
+  pointer-events: none;
 }
 
 /* Profile Dropdown Custom Styling */
