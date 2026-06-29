@@ -66,10 +66,10 @@ export class BookService {
 
     if (search) {
       where.OR = [
-        { title: { contains: search } },
-        { author: { contains: search } },
-        { description: { contains: search } },
-        { owner: { fullName: { contains: search } } },
+        { title: { contains: search, mode: "insensitive" } },
+        { author: { contains: search, mode: "insensitive" } },
+        { description: { contains: search, mode: "insensitive" } },
+        { owner: { fullName: { contains: search, mode: "insensitive" } } },
       ];
     }
 
