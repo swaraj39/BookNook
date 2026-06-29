@@ -6,7 +6,7 @@ import { BookOpen, Calendar, Milestone, Sparkles, Tv } from "lucide-react";
 export function Dashboard({ stats, me, dailyThought, openDetails }) {
   // Hardcoded array of informative learning clips / music streams for readers
   const videoLinks = [
-    "https://www.youtube.com/embed/UKPkqrkgKmw?si=tQzi9y04wYKgGM23" // YouTube Embedded Players Demo
+    "https://www.youtube.com/embed/AUw7laSlcbo?si=0lZXz_XqWHQrkd6x" // YouTube Embedded Players Demo
   ];
 
   // Deterministically select video item for the user matching array bounds
