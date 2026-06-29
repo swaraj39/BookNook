@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import prisma from "../config/prisma";
 import { generateToken } from "../utils/jwt";
+import { StatsCacheService } from "./stats-cache.service";
 
 export class AuthService {
   static async register(data: any) {
@@ -25,6 +26,9 @@ export class AuthService {
         status: "active",
       },
     });
+    
+    // Sync systemic cache row
+    await StatsCacheService.adjustFields({ totalUsers: 1 });
 
     const token = generateToken({ email: user.email, id: user.id });
     return { token, user: this.mapUser(user) };

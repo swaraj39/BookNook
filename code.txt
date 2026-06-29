@@ -1,7 +1,5 @@
 <directory_structure>
 [frontend]/
-  .env.development
-  .env.production
   Dockerfile
   index.html
   package.json
@@ -55,6 +53,7 @@
   src/services/auth.service.ts
   src/services/book.service.ts
   src/services/lookup.service.ts
+  src/services/stats-cache.service.ts
   src/services/workflow.service.ts
   src/utils/app-error.ts
   src/utils/jwt.ts
@@ -64,14 +63,6 @@
 
 <files>
 This section contains the contents of the repository's files.
-
-<file path=".env.development">
-VITE_API_URL=http://localhost:8080/api
-</file>
-
-<file path=".env.production">
-VITE_API_URL=https://booknook-gfb8.onrender.com/api
-</file>
 
 <file path="Dockerfile">
 # Build Stage
@@ -319,6 +310,42 @@ const blankBook = {
   description: "",
   coverUrl: ""
 };
+function DashboardLoader() {
+  const messages = [
+  { text: "Welcome back", icon: "👋" },
+  { text: "Preparing your dashboard", icon: "⚙️" },
+  { text: "Gathering your reading stats", icon: "📊" },
+  { text: "Loading your latest activity", icon: "📚" },
+  { text: "Syncing your bookshelf", icon: "🗂️" },
+  { text: "Calculating your reading progress", icon: "📈" },
+  { text: "Curating today's picks", icon: "✨" },
+  { text: "Almost ready", icon: "⏳" },
+  { text: "Putting the final touches", icon: "🧩" },
+  { text: "Good things take a moment", icon: "🌱" },
+  { text: "Thanks for your patience", icon: "🙏" },
+  { text: "Just a few seconds more", icon: "⏱️" }
+];
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setIndex((i) => (i + 1) % messages.length);
+    }, 2000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="dashboard-loader">
+      <div className="dashboard-loader-spinner-wrap">
+        <div className="dashboard-loader-spinner" />
+        <span className="dashboard-loader-emoji">{messages[index].icon}</span>
+      </div>
+      <p key={index} className="dashboard-loader-text">
+        {messages[index].text}
+      </p>
+      {
+}
+    </div>
+  );
+}
 function HomePage({ stats, dailyThought, navigateTo, setFilters, setBookModal }) {
   return (
     <section className="home-page">
@@ -471,7 +498,7 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-    fetch(`${API_URL}/quote/today`)
+    fetch(`http://localhost:8080/api/quote/today`)
       .then((response) => response.ok ? response.json() : null)
       .then((quote) => {
         if (quote) setDailyThought(quote);
@@ -569,7 +596,8 @@ export default function App() {
   async function handleLogout() {
     setShowProfileDropdown(false);
     try {
-      await fetch(`${API_URL}/auth/logout`, {
+      // await fetch("https:
+      await fetch("http://localhost:8080/api/auth/logout", {
         method: "POST",
         credentials: "include",
       });
@@ -830,6 +858,7 @@ return (
           openDetails={openDetails}
         />
       )}
+      {view === "dashboard" && !stats && <DashboardLoader />}
       {view !== "home" && view !== "catalog" && view !== "dashboard" && (
         <section className="topbar">
           <div className="page-title">
@@ -853,7 +882,7 @@ return (
           setBookModal={setBookModal}
         />
       )}
-      {loading && !["catalog", "home"].includes(view) && <div className="panel empty">Loading Book Nook...</div>}
+      {loading && !["catalog", "home", "dashboard"].includes(view) && <div className="panel empty">Loading Book Nook...</div>}
       {view === "catalog" && (
         <Catalog
           page={booksPage}
@@ -4790,6 +4819,76 @@ th:last-child {
   gap: 28px;
   width: 100%;
 }
+.dashboard-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+  gap: 20px;
+}
+.dashboard-loader-spinner-wrap {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dashboard-loader-spinner {
+  position: absolute;
+  inset: 0;
+  border: 3px solid rgba(37, 99, 235, 0.15);
+  border-top-color: var(--brand, #2563eb);
+  border-radius: 50%;
+  animation: dashboard-spin 1s cubic-bezier(0.5, 0.1, 0.5, 0.9) infinite;
+}
+.dashboard-loader-emoji {
+  font-size: 40px;
+  animation: dashboard-emoji-pop 2s ease infinite;
+}
+.dashboard-loader-text {
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  background: linear-gradient(90deg, var(--brand, #2563eb), #8b5cf6, var(--brand, #2563eb));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: dashboard-loader-fade 0.5s ease, dashboard-gradient-move 3s linear infinite;
+  text-align: center;
+}
+.dashboard-loader-dots {
+  display: flex;
+  gap: 6px;
+}
+.dashboard-loader-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border, #cbd5e1);
+  transition: all 0.3s ease;
+}
+.dashboard-loader-dot.active {
+  background: var(--brand, #ffffff);
+  width: 18px;
+  border-radius: 4px;
+}
+@keyframes dashboard-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes dashboard-emoji-pop {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.25); }
+}
+@keyframes dashboard-loader-fade {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); filter: blur(2px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+@keyframes dashboard-gradient-move {
+  to { background-position: 200% center; }
+}
 .dashboard-welcome-banner {
   display: flex;
   justify-content: space-between;
@@ -5295,6 +5394,17 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model SystemStats {
+  id                 String   @id @default("GLOBAL") @db.VarChar(20)
+  totalBooks         Int      @default(0) @map("total_books")
+  availableBooks     Int      @default(0) @map("available_books")
+  totalUsers         Int      @default(0) @map("total_users")
+  totalBooksReadGlobal Int    @default(0) @map("total_books_read_global")
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("system_stats")
 }
 
 model User {
@@ -5945,6 +6055,7 @@ export const errorHandler = (
 import bcrypt from "bcryptjs";
 import prisma from "../config/prisma";
 import { generateToken } from "../utils/jwt";
+import { StatsCacheService } from "./stats-cache.service";
 export class AuthService {
   static async register(data: any) {
     const existingUser = await prisma.user.findUnique({
@@ -5965,6 +6076,7 @@ export class AuthService {
         status: "active",
       },
     });
+    await StatsCacheService.adjustFields({ totalUsers: 1 });
     const token = generateToken({ email: user.email, id: user.id });
     return { token, user: this.mapUser(user) };
   }
@@ -5991,6 +6103,7 @@ export class AuthService {
 
 <file path="src/services/book.service.ts">
 import prisma from "../config/prisma";
+import { StatsCacheService } from "./stats-cache.service";
 export class BookService {
   static async catalog(params: any, userId?: string) {
     const {
@@ -6170,6 +6283,7 @@ export class BookService {
         timeout: 10000,
       }
     );
+    await StatsCacheService.adjustFields({ totalBooks: 1, availableBooks: 1 });
     return this.mapBook(book);
   }
   static async update(
@@ -6223,7 +6337,7 @@ export class BookService {
     return this.mapBook(updatedBook);
   }
   static async delete(userId: string, id: string, isAdmin: boolean) {
-    await prisma.$transaction(
+    const deletedBook = await prisma.$transaction(
       async (tx) => {
         const book = await tx.book.findUnique({
           where: { id },
@@ -6252,7 +6366,7 @@ export class BookService {
         if (activeLoans > 0) {
           throw new Error("This book cannot be deleted while borrowed.");
         }
-        const deletedBook = await tx.book.update({
+        const updatedBook = await tx.book.update({
           where: { id },
           data: {
             visibilityStatus: "deleted",
@@ -6268,15 +6382,20 @@ export class BookService {
             actorId: userId,
             eventType: "book_deleted",
             eventTitle: "Book deleted",
-            eventMessage: `${deletedBook.owner.fullName} removed ${deletedBook.title}.`,
+            eventMessage: `${updatedBook.owner.fullName} removed ${updatedBook.title}.`,
           },
         });
+        return book;
       },
       {
         maxWait: 10000,
         timeout: 10000,
       }
     );
+    await StatsCacheService.adjustFields({
+      totalBooks: -1,
+      availableBooks: deletedBook.availabilityStatus === "available" ? -1 : 0
+    });
   }
   private static validateBookPayload(payload: any) {
     if (!payload.title?.trim()) throw new Error("Title is required.");
@@ -6306,18 +6425,18 @@ export class BookService {
       updatedAt: book.updatedAt,
       owner: book.owner
         ? {
-            id: book.owner.id,
-            fullName: book.owner.fullName,
-            email: book.owner.email,
-            avatarUrl: book.owner.avatarUrl,
-            avatarInitials: book.owner.avatarInitials,
-          }
+          id: book.owner.id,
+          fullName: book.owner.fullName,
+          email: book.owner.email,
+          avatarUrl: book.owner.avatarUrl,
+          avatarInitials: book.owner.avatarInitials,
+        }
         : null,
       genre: book.genre
         ? {
-            id: book.genre.id,
-            name: book.genre.name,
-          }
+          id: book.genre.id,
+          name: book.genre.name,
+        }
         : null,
     };
   }
@@ -6383,19 +6502,11 @@ export class LookupService {
       pageSize: size,
     };
   }
-  static async dashboard(userId: string) {
+  static async static async dashboard(userId: string) {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const [
-      totalBooks,
-      availableBooks,
-      pendingRequests,
-      activeBorrowed,
-      booksReadThisMonth,
-      totalBooksRead
-    ] = await Promise.all([
-      prisma.book.count({ where: { visibilityStatus: "visible" } }),
-      prisma.book.count({ where: { visibilityStatus: "visible", availabilityStatus: "available" } }),
+    const cachedStats = await StatsCacheService.getStats();
+    const [pendingRequests, activeBorrowed, booksReadThisMonth, totalBooksRead] = await Promise.all([
       prisma.bookTransaction.count({ where: { ownerId: userId, status: "pending" } }),
       prisma.bookTransaction.count({
         where: { requesterId: userId, status: { in: ["active", "overdue"] } },
@@ -6429,26 +6540,14 @@ export class LookupService {
         genreName: t.book.genre?.name ?? "N/A"
       }
     }));
-    const chartData = [];
-    const allUsersCount = await prisma.user.count({ where: { status: "active" } }) || 1;
-    for (let i = 5; i >= 0; i--) {
-      const mStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const mEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
-      const monthLabel = mStart.toLocaleString("default", { month: "short" });
-      const [userMonthCount, totalGlobalMonthCount] = await Promise.all([
-        prisma.bookTransaction.count({
-          where: { requesterId: userId, status: "returned", returnedAt: { gte: mStart, lte: mEnd } }
-        }),
-        prisma.bookTransaction.count({
-          where: { status: "returned", returnedAt: { gte: mStart, lte: mEnd } }
-        })
-      ]);
-      chartData.push({
-        month: monthLabel,
-        userCount: userMonthCount,
-        globalAvg: parseFloat((totalGlobalMonthCount / allUsersCount).toFixed(1))
-      });
-    }
+    const communityAverageRead = cachedStats.totalUsers > 0
+      ? parseFloat((cachedStats.totalBooksReadGlobal / cachedStats.totalUsers).toFixed(1))
+      : 0;
+    const chartData = [{
+      month: now.toLocaleString("default", { month: "short" }),
+      userCount: booksReadThisMonth,
+      globalAvg: communityAverageRead
+    }];
     const activeBooks = await prisma.book.findMany({
       where: { visibilityStatus: "visible" },
       include: { owner: true, genre: true }
@@ -6470,8 +6569,10 @@ export class LookupService {
       };
     }
     return {
-      totalBooks,
-      availableBooks,
+      totalBooks: cachedStats.totalBooks,
+      availableBooks: cachedStats.availableBooks,
+      totalUsers: cachedStats.totalUsers,
+      communityAverageRead,
       pendingRequests,
       activeBorrowed,
       booksReadThisMonth,
@@ -6484,8 +6585,74 @@ export class LookupService {
 }
 </file>
 
+<file path="src/services/stats-cache.service.ts">
+import prisma from "../config/prisma";
+export class StatsCacheService {
+  private static readonly STATS_ID = "GLOBAL";
+  static async getStats() {
+    const stats = await prisma.systemStats.findUnique({
+      where: { id: this.STATS_ID },
+    });
+    if (!stats) {
+      return await this.recalculateAndCacheAll();
+    }
+    return stats;
+  }
+  static async adjustFields(adjustments: {
+    totalBooks?: number;
+    availableBooks?: number;
+    totalUsers?: number;
+    totalBooksReadGlobal?: number;
+  }) {
+    const updateData: any = {};
+    for (const [key, value] of Object.entries(adjustments)) {
+      if (value !== 0) {
+        updateData[key] = { increment: value };
+      }
+    }
+    if (Object.keys(updateData).length === 0) return;
+    return await prisma.systemStats.upsert({
+      where: { id: this.STATS_ID },
+      update: updateData,
+      create: {
+        id: this.STATS_ID,
+        totalBooks: Math.max(0, adjustments.totalBooks || 0),
+        availableBooks: Math.max(0, adjustments.availableBooks || 0),
+        totalUsers: Math.max(0, adjustments.totalUsers || 0),
+        totalBooksReadGlobal: Math.max(0, adjustments.totalBooksReadGlobal || 0),
+      },
+    });
+  }
+  static async recalculateAndCacheAll() {
+    const [booksCount, availableBooksCount, usersCount, completedLoansCount] = await Promise.all([
+      prisma.book.count({ where: { visibilityStatus: "visible" } }),
+      prisma.book.count({ where: { visibilityStatus: "visible", availabilityStatus: "available" } }),
+      prisma.user.count({ where: { status: "active" } }),
+      prisma.bookTransaction.count({ where: { status: "returned" } }),
+    ]);
+    return await prisma.systemStats.upsert({
+      where: { id: this.STATS_ID },
+      update: {
+        totalBooks: booksCount,
+        availableBooks: availableBooksCount,
+        totalUsers: usersCount,
+        totalBooksReadGlobal: completedLoansCount,
+      },
+      create: {
+        id: this.STATS_ID,
+        totalBooks: booksCount,
+        availableBooks: availableBooksCount,
+        totalUsers: usersCount,
+        totalBooksReadGlobal: completedLoansCount,
+      },
+    });
+  }
+}
+</file>
+
 <file path="src/services/workflow.service.ts">
 import prisma from "../config/prisma";
+import { StatsCacheService } from "./stats-cache.service";
 const TX_OPTIONS = {
   maxWait: 10000,
   timeout: 20000,
@@ -6495,8 +6662,8 @@ export class WorkflowService {
     const where = isAdmin
       ? {}
       : {
-          OR: [{ ownerId: userId }, { requesterId: userId }],
-        };
+        OR: [{ ownerId: userId }, { requesterId: userId }],
+      };
     const [totalElements, content] = await Promise.all([
       prisma.bookTransaction.count({ where }),
       prisma.bookTransaction.findMany({
@@ -6689,15 +6856,15 @@ export class WorkflowService {
             actorId: userId,
             eventType: "loan_started",
             eventTitle: "Loan started",
-            eventMessage: `${tr.book.title} is due on ${
-              dueAt.toISOString().split("T")[0]
-            }.`,
+            eventMessage: `${tr.book.title} is due on ${dueAt.toISOString().split("T")[0]
+              }.`,
             transactionId: tr.id,
           },
         ],
       });
       return tr;
     }, TX_OPTIONS);
+    await StatsCacheService.adjustFields({ availableBooks: -1 });
     return this.mapTransaction(updatedTransaction);
   }
   static async reject(userId: string, transactionId: string, isAdmin: boolean) {
@@ -6752,14 +6919,15 @@ export class WorkflowService {
         data: {
           bookId: transaction.bookId,
           actorId: userId,
-          eventType: "request_rejected",
-          eventTitle: "Request rejected",
-          eventMessage: `${transaction.owner.fullName} rejected the request for ${transaction.book.title}.`,
+          eventType: "book_returned",
+          eventTitle: "Book returned",
+          eventMessage: `${tr.requester.fullName} returned ${tr.book.title}.`,
           transactionId: tr.id,
         },
       });
       return tr;
     }, TX_OPTIONS);
+    await StatsCacheService.adjustFields({ availableBooks: 1, totalBooksReadGlobal: 1 });
     return this.mapTransaction(updatedTransaction);
   }
   static async returnBook(userId: string, transactionId: string, isAdmin: boolean) {
@@ -6830,39 +6998,39 @@ export class WorkflowService {
       respondedAt: transaction.respondedAt,
       book: transaction.book
         ? {
-            id: transaction.book.id,
-            title: transaction.book.title,
-            author: transaction.book.author,
-            coverUrl: transaction.book.coverUrl,
-            coverColor: transaction.book.coverColor,
-            owner: transaction.book.owner
+          id: transaction.book.id,
+          title: transaction.book.title,
+          author: transaction.book.author,
+          coverUrl: transaction.book.coverUrl,
+          coverColor: transaction.book.coverColor,
+          owner: transaction.book.owner
+            ? {
+              id: transaction.book.owner.id,
+              fullName: transaction.book.owner.fullName,
+            }
+            : transaction.owner
               ? {
-                  id: transaction.book.owner.id,
-                  fullName: transaction.book.owner.fullName,
-                }
-              : transaction.owner
-              ? {
-                  id: transaction.owner.id,
-                  fullName: transaction.owner.fullName,
-                }
+                id: transaction.owner.id,
+                fullName: transaction.owner.fullName,
+              }
               : null,
-          }
+        }
         : null,
       requester: transaction.requester
         ? {
-            id: transaction.requester.id,
-            fullName: transaction.requester.fullName,
-            email: transaction.requester.email,
-            avatarUrl: transaction.requester.avatarUrl,
-            avatarInitials: transaction.requester.avatarInitials,
-          }
+          id: transaction.requester.id,
+          fullName: transaction.requester.fullName,
+          email: transaction.requester.email,
+          avatarUrl: transaction.requester.avatarUrl,
+          avatarInitials: transaction.requester.avatarInitials,
+        }
         : null,
       owner: transaction.owner
         ? {
-            id: transaction.owner.id,
-            fullName: transaction.owner.fullName,
-            email: transaction.owner.email,
-          }
+          id: transaction.owner.id,
+          fullName: transaction.owner.fullName,
+          email: transaction.owner.email,
+        }
         : null,
     };
   }
@@ -7034,94 +7202,98 @@ export async function callWorkatoSignupWebhook(user: any) {
 }
 </file>
 
+<file path="package.json">
+{
+  "name": "backend-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "prisma:generate": "prisma generate"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "@types/cookie-parser": "^1.4.8",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "prisma": "^6.2.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.5.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^6.0.3"
+  }
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "backend-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "prisma:generate": "prisma generate"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "@types/cookie-parser": "^1.4.8",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "prisma": "^6.2.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.5.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^6.0.3"
+  }
+}
+</file>
+
 <file path=".gitignore">
 node_modules
 # Keep environment variables out of version control
 .env
 
 /generated/prisma
-</file>
-
-<file path="package.json">
-{
-  "name": "backend-node",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "ts-node src/index.ts",
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
-    "prisma:generate": "prisma generate"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "@prisma/client": "^6.2.1",
-    "@types/cookie-parser": "^1.4.8",
-    "bcryptjs": "^3.0.3",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "prisma": "^6.2.1",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^25.9.3",
-    "eslint": "^10.5.0",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^6.0.3"
-  }
-}
-</file>
-
-<file path="package.json">
-{
-  "name": "backend-node",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "ts-node src/index.ts",
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
-    "prisma:generate": "prisma generate"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "@prisma/client": "^6.2.1",
-    "@types/cookie-parser": "^1.4.8",
-    "bcryptjs": "^3.0.3",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "prisma": "^6.2.1",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^25.9.3",
-    "eslint": "^10.5.0",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^6.0.3"
-  }
-}
+/postgres/
+/scripts/
+/Docker/
+*.txt
 </file>
 
 </files>
