@@ -1,4 +1,5 @@
 import React from "react";
+import { RotateCcw } from "lucide-react";
 import { Panel } from "../components/common/Panel";
 import { Table } from "../components/common/Table";
 import { Pagination } from "../components/common/Pagination";
@@ -28,10 +29,15 @@ function ReturnButton({ loan, returnBook }) {
   );
 }
 
-export function Borrowed({ page, onPageChange, returnBook, openDetails }) {
+export function Borrowed({ page, onPageChange, onRefresh, returnBook, openDetails }) {
+  const refreshBtn = (
+    <button className="btn icon-only" onClick={onRefresh} title="Refresh" style={{ width: "32px", height: "32px", minHeight: "32px", padding: 0, border: "none", background: "transparent", color: "var(--muted)" }}>
+      <RotateCcw size={15} />
+    </button>
+  );
   if (page.content.length === 0) {
     return (
-      <Panel title="Borrow Status">
+      <Panel title="Borrow Status" actions={refreshBtn}>
         <EmptyState
           icon="LibraryBig"
           title="No active reads"
@@ -41,7 +47,7 @@ export function Borrowed({ page, onPageChange, returnBook, openDetails }) {
     );
   }
   return (
-    <Panel title="Borrow Status" >
+    <Panel title="Borrow Status" actions={refreshBtn} >
       <Table headers={["Book", "Owner", "Borrowed", "Due", "Status", "Actions"]}>
         {page.content.map((loan) => (
           <tr key={loan.id}>

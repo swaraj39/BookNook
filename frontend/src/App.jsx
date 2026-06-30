@@ -100,6 +100,19 @@ function DashboardLoader() {
     </div>
   );
 }
+function NavLoader() {
+  return (
+    <div className="nav-loader-overlay">
+      <div className="nav-loader-card">
+        <div className="nav-loader-icon-wrap">
+          <BookOpen size={38} className="nav-loader-icon" />
+          <div className="nav-loader-ring" />
+        </div>
+        <p className="nav-loader-message">Loading your bookshelf</p>
+      </div>
+    </div>
+  );
+}
 function HomePage({ stats, dailyThought, navigateTo, setFilters, setBookModal }) {
   return (
     <section className="home-page">
@@ -195,6 +208,10 @@ export default function App() {
   }, []);
   function navigateTo(newView, options = {}) {
     if (!VALID_VIEWS.has(newView)) return;
+    setShowProfileDropdown(false);
+    if (newView !== view && !isDataReady(newView)) {
+      setNavLoading(newView);
+    }
     const nextBookId = newView === "detail" ? (options.bookId || selectedBookId) : null;
     const nextStack = options.replace
       ? [...navStack.slice(0, -1), newView]
@@ -241,6 +258,7 @@ export default function App() {
   const [requestModal, setRequestModal] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [navLoading, setNavLoading] = useState(null);
   const [dailyThought, setDailyThought] = useState(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
@@ -248,6 +266,19 @@ export default function App() {
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const [bookAddedMessage, setBookAddedMessage] = useState(null);
+  function isDataReady(v) {
+    switch (v) {
+      case "dashboard": return stats !== null;
+      case "catalog": return booksPage.content.length > 0;
+      case "requests": return requestsPage.content.length > 0;
+      case "myBooks": return myBooksPage.content.length > 0;
+      case "borrowed": return borrowedPage.content.length > 0;
+      case "history": return historyPage.content.length > 0;
+      case "detail": return selectedBook !== null;
+      case "home": return stats !== null;
+      default: return true;
+    }
+  }
   const checkNavScroll = useCallback(() => {
     const el = navRef.current;
     if (el) {
@@ -275,8 +306,8 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-    fetch("https://booknook-gfb8.onrender.com/api/quote/today")
-    // fetch(`http://localhost:8080/api/quote/today`)
+    // fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+    fetch(`http://localhost:8080/api/quote/today`)
       .then((response) => response.ok ? response.json() : null)
       .then((quote) => {
         if (quote) setDailyThought(quote);
@@ -360,6 +391,10 @@ export default function App() {
       window.removeEventListener("auth-expired", handler);
     };
   }, []);
+  useEffect(() => {
+    if (!navLoading || navLoading !== view) return;
+    if (isDataReady(view)) setNavLoading(null);
+  }, [view, navLoading, stats, booksPage, requestsPage, myBooksPage, borrowedPage, historyPage, selectedBook, loading]);
   async function handleLogin(token, user) {
     localStorage.setItem("bn_token", token);
     setMe(user);
@@ -374,8 +409,8 @@ export default function App() {
   async function handleLogout() {
     setShowProfileDropdown(false);
     try {
-      await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
-      // await fetch("http://localhost:8080/api/auth/logout", {
+      // await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
+      await fetch("http://localhost:8080/api/auth/logout", {
         method: "POST",
         credentials: "include",
       });
@@ -475,7 +510,7 @@ export default function App() {
       else await api.createBook(payload);
       setBookModal(null);
       notify(bookModal?.id ? "Book updated." : "Book added.");
-      await refresh();
+      await loadMyBooks(0);
     } catch (error) {
       notify(error.message, "error");
     }
@@ -526,7 +561,7 @@ export default function App() {
         console.error("Import errors:", result.errors);
       }
 
-      await refresh();
+      await loadMyBooks(0);
     } catch (error) {
       window.alert(error.message || "Import failed.");
       notify(error.message, "error");
@@ -537,7 +572,7 @@ export default function App() {
       try {
         await api.deleteBook(id);
         notify("Book deleted.");
-        await refresh();
+        await loadMyBooks(0);
       } catch (error) {
         notify(error.message, "error");
       }
@@ -549,7 +584,7 @@ export default function App() {
       await api.requestBook(payload);
       setRequestModal(null);
       notify("Borrow request sent.");
-      await refresh();
+      await loadRequests(0);
     } catch (error) {
       notify(error.message, "error");
     }
@@ -558,7 +593,7 @@ export default function App() {
     try {
       await api.approve(id);
       notify("Request approved and loan started.");
-      await refresh();
+      await Promise.all([loadRequests(0), loadBorrowed(0)]);
     } catch (error) {
       notify(error.message, "error");
     }
@@ -568,7 +603,7 @@ export default function App() {
       try {
         await api.reject(id);
         notify("Request rejected.");
-        await refresh();
+        await loadRequests(0);
       } catch (error) {
         notify(error.message, "error");
       }
@@ -580,7 +615,7 @@ export default function App() {
       try {
         await api.returnBook(id);
         notify("Book marked as returned.");
-        await refresh();
+        await Promise.all([loadBorrowed(0), loadHistory(0)]);
       } catch (error) {
         notify(error.message, "error");
       }
@@ -682,6 +717,7 @@ export default function App() {
         </div>
       </aside>
       <main className="main">
+        {navLoading && <NavLoader />}
         {view === "dashboard" && stats && (
           <Dashboard
             stats={stats}
@@ -714,7 +750,7 @@ export default function App() {
             setBookModal={setBookModal}
           />
         )}
-        {loading && !["catalog", "home", "dashboard"].includes(view) && <div className="panel empty">Loading Book Nook...</div>}
+        {loading && !["catalog", "home", "dashboard"].includes(view) && <div className="panel empty loading-state">Loading Book Nook...</div>}
         {view === "catalog" && (
           <Catalog
             page={booksPage}
@@ -732,10 +768,10 @@ export default function App() {
             importBooks={importBooks}
           />
         )}
-        {!loading && view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} />}
-        {!loading && view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} />}
-        {!loading && view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} returnBook={returnBook} openDetails={openDetails} />}
-        {!loading && view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} />}
+        {!loading && view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} onRefresh={() => loadRequests(requestsPage.page)} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} />}
+        {!loading && view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} onRefresh={() => loadMyBooks(myBooksPage.page)} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} />}
+        {!loading && view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} onRefresh={() => loadBorrowed(borrowedPage.page)} returnBook={returnBook} openDetails={openDetails} />}
+        {!loading && view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={() => loadHistory(historyPage.page)} />}
         {!loading && view === "detail" && selectedBook && (
           <Details
             book={selectedBook}

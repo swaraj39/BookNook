@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { RotateCcw } from "lucide-react";
 import { Panel } from "../components/common/Panel";
 import { Table } from "../components/common/Table";
 import { Pagination } from "../components/common/Pagination";
@@ -166,8 +167,14 @@ function RequestRow({ row, me, approve, reject, openDetails }) {
   );
 }
 
-export function Requests({ page, onPageChange, me, approve, reject, openDetails }) {
+export function Requests({ page, onPageChange, onRefresh, me, approve, reject, openDetails }) {
   const [filter, setFilter] = useState("all");
+
+  const refreshBtn = (
+    <button className="btn icon-only" onClick={onRefresh} title="Refresh" style={{ width: "32px", height: "32px", minHeight: "32px", padding: 0, border: "none", background: "transparent", color: "var(--muted)" }}>
+      <RotateCcw size={15} />
+    </button>
+  );
 
   const filteredContent = page.content.filter((row) => {
     if (filter === "mine") return row.requester.id === me.id;
@@ -177,7 +184,7 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails 
 
   if (page.content.length === 0) {
     return (
-      <Panel title="Borrow Requests">
+      <Panel title="Borrow Requests" actions={refreshBtn}>
         <EmptyState
           icon="ClipboardCheck"
           title="No requests yet"
@@ -189,7 +196,7 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails 
 
   return (
     <div className="request-container">
-      <Panel title="Borrow Requests">
+      <Panel title="Borrow Requests" actions={refreshBtn}>
         <div className="request-filters">
           <button
             className={`filter-btn ${filter === "all" ? "active" : ""}`}

@@ -375,6 +375,7 @@ button { cursor: pointer; }
   width: 32px;
 }
 .main {
+  position: relative;
   min-width: 0;
   padding: 32px 36px 44px;
   animation: page-fade-in 0.4s ease-out;
@@ -474,7 +475,7 @@ button { cursor: pointer; }
   border-color: var(--danger) !important;
 }
 
-.btn.icon-only { width: 38px; padding: 0; }
+.btn.icon-only { width: 45px; padding: 0; border-radius: 1000px;}
 .grid {
   display: grid;
   gap: 16px;
@@ -892,6 +893,8 @@ th:last-child {
 }
 
 .empty { padding: 34px 18px; color: var(--muted); text-align: center; background: var(--bg); }
+.loading-state { display: flex; align-items: center; justify-content: center; min-height: 40vh; }
+.loading-state.empty { background: transparent; }
 .empty-state-box {
   display: flex;
   flex-direction: column;
@@ -1636,6 +1639,7 @@ th:last-child {
 }
 .nav-item.active {
   color: var(--brand-dark);
+  border-radius: 90px;
   background: var(--brand-soft);
 }
 [data-theme='dark'] .nav-item.active {
@@ -1652,10 +1656,11 @@ th:last-child {
   justify-content: flex-end;
   gap: 8px;
   padding: 0 20px 0 16px;
-
+  border-radius: 9px;
   background: var(--surface);
   border-left: none;
   box-shadow: none;
+  z-index: 10;
 }
 
 .top-nav-actions::before {
@@ -3943,5 +3948,80 @@ tbody tr:hover,
   .bn-auth-right {
     width: 100%;
   }
+}
+
+/* Navigation Loader */
+.nav-loader-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  animation: nav-loader-fade-in 0.25s ease;
+  min-height: 60vh;
+}
+
+.nav-loader-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.nav-loader-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+}
+
+.nav-loader-icon {
+  color: var(--brand);
+  z-index: 1;
+  animation: nav-loader-breathe 1.6s ease-in-out infinite;
+  filter: drop-shadow(0 0 14px rgba(102, 127, 255, 0.25));
+}
+
+.nav-loader-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2.5px solid var(--line);
+  border-top-color: var(--brand);
+  animation: nav-loader-spin 1s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+.nav-loader-message {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  background: linear-gradient(90deg, var(--muted), var(--brand), var(--muted));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: nav-loader-shimmer 2.4s linear infinite;
+}
+
+@keyframes nav-loader-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes nav-loader-breathe {
+  0%, 100% { transform: scale(1) translateY(0); }
+  50% { transform: scale(1.1) translateY(-4px); }
+}
+
+@keyframes nav-loader-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes nav-loader-shimmer {
+  to { background-position: 200% center; }
 }
 
