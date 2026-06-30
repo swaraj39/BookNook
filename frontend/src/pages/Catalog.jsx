@@ -1,11 +1,10 @@
-import React from "react";
+import React, { useRef } from "react";
 import { api } from "../api";
-import { Search, Download, Plus } from "lucide-react";
+import { Search, Download, Plus, Upload } from "lucide-react";
 import { BookCard } from "../components/BookCard";
 import { Pagination } from "../components/common/Pagination";
 import { BookCardSkeleton } from "../components/common/Skeleton";
 import { EmptyState } from "../components/common/EmptyState";
-
 const handleExportBooks = async () => {
   try {
     await api.exportBooks();
@@ -15,8 +14,10 @@ const handleExportBooks = async () => {
 };
 export function Catalog({
   page, genres, filters, setFilters, searchTerm, setSearchTerm,
-  loading, me, openDetails, setRequestModal, setBookModal, returnBook
+  loading, me, openDetails, setRequestModal, setBookModal, returnBook, importBooks
 }) {
+  const fileInputRef = useRef(null);
+  const isAdmin = me?.role === "ADMIN";
   const capsules = [
     { label: "All", value: "all" },
     { label: "Available", value: "available" },
@@ -24,11 +25,14 @@ export function Catalog({
     { label: "Borrowed by me", value: "borrowed_by_me" },
     { label: "Unavailable", value: "unavailable" },
   ];
-
   function setCapsule(value) {
     setFilters({ ...filters, availability: value, page: 0 });
   }
-
+  function handleFileChange(e) {
+    const file = e.target.files?.[0];
+    if (file && importBooks) importBooks(file);
+    e.target.value = "";
+  }
   return (
   <section className="catalog-page">
     <div className="catalog-header">
@@ -36,13 +40,26 @@ export function Catalog({
         <h3>Books on the shelf</h3>
       </div>
       <div className="catalog-header-right">
+        {isAdmin && (
+          <>
+            <input
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              style={{ display: "none" }}
+            />
+            <button className="btn" onClick={() => fileInputRef.current?.click()}>
+              <Upload size={15} /> Import
+            </button>
+          </>
+        )}
         <button className="btn" onClick={() => handleExportBooks()}>Export</button>
         <button className="btn primary" onClick={() => setBookModal({ title: "", author: "", genreId: "", condition: "good", exchangeLocation: "", defaultLoanDays: 14, description: "" })}>
           <Plus size={15} /> Add book
         </button>
       </div>
     </div>
-
     <div className="catalog-content">
       <div className="toolbar">
         <div className="search-wrap">
@@ -64,7 +81,6 @@ export function Catalog({
           <option value="due">Due date</option>
         </select>
       </div>
-
       <div className="catalog-capsules">
         {capsules.map((c) => (
           <button
@@ -76,7 +92,6 @@ export function Catalog({
           </button>
         ))}
       </div>
-
       <div className="catalog">
         {loading ? (
           Array.from({ length: 6 }).map((_, i) => <BookCardSkeleton key={i} />)
@@ -103,7 +118,6 @@ export function Catalog({
         )}
       </div>
     </div>
-
     {!loading && page.content.length > 0 && page.totalPages > 1 && (
       <Pagination
   page={page.page ?? page.pageNumber ?? 0}
