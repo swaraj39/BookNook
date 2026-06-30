@@ -24,6 +24,11 @@ app.use(express.json());
 app.post("/api/auth/register", AuthController.register);
 app.post("/api/auth/login", AuthController.login);
 app.post("/api/auth/logout", AuthController.logout);
+app.post("/api/auth/forgot-password/request", AuthController.forgotPasswordRequest);
+app.post("/api/auth/forgot-password/verify-otp", AuthController.forgotPasswordVerifyOtp);
+app.post("/api/auth/forgot-password/reset", AuthController.forgotPasswordReset);
+
+// App routes
 app.get("/api/me", authenticate, AppController.me);
 app.get("/api/genres", authenticate, AppController.genres);
 app.get("/api/dashboard", authenticate, AppController.dashboard);
