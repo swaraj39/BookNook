@@ -1660,7 +1660,7 @@ th:last-child {
   background: var(--surface);
   border-left: none;
   box-shadow: none;
-  z-index: 10;
+  z-index: 180;
 }
 
 .top-nav-actions::before {
@@ -1717,7 +1717,7 @@ th:last-child {
   right: 0;
   margin-top: 10px;
   min-width: 260px;
-  z-index: 250;
+  z-index: 1000;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -3952,15 +3952,24 @@ tbody tr:hover,
 
 /* Navigation Loader */
 .nav-loader-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 500;
+  position: fixed;
+  top: 64px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 90;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg);
+  background: rgba(250, 246, 235, 0.86);
+  backdrop-filter: blur(10px);
   animation: nav-loader-fade-in 0.25s ease;
-  min-height: 60vh;
+  min-height: 0;
+  pointer-events: none;
+}
+
+[data-theme='dark'] .nav-loader-overlay {
+  background: rgba(20, 16, 11, 0.86);
 }
 
 .nav-loader-card {
@@ -4023,5 +4032,11 @@ tbody tr:hover,
 
 @keyframes nav-loader-shimmer {
   to { background-position: 200% center; }
+}
+
+@media (max-width: 768px) {
+  .nav-loader-overlay {
+    top: 56px;
+  }
 }
 

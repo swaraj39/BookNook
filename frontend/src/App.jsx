@@ -269,11 +269,12 @@ export default function App() {
   function isDataReady(v) {
     switch (v) {
       case "dashboard": return stats !== null;
-      case "catalog": return booksPage.content.length > 0;
-      case "requests": return requestsPage.content.length > 0;
-      case "myBooks": return myBooksPage.content.length > 0;
-      case "borrowed": return borrowedPage.content.length > 0;
-      case "history": return historyPage.content.length > 0;
+      case "catalog":
+      case "requests":
+      case "myBooks":
+      case "borrowed":
+      case "history":
+        return true;
       case "detail": return selectedBook !== null;
       case "home": return stats !== null;
       default: return true;
@@ -510,7 +511,7 @@ export default function App() {
       else await api.createBook(payload);
       setBookModal(null);
       notify(bookModal?.id ? "Book updated." : "Book added.");
-      await loadMyBooks(0);
+      await loadMyBooks(bookModal?.id ? myBooksPage.page : 0);
     } catch (error) {
       notify(error.message, "error");
     }
@@ -572,7 +573,7 @@ export default function App() {
       try {
         await api.deleteBook(id);
         notify("Book deleted.");
-        await loadMyBooks(0);
+        await loadMyBooks(myBooksPage.page);
       } catch (error) {
         notify(error.message, "error");
       }
@@ -584,7 +585,7 @@ export default function App() {
       await api.requestBook(payload);
       setRequestModal(null);
       notify("Borrow request sent.");
-      await loadRequests(0);
+      await loadRequests(requestsPage.page);
     } catch (error) {
       notify(error.message, "error");
     }
@@ -593,7 +594,7 @@ export default function App() {
     try {
       await api.approve(id);
       notify("Request approved and loan started.");
-      await Promise.all([loadRequests(0), loadBorrowed(0)]);
+      await loadRequests(requestsPage.page);
     } catch (error) {
       notify(error.message, "error");
     }
@@ -603,7 +604,7 @@ export default function App() {
       try {
         await api.reject(id);
         notify("Request rejected.");
-        await loadRequests(0);
+        await loadRequests(requestsPage.page);
       } catch (error) {
         notify(error.message, "error");
       }
@@ -615,7 +616,7 @@ export default function App() {
       try {
         await api.returnBook(id);
         notify("Book marked as returned.");
-        await Promise.all([loadBorrowed(0), loadHistory(0)]);
+        await loadBorrowed(borrowedPage.page);
       } catch (error) {
         notify(error.message, "error");
       }
@@ -750,7 +751,6 @@ export default function App() {
             setBookModal={setBookModal}
           />
         )}
-        {loading && !["catalog", "home", "dashboard"].includes(view) && <div className="panel empty loading-state">Loading Book Nook...</div>}
         {view === "catalog" && (
           <Catalog
             page={booksPage}
@@ -768,10 +768,10 @@ export default function App() {
             importBooks={importBooks}
           />
         )}
-        {!loading && view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} onRefresh={() => loadRequests(requestsPage.page)} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} />}
-        {!loading && view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} onRefresh={() => loadMyBooks(myBooksPage.page)} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} />}
-        {!loading && view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} onRefresh={() => loadBorrowed(borrowedPage.page)} returnBook={returnBook} openDetails={openDetails} />}
-        {!loading && view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={() => loadHistory(historyPage.page)} />}
+        {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} onRefresh={() => loadRequests(requestsPage.page)} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} />}
+        {view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} onRefresh={() => loadMyBooks(myBooksPage.page)} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} />}
+        {view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} onRefresh={() => loadBorrowed(borrowedPage.page)} returnBook={returnBook} openDetails={openDetails} />}
+        {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={() => loadHistory(historyPage.page)} />}
         {!loading && view === "detail" && selectedBook && (
           <Details
             book={selectedBook}
