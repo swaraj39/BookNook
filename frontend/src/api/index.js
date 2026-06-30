@@ -1,6 +1,30 @@
-const API_URL = "https://booknook-gfb8.onrender.com/api";
-// const API_URL = "http://localhost:8080/api";
+// const API_URL = "https://booknook-gfb8.onrender.com/api";
+const API_URL = "http://localhost:8080/api";
 // const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
+function friendlyErrorMessage(message) {
+  const text = String(message || "").toLowerCase();
+  const looksLikeDatabaseError = [
+    "prisma.",
+    "prismaclient",
+    "error querying the database",
+    "emaxconnsession",
+    "max clients reached",
+    "pool_size",
+    "connection pool",
+    "too many connections",
+  ].some((needle) => text.includes(needle));
+
+  if (looksLikeDatabaseError) {
+    return "The library desk is a bit overloaded right now. Please try again in a moment.";
+  }
+
+  if (!message || text === "internal server error") {
+    return "Something wobbled on our side. Please try again in a moment.";
+  }
+
+  return message;
+}
+
 async function request(path, options = {}) {
   const token = localStorage.getItem("bn_token");
   const headers = {
@@ -29,7 +53,7 @@ async function request(path, options = {}) {
     } catch {
       message = text || message;
     }
-    throw new Error(message);
+    throw new Error(friendlyErrorMessage(message));
   }
   if (response.status === 204) return null;
   return text ? JSON.parse(text) : null;
@@ -129,7 +153,15 @@ export const api = {
       throw new Error("Your session has expired. Please sign in again.");
     }
     if (!response.ok) {
-      throw new Error("Failed to export books.");
+      const text = await response.text();
+      let message = "Failed to export books.";
+      try {
+        const body = text ? JSON.parse(text) : {};
+        message = body.message || message;
+      } catch {
+        message = text || message;
+      }
+      throw new Error(friendlyErrorMessage(message));
     }
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);

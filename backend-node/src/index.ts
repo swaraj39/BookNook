@@ -5,7 +5,8 @@ import dotenv from "dotenv";
 import { AuthController } from "./controllers/auth.controller";
 import { AppController } from "./controllers/app.controller";
 import { authenticate } from "./middleware/auth";
-import { errorHandler } from "./middleware/error";
+import { errorHandler, logError } from "./middleware/error";
+import { getSafeErrorMessage, getStatusCode } from "./utils/app-error";
 dotenv.config();
 const app = express();
 const port = process.env.PORT || 8080;
@@ -63,8 +64,9 @@ app.get("/api/quote/today", async (req, res) => {
     const data = await response.json();
     res.json(data);
   } catch (error: any) {
-    console.error("Quote API error:", error.message);
-    res.status(500).json({
+    logError(error, req);
+    res.status(getStatusCode(error)).json({
+      message: getSafeErrorMessage(error),
     });
   }
 });

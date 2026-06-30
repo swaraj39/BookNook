@@ -1,15 +1,17 @@
 import { Request, Response, NextFunction } from "express";
 import fs from "fs";
 import path from "path";
+import { getSafeErrorMessage, getStatusCode } from "../utils/app-error";
 
 // Ensure the log directory exists
 const LOG_FILE = path.join(__dirname, "../../error-logged.txt");
 
-function logError(err: any) {
+export function logError(err: any, req?: Request) {
   try {
     const timestamp = new Date().toISOString();
-    const stack = err.stack || err.message || "No stack trace";
-    const logEntry = `[${timestamp}] ${stack}\n\n`;
+    const stack = err?.stack || err?.message || "No stack trace";
+    const requestLine = req ? `${req.method} ${req.originalUrl}` : "No request context";
+    const logEntry = `[${timestamp}] ${requestLine}\n${stack}\n\n`;
     
     // Append to file (creates file if it doesn't exist)
     fs.appendFileSync(LOG_FILE, logEntry);
@@ -27,18 +29,10 @@ export const errorHandler = (
   next: NextFunction
 ) => {
   // Log the full error details to file
-  logError(err);
+  logError(err, req);
 
-  // Determine status code
-  const status = err.status || err.statusCode || 500;
-  let message = err.message || "Something went wrong";
-
-  // For 500 errors, never expose internal details
-  if (status >= 500) {
-    message = "Something went wrong on our end. Our tech wizards have been alerted and are brewing a fix.";
-  }
-  // For 4xx, we can keep the message as is (they are often user-friendly),
-  // but we can also sanitize if needed. For now we keep them.
+  const status = err.status || err.statusCode || getStatusCode(err) || 500;
+  const message = getSafeErrorMessage(err);
 
   res.status(status).json({ message });
 };

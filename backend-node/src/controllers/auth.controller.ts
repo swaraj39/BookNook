@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
 import { callWorkatoSignupWebhook, callWorkatoForgotPasswordWebhook } from "../utils/workato";
+import { getSafeErrorMessage, getStatusCode, isDatabaseError } from "../utils/app-error";
+import { logError } from "../middleware/error";
 
 export class AuthController {
   static async register(req: Request, res: Response) {
@@ -28,13 +30,19 @@ export class AuthController {
         user: result.user,
       });
     } catch (error: any) {
+      logError(error, req);
       const status =
+        isDatabaseError(error)
+          ? getStatusCode(error)
+          :
         error.message === "An account with this email already exists. Please sign in instead."
           ? 409
           : 400;
 
       res.status(status).json({
-        message: error.message || "Registration failed. Please try again.",
+        message: isDatabaseError(error)
+          ? getSafeErrorMessage(error)
+          : error.message || "Registration failed. Please try again.",
       });
     }
   }
@@ -58,9 +66,11 @@ export class AuthController {
         user: result.user,
       });
     } catch (error: any) {
-      res.status(401).json({
-        message:
-          error.message || "Incorrect email or password.",
+      logError(error, req);
+      res.status(isDatabaseError(error) ? getStatusCode(error) : 401).json({
+        message: isDatabaseError(error)
+          ? getSafeErrorMessage(error)
+          : error.message || "Incorrect email or password.",
       });
     }
   }
@@ -76,7 +86,8 @@ export class AuthController {
       // Always return 200 to avoid leaking whether the email exists
       res.json({ message: "If this email exists, an OTP has been sent." });
     } catch (error: any) {
-      res.status(500).json({ message: "Something went wrong. Please try again." });
+      logError(error, req);
+      res.status(getStatusCode(error)).json({ message: getSafeErrorMessage(error) });
     }
   }
 
@@ -87,7 +98,10 @@ export class AuthController {
       await AuthService.verifyOtp(email, otp);
       res.json({ message: "OTP verified." });
     } catch (error: any) {
-      res.status(400).json({ message: error.message || "Invalid OTP." });
+      logError(error, req);
+      res.status(isDatabaseError(error) ? getStatusCode(error) : 400).json({
+        message: isDatabaseError(error) ? getSafeErrorMessage(error) : error.message || "Invalid OTP.",
+      });
     }
   }
 
@@ -98,7 +112,10 @@ export class AuthController {
       await AuthService.resetPassword(email, otp, password);
       res.json({ message: "Password reset successfully." });
     } catch (error: any) {
-      res.status(400).json({ message: error.message || "Failed to reset password." });
+      logError(error, req);
+      res.status(isDatabaseError(error) ? getStatusCode(error) : 400).json({
+        message: isDatabaseError(error) ? getSafeErrorMessage(error) : error.message || "Failed to reset password.",
+      });
     }
   }
 

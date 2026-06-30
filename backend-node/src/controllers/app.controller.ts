@@ -5,6 +5,7 @@ import { WorkflowService } from "../services/workflow.service";
 import { LookupService } from "../services/lookup.service";
 import prisma from "../config/prisma";
 import { getSafeErrorMessage, getStatusCode } from "../utils/app-error";
+import { logError } from "../middleware/error";
 function paramString(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
   if (!value) throw new Error("Missing required route parameter");
@@ -22,6 +23,7 @@ function queryNumber(value: unknown, fallback: number): number {
 export class AppController {
   private static handleError(res: Response, error: any) {
     console.error("Error in AppController:", error);
+    logError(error, res.req);
     return res.status(getStatusCode(error)).json({
       message: getSafeErrorMessage(error),
     });
