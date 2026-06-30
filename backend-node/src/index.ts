@@ -63,7 +63,7 @@ app.get("/api/health", (req, res) => {
 });
 app.get("/api/quote/today", async (req, res) => {
   try {
-    const response = await fetch("https://zenquotes.io/api/today");
+    const response = await fetch("https://dummyjson.com/quotes/random");
 
     if (!response.ok) {
       return res.status(response.status).json({
