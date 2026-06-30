@@ -145,10 +145,12 @@ export function ForgotPassword({ onBack, darkMode: darkModeProp, setDarkMode: se
                 </button>
                 {step === "email" && (
                     <>
-                        <div className="bn-auth-step-icon">
-                            <Mail size={26} />
+                        <div className="bn-auth-step-header-row">
+                            <div className="bn-auth-step-icon">
+                                <Mail size={22} />
+                            </div>
+                            <h2>Forgot password?</h2>
                         </div>
-                        <h2>Forgot password?</h2>
                         <p className="bn-auth-sub">Enter the email address associated with your account and we'll send you a one-time code.</p>
                         <form onSubmit={handleEmailSubmit} className="bn-auth-form">
                             <label className="bn-auth-field">

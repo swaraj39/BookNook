@@ -3304,6 +3304,7 @@ th:last-child {
   animation: bnCardIn 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   animation-delay: 0.55s;
 }
+
 .bn-auth[data-auth-theme="dark"] .bn-auth-card {
   background: var(--auth-card-dark);
   border-color: var(--auth-line-dark);
@@ -3543,16 +3544,16 @@ th:last-child {
   font-size: 13.5px;
 }
 .bn-auth-step-icon {
-  width: 50px;
-  height: 50px;
-  border-radius: 14px;
-  display: flex;
-  /* flex-direction: row; */
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 14px;
-  color: var(--auth-gold);
-  background: rgba(201, 145, 46, 0.12);
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-bottom: 0 !important;
+  color: var(--auth-gold) !important;
+  background: rgba(201, 145, 46, 0.12) !important;
+  flex-shrink: 0 !important;
 }
 .bn-auth-success {
   background: rgba(92, 138, 92, 0.12);
@@ -4040,3 +4041,9 @@ tbody tr:hover,
   }
 }
 
+.bn-auth-step-header-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  margin-bottom: 16px !important;
+}
