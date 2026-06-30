@@ -2341,7 +2341,8 @@ export function Login({ onLogin }) {
     number: /\d/.test(form.password),
     special: /[!@#$%^&*(),.?":{}|<>]/.test(form.password),
   };
-  const allPasswordRulesValid = Object.values(passwordRules).every(Boolean);
+  const isPasswordValid = Object.values(passwordRules).every(Boolean);
+  const allPasswordRulesValid = isPasswordValid;
   if (showForgotPassword) {
     return <ForgotPassword onBack={() => setShowForgotPassword(false)} />;
   }
