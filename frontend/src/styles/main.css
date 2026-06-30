@@ -3542,6 +3542,7 @@ th:last-child {
   height: 50px;
   border-radius: 14px;
   display: flex;
+  /* flex-direction: row; */
   align-items: center;
   justify-content: center;
   margin-bottom: 14px;
@@ -3898,6 +3899,49 @@ tbody tr:hover,
   .new-stat-card,
   .reading-log-item-strip {
     transition: none !important;
+  }
+}
+
+/* Login/signup scroll containment: keep the scene fixed and scroll only the form side. */
+.bn-auth {
+  height: 100vh;
+  height: 100svh;
+  min-height: 100vh;
+  min-height: 100svh;
+  overflow: hidden;
+}
+
+.bn-auth-image-wrap {
+  height: 100vh;
+  height: 100svh;
+  min-height: 100vh;
+  min-height: 100svh;
+  flex-shrink: 0;
+}
+
+.bn-auth-right {
+  height: 100vh;
+  height: 100svh;
+  min-height: 0;
+  justify-content: flex-start;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.bn-auth-card {
+  flex: 0 0 auto;
+  margin: auto 0;
+}
+
+.bn-theme-toggle {
+  position: fixed;
+  z-index: 4;
+}
+
+@media (max-width: 980px) {
+  .bn-auth-right {
+    width: 100%;
   }
 }
 

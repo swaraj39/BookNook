@@ -214,10 +214,10 @@ export function Login({ onLogin }) {
         </button>
 
         <div className="bn-auth-card">
-          <div className="bn-auth-card-brand">
+          {/* <div className="bn-auth-card-brand">
             <img src={logo} alt="Book Nook logo" />
             <span>Book Nook</span>
-          </div>
+          </div> */}<br></br>
           <h2>{isRegister ? "Create an account" : "Welcome back"}</h2>
           <p className="bn-auth-sub">
             {isRegister
