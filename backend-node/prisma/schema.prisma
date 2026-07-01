@@ -30,7 +30,6 @@ model User {
   password        String?  @db.VarChar(255)
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
-
   ownedBooks      Book[]          @relation("BookOwner")
   transactions     BookTransaction[] @relation("Requester")
   ownedTransactions BookTransaction[] @relation("RequestOwner")
