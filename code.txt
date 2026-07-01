@@ -28,12 +28,16 @@
   src/pages/Catalog.jsx
   src/pages/Dashboard.jsx
   src/pages/Details.jsx
+  src/pages/ForgotPassword.jsx
   src/pages/Home.jsx
   src/pages/LoanHistory.jsx
   src/pages/Login.jsx
   src/pages/MyBooks.jsx
   src/pages/Requests.jsx
   src/styles/blue_altair_logo-removebg-preview.png
+  src/styles/images/Animated Shape - Dark.svg
+  src/styles/images/Animated Shape - Light.svg
+  src/styles/images/pexels-tima-miroshnichenko-9572505.jpg
   src/styles/main.css
   src/utils/helpers.js
 
@@ -115,6 +119,7 @@ CMD ["nginx", "-g", "daemon off;"]
     <meta charset="UTF-8" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@500;700&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
     <title>Book Nook</title>
   </head>
   <body>
@@ -125,7 +130,7 @@ CMD ["nginx", "-g", "daemon off;"]
 </file>
 
 <file path="src/api/index.js">
-const API_URL = "http://localhost:8080/api";
+const API_URL = "https://booknook-gfb8.onrender.com/api";
 async function request(path, options = {}) {
   const token = localStorage.getItem("bn_token");
   const headers = {
@@ -219,6 +224,21 @@ export const api = {
     request(`/loans/${id}/return`, {
       method: "POST",
     }),
+  forgotPasswordRequest: (email) =>
+    request("/auth/forgot-password/request", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+  forgotPasswordVerifyOtp: (email, otp) =>
+    request("/auth/forgot-password/verify-otp", {
+      method: "POST",
+      body: JSON.stringify({ email, otp }),
+    }),
+  forgotPasswordReset: (email, otp, password) =>
+    request("/auth/forgot-password/reset", {
+      method: "POST",
+      body: JSON.stringify({ email, otp, password }),
+    }),
   exportBooks: async () => {
     const token = localStorage.getItem("bn_token");
     const response = await fetch(`${API_URL}/all/books`, {
@@ -249,7 +269,7 @@ export const api = {
 </file>
 
 <file path="src/App.jsx">
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   BookOpen,
   CheckSquare,
@@ -267,6 +287,8 @@ import {
   Globe,
   User as UserIcon,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Info
 } from "lucide-react";
 import { api } from "./api";
@@ -490,7 +512,29 @@ export default function App() {
   const [dailyThought, setDailyThought] = useState(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
-  const [confirm, setConfirm] = useState(null); // { message, onConfirm }
+  const navRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const checkNavScroll = useCallback(() => {
+    const el = navRef.current;
+    if (el) {
+      setCanScrollLeft(el.scrollLeft > 4);
+      setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4);
+    }
+  }, []);
+  const scrollNav = useCallback((dir) => {
+    const el = navRef.current;
+    if (el) el.scrollBy({ left: dir * 200, behavior: "smooth" });
+  }, []);
+  useEffect(() => {
+    checkNavScroll();
+    const el = navRef.current;
+    if (el) {
+      el.addEventListener("scroll", checkNavScroll);
+      return () => el.removeEventListener("scroll", checkNavScroll);
+    }
+  }, [view, stats, checkNavScroll]);
+  const [confirm, setConfirm] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const API_URL = import.meta.env.VITE_API_URL;
   useEffect(() => {
@@ -498,7 +542,7 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-    fetch(`http://localhost:8080/api/quote/today`)
+    fetch("https://booknook-gfb8.onrender.com/api/quote/today")
       .then((response) => response.ok ? response.json() : null)
       .then((quote) => {
         if (quote) setDailyThought(quote);
@@ -596,8 +640,7 @@ export default function App() {
   async function handleLogout() {
     setShowProfileDropdown(false);
     try {
-      // await fetch("https:
-      await fetch("http://localhost:8080/api/auth/logout", {
+      await fetch("https:
         method: "POST",
         credentials: "include",
       });
@@ -779,12 +822,6 @@ const navSections = [
       ["borrowed", "Currently Reading", BookOpenText],
       ["history", "History", History]
     ]
-  },
-  {
-    label: "Overview",
-    items: [
-      ["home", "About", Info]
-    ]
   }
 ];
 if (authChecking) {
@@ -808,22 +845,30 @@ return (
           <p>BA Reading Community</p>
         </div>
       </button>
-      <nav className="nav">
-        {navSections.map((section) => (
-          <div key={section.label} className="nav-section">
-            <div className="nav-label">{section.label}</div>
-            {section.items.map(([id, label, Icon, badge]) => (
-              <button key={id} className={`nav-item ${view === id ? "active" : ""}`} onClick={() => navigateTo(id)}>
-                <div className="nav-item-content">
-                  <Icon size={18} />
-                  <span>{label}</span>
-                </div>
-                {badge > 0 && <span className="nav-badge">{badge}</span>}
-              </button>
-            ))}
-          </div>
-        ))}
-      </nav>
+      <div className="nav-scroll-wrap">
+        <button className={`nav-scroll-btn left ${canScrollLeft ? "" : "hidden"}`} onClick={() => scrollNav(-1)} aria-label="Scroll left">
+          <ChevronLeft size={18} />
+        </button>
+        <nav className="nav" ref={navRef} onScroll={checkNavScroll}>
+          {navSections.map((section) => (
+            <div key={section.label} className="nav-section">
+              <div className="nav-label">{section.label}</div>
+              {section.items.map(([id, label, Icon, badge]) => (
+                <button key={id} className={`nav-item ${view === id ? "active" : ""}`} onClick={() => navigateTo(id)}>
+                  <div className="nav-item-content">
+                    <Icon size={18} />
+                    <span>{label}</span>
+                  </div>
+                  {badge > 0 && <span className="nav-badge">{badge}</span>}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <button className={`nav-scroll-btn right ${canScrollRight ? "" : "hidden"}`} onClick={() => scrollNav(1)} aria-label="Scroll right">
+          <ChevronRight size={18} />
+        </button>
+      </div>
       <div className="top-nav-actions">
         <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
           {darkMode ? <Sun size={18} /> : <Moon size={18} />}
@@ -1644,7 +1689,7 @@ import { label, dateText } from "../utils/helpers";
 import { BookOpen, Calendar, Milestone, Sparkles, Tv } from "lucide-react";
 export function Dashboard({ stats, me, dailyThought, openDetails }) {
   const videoLinks = [
-    "https://www.youtube.com/embed/UKPkqrkgKmw?si=tQzi9y04wYKgGM23"
+    "https://www.youtube.com/embed/AUw7laSlcbo?si=0lZXz_XqWHQrkd6x"
   ];
   const getSelectedVideo = () => {
     if (!me?.id) return videoLinks[0];
@@ -1890,6 +1935,327 @@ export function Details({
 }
 </file>
 
+<file path="src/pages/ForgotPassword.jsx">
+import React, { useState, useEffect } from "react";
+import { Eye, EyeOff, ArrowLeft, Mail, KeyRound, Lock, Moon, Sun } from "lucide-react";
+import { api } from "../api";
+const passwordRules = (password) => ({
+    minLength: password.length >= 8,
+    lowercase: /[a-z]/.test(password),
+    uppercase: /[A-Z]/.test(password),
+    number: /\d/.test(password),
+    special: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+});
+const OTP_EXPIRY_SECONDS = 90;   // 1:30 min
+const RESEND_COOLDOWN_SECONDS = 60; // 1 min
+export function ForgotPassword({ onBack, darkMode: darkModeProp, setDarkMode: setDarkModeProp }) {
+    // Works standalone (own theme state) or controlled by a parent (Login passes both props down).
+    const [localDarkMode, setLocalDarkMode] = useState(
+        () => localStorage.getItem("bn_theme") === "dark"
+    );
+    const darkMode = darkModeProp !== undefined ? darkModeProp : localDarkMode;
+    const setDarkMode = setDarkModeProp || setLocalDarkMode;
+    useEffect(() => {
+        if (setDarkModeProp) return;
+        localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
+        document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
+    }, [darkMode, setDarkModeProp]);
+    const [step, setStep] = useState("email");
+    const [email, setEmail] = useState("");
+    const [otp, setOtp] = useState("");
+    const [password, setPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
+    // OTP expiry countdown (90s)
+    const [otpSecondsLeft, setOtpSecondsLeft] = useState(OTP_EXPIRY_SECONDS);
+    // Resend cooldown (60s)
+    const [resendSecondsLeft, setResendSecondsLeft] = useState(RESEND_COOLDOWN_SECONDS);
+    useEffect(() => {
+        if (step !== "otp") return;
+        setOtpSecondsLeft(OTP_EXPIRY_SECONDS);
+        setResendSecondsLeft(RESEND_COOLDOWN_SECONDS);
+        const otpTimer = setInterval(() => {
+            setOtpSecondsLeft((s) => {
+                if (s <= 1) { clearInterval(otpTimer); return 0; }
+                return s - 1;
+            });
+        }, 1000);
+        const resendTimer = setInterval(() => {
+            setResendSecondsLeft((s) => {
+                if (s <= 1) { clearInterval(resendTimer); return 0; }
+                return s - 1;
+            });
+        }, 1000);
+        return () => { clearInterval(otpTimer); clearInterval(resendTimer); };
+    }, [step]);
+    const rules = passwordRules(password);
+    const isPasswordValid = Object.values(rules).every(Boolean);
+    const formatTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    async function handleEmailSubmit(e) {
+        e.preventDefault();
+        if (!email.trim()) { setError("Please enter your email."); return; }
+        setLoading(true); setError("");
+        try {
+            await api.forgotPasswordRequest(email.trim());
+            setStep("otp");
+        } catch (err) {
+            setError(err.message || "Something went wrong. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    }
+    async function handleResendOtp() {
+        if (resendSecondsLeft > 0) return;
+        setLoading(true); setError(""); setSuccess("");
+        try {
+            await api.forgotPasswordRequest(email.trim());
+            setOtpSecondsLeft(OTP_EXPIRY_SECONDS);
+            setResendSecondsLeft(RESEND_COOLDOWN_SECONDS);
+            setOtp("");
+            setSuccess("A new OTP has been sent to your email.");
+        } catch (err) {
+            setError(err.message || "Failed to resend OTP.");
+        } finally {
+            setLoading(false);
+        }
+    }
+    async function handleOtpSubmit(e) {
+        e.preventDefault();
+        if (!otp.trim()) { setError("Please enter the OTP."); return; }
+        if (otpSecondsLeft === 0) { setError("OTP has expired. Please request a new one."); return; }
+        setLoading(true); setError("");
+        try {
+            await api.forgotPasswordVerifyOtp(email.trim(), otp.trim());
+            setStep("reset");
+        } catch (err) {
+            setError(err.message || "Invalid or expired OTP.");
+        } finally {
+            setLoading(false);
+        }
+    }
+    async function handleResetSubmit(e) {
+        e.preventDefault();
+        if (!isPasswordValid) {
+            setError("Password does not meet the required criteria.");
+            return;
+        }
+        if (password !== confirmPassword) {
+            setError("Passwords do not match.");
+            return;
+        }
+        setLoading(true); setError("");
+        try {
+            await api.forgotPasswordReset(email.trim(), otp.trim(), password);
+            setSuccess("Password reset successfully! You can now sign in.");
+            setTimeout(() => onBack(), 2000);
+        } catch (err) {
+            setError(err.message || "Failed to reset password.");
+        } finally {
+            setLoading(false);
+        }
+    }
+    return (
+        <div className="bn-auth bn-auth-centered" data-auth-theme={darkMode ? "dark" : "light"}>
+            <div className="bn-auth-bg" aria-hidden="true">
+                <div className={`bn-auth-bg-layer ${!darkMode ? "active" : ""}`} />
+                <div className={`bn-auth-bg-layer ${darkMode ? "active" : ""}`} />
+            </div>
+            <button
+                type="button"
+                className="bn-theme-toggle"
+                onClick={() => setDarkMode((v) => !v)}
+                aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+                title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+            >
+                <span className="bn-icon-spin" key={darkMode ? "sun" : "moon"}>
+                    {darkMode ? <Sun size={19} /> : <Moon size={19} />}
+                </span>
+            </button>
+            <div className="bn-auth-card bn-auth-card-standalone">
+                <button className="bn-auth-link bn-auth-back-btn" onClick={onBack}>
+                    <ArrowLeft size={15} /> Back to sign in
+                </button>
+                {step === "email" && (
+                    <>
+                        <div className="bn-auth-step-icon">
+                            <Mail size={26} />
+                        </div>
+                        <h2>Forgot password?</h2>
+                        <p className="bn-auth-sub">Enter the email address associated with your account and we'll send you a one-time code.</p>
+                        <form onSubmit={handleEmailSubmit} className="bn-auth-form">
+                            <label className="bn-auth-field">
+                                <span className="bn-auth-label">Email address</span>
+                                <input
+                                    type="email"
+                                    className="bn-auth-input"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    required
+                                    placeholder="Enter your email"
+                                    maxLength={100}
+                                    autoFocus
+                                />
+                            </label>
+                            {error && <div className="bn-auth-error">{error}</div>}
+                            <button type="submit" className="bn-auth-submit" disabled={loading}>
+                                {loading ? "Sending OTP..." : "Send OTP"}
+                            </button>
+                        </form>
+                    </>
+                )}
+                {step === "otp" && (
+                    <>
+                        <div className="bn-auth-step-icon">
+                            <KeyRound size={26} />
+                        </div>
+                        <h2>Enter OTP</h2>
+                        <p className="bn-auth-sub">We sent a 6-digit code to <strong>{email}</strong>. It expires in <strong style={{ color: otpSecondsLeft <= 20 ? "#B6452F" : "var(--auth-gold)" }}>{formatTime(otpSecondsLeft)}</strong>.</p>
+                        <form onSubmit={handleOtpSubmit} className="bn-auth-form">
+                            <div className="bn-auth-field">
+                                <span className="bn-auth-label" style={{ marginBottom: 8 }}>One-time code</span>
+                                <div className="otp-boxes-container">
+                                    {Array.from({ length: 6 }).map((_, index) => (
+                                        <input
+                                            key={index}
+                                            id={`otp-box-${index}`}
+                                            type="text"
+                                            inputMode="numeric"
+                                            pattern="\d*"
+                                            maxLength={1}
+                                            className="bn-auth-input otp-box-input"
+                                            value={otp[index] || ""}
+                                            autoFocus={index === 0}
+                                            onChange={(e) => {
+                                                const val = e.target.value.replace(/\D/g, "");
+                                                if (!val) {
+                                                    const otpArray = otp.split("");
+                                                    otpArray[index] = "";
+                                                    setOtp(otpArray.join(""));
+                                                    return;
+                                                }
+                                                const otpArray = otp.split("");
+                                                otpArray[index] = val.slice(-1);
+                                                setOtp(otpArray.join(""));
+                                                if (index < 5) {
+                                                    const nextInput = document.getElementById(`otp-box-${index + 1}`);
+                                                    nextInput?.focus();
+                                                }
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Backspace") {
+                                                    if (!otp[index] && index > 0) {
+                                                        const otpArray = otp.split("");
+                                                        otpArray[index - 1] = "";
+                                                        setOtp(otpArray.join(""));
+                                                        const prevInput = document.getElementById(`otp-box-${index - 1}`);
+                                                        prevInput?.focus();
+                                                        e.preventDefault();
+                                                    }
+                                                }
+                                            }}
+                                            onPaste={(e) => {
+                                                e.preventDefault();
+                                                const pastedData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+                                                setOtp(pastedData);
+                                                const targetIndex = Math.min(pastedData.length, 5);
+                                                const targetInput = document.getElementById(`otp-box-${targetIndex}`);
+                                                targetInput?.focus();
+                                            }}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                            {error && <div className="bn-auth-error">{error}</div>}
+                            {success && <div className="bn-auth-error bn-auth-success">{success}</div>}
+                            <button type="submit" className="bn-auth-submit" disabled={loading || otp.length !== 6 || otpSecondsLeft === 0}>
+                                {loading ? "Verifying..." : "Verify OTP"}
+                            </button>
+                        </form>
+                        <div className="bn-auth-switch">
+                            <button
+                                className="bn-auth-link"
+                                onClick={handleResendOtp}
+                                disabled={resendSecondsLeft > 0 || loading}
+                                style={{ opacity: resendSecondsLeft > 0 ? 0.5 : 1, cursor: resendSecondsLeft > 0 ? "default" : "pointer" }}
+                            >
+                                {resendSecondsLeft > 0 ? `Resend OTP in ${formatTime(resendSecondsLeft)}` : "Resend OTP"}
+                            </button>
+                        </div>
+                    </>
+                )}
+                {step === "reset" && (
+                    <>
+                        <div className="bn-auth-step-icon">
+                            <Lock size={26} />
+                        </div>
+                        <h2>Set new password</h2>
+                        <p className="bn-auth-sub">Choose a strong new password for your account.</p>
+                        <form onSubmit={handleResetSubmit} className="bn-auth-form">
+                            <label className="bn-auth-field">
+                                <span className="bn-auth-label">New password</span>
+                                <div className="bn-auth-password-wrap">
+                                    <input
+                                        type={showPassword ? "text" : "password"}
+                                        className="bn-auth-input"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        required
+                                        placeholder="New password"
+                                        maxLength={72}
+                                        autoFocus
+                                    />
+                                    <button type="button" className="bn-auth-pw-toggle" onClick={() => setShowPassword((v) => !v)} tabIndex={-1}>
+                                        {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                                    </button>
+                                </div>
+                                {!isPasswordValid && (
+                                    <div className="bn-auth-rules">
+                                        <small>Password must contain:</small>
+                                        <ul>
+                                            <li className={rules.lowercase ? "valid" : ""}>Lowercase letter</li>
+                                            <li className={rules.uppercase ? "valid" : ""}>Uppercase letter</li>
+                                            <li className={rules.number ? "valid" : ""}>Number</li>
+                                            <li className={rules.special ? "valid" : ""}>Special character</li>
+                                            <li className={rules.minLength ? "valid" : ""}>Minimum 8 characters</li>
+                                        </ul>
+                                    </div>
+                                )}
+                            </label>
+                            <label className="bn-auth-field">
+                                <span className="bn-auth-label">Confirm new password</span>
+                                <div className="bn-auth-password-wrap">
+                                    <input
+                                        type={showConfirm ? "text" : "password"}
+                                        className="bn-auth-input"
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        required
+                                        placeholder="Confirm new password"
+                                        maxLength={72}
+                                    />
+                                    <button type="button" className="bn-auth-pw-toggle" onClick={() => setShowConfirm((v) => !v)} tabIndex={-1}>
+                                        {showConfirm ? <EyeOff size={17} /> : <Eye size={17} />}
+                                    </button>
+                                </div>
+                            </label>
+                            {error && <div className="bn-auth-error">{error}</div>}
+                            {success && <div className="bn-auth-error bn-auth-success">{success}</div>}
+                            <button type="submit" className="bn-auth-submit" disabled={loading}>
+                                {loading ? "Resetting..." : "Reset password"}
+                            </button>
+                        </form>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}
+</file>
+
 <file path="src/pages/Home.jsx">
 import React from "react";
 import { BookOpen, Plus, ArrowRight } from "lucide-react";
@@ -2020,11 +2386,64 @@ export function LoanHistory({ page, onPageChange }) {
 </file>
 
 <file path="src/pages/Login.jsx">
-import React, { useState } from "react";
-import { LogIn, UserPlus, Eye, EyeOff } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { LogIn, UserPlus, Eye, EyeOff, Moon, Sun } from "lucide-react";
 import { api } from "../api";
 import logo from "../styles/blue_altair_logo-removebg-preview.png";
+import { ForgotPassword } from "./ForgotPassword";
+import authImagePlaceholder from "../styles/images/pexels-tima-miroshnichenko-9572505.jpg";
+function AuthBackgroundLight() {
+  return (
+    <svg viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <radialGradient id="bnLightGlow" cx="70%" cy="20%" r="70%">
+          <stop offset="0%" stopColor="#F3E3BE" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#FBF6EC" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <rect width="1200" height="800" fill="#FBF6EC" />
+      <circle cx="860" cy="160" r="260" fill="url(#bnLightGlow)">
+        <animate attributeName="r" values="260;300;260" dur="8s" repeatCount="indefinite" />
+      </circle>
+    </svg>
+  );
+}
+function AuthBackgroundDark() {
+  return (
+    <svg viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <radialGradient id="bnDarkGlow" cx="75%" cy="15%" r="65%">
+          <stop offset="0%" stopColor="#3A2E14" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#14181F" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <rect width="1200" height="800" fill="#14181F" />
+      <circle cx="880" cy="150" r="240" fill="url(#bnDarkGlow)">
+        <animate attributeName="r" values="240;280;240" dur="9s" repeatCount="indefinite" />
+      </circle>
+      {[...Array(18)].map((_, i) => (
+        <circle
+          key={i}
+          cx={60 + ((i * 67) % 1140)}
+          cy={40 + ((i * 113) % 760)}
+          r={Math.random() * 1.4 + 0.4}
+          fill="#EDE6D8"
+          opacity="0.5"
+        >
+          <animate
+            attributeName="opacity"
+            values="0.1;0.6;0.1"
+            dur={`${3 + (i % 5)}s`}
+            begin={`${i * 0.3}s`}
+            repeatCount="indefinite"
+          />
+        </circle>
+      ))}
+    </svg>
+  );
+}
 export function Login({ onLogin }) {
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [isRegister, setIsRegister] = useState(false);
   const [form, setForm] = useState({
     email: "",
@@ -2035,6 +2454,13 @@ export function Login({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [darkMode, setDarkMode] = useState(
+    () => localStorage.getItem("bn_theme") === "dark"
+  );
+  useEffect(() => {
+    localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
+  }, [darkMode]);
   const passwordRules = {
     minLength: form.password.length >= 8,
     lowercase: /[a-z]/.test(form.password),
@@ -2042,12 +2468,17 @@ export function Login({ onLogin }) {
     number: /\d/.test(form.password),
     special: /[!@#$%^&*(),.?":{}|<>]/.test(form.password),
   };
-  const isPasswordValid =
-    passwordRules.minLength &&
-    passwordRules.lowercase &&
-    passwordRules.uppercase &&
-    passwordRules.number &&
-    passwordRules.special;
+  const isPasswordValid = Object.values(passwordRules).every(Boolean);
+  const allPasswordRulesValid = isPasswordValid;
+  if (showForgotPassword) {
+    return (
+      <ForgotPassword
+        onBack={() => setShowForgotPassword(false)}
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
+      />
+    );
+  }
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.email.trim() || !form.password) {
@@ -2075,10 +2506,7 @@ export function Login({ onLogin }) {
           fullName: form.fullName.trim(),
         });
       } else {
-        result = await api.login(
-          form.email.trim(),
-          form.password
-        );
+        result = await api.login(form.email.trim(), form.password);
       }
       onLogin(null, result.user);
     } catch (err) {
@@ -2102,9 +2530,7 @@ export function Login({ onLogin }) {
           );
           break;
         default:
-          setError(
-            err.message || "Something went wrong. Please try again."
-          );
+          setError(err.message || "Something went wrong. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -2112,124 +2538,180 @@ export function Login({ onLogin }) {
   }
   const updateForm = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
-  const allPasswordRulesValid = Object.values(passwordRules).every(Boolean);
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <div className="brand-large">
-          <img className="brand-mark" src={logo} alt="Book Nook Logo" />
-          <h1>Book Nook</h1>
+    <div className="bn-auth" data-auth-theme={darkMode ? "dark" : "light"}>
+      {}
+      <div className="bn-auth-bg" aria-hidden="true">
+        <div className={`bn-auth-bg-layer ${!darkMode ? "active" : ""}`}>
+          <AuthBackgroundLight />
         </div>
-        <h2>{isRegister ? "Create an account" : "Sign in to your account"}</h2>
-        <p>
-          {isRegister
-            ? "Join the community library today."
-            : "Enter your credentials to access the community library."}
-        </p>
-        <form onSubmit={handleSubmit} className="form-grid">
-          {isRegister && (
-            <>
-              <label className="field full">
-                <span>Full Name</span>
-                <input
-                  type="text"
-                  className="input"
-                  value={form.fullName}
-                  onChange={(e) => updateForm("fullName", e.target.value)}
-                  required
-                  placeholder="Enter your name"
-                  maxLength={60}
-                />
-              </label>
-              <label className="field full">
-                <span>Capability</span>
-                <select
-                  className="select"
-                  value={form.team}
-                  onChange={(e) => updateForm("team", e.target.value)}
-                  required
-                >
-                  <option value="APIM">APIM</option>
-                  <option value="DAD">DAD</option>
-                  <option value="DM">DM</option>
-                  <option value="AI">AI</option>
-                  <option value="SF">SF</option>
-                  <option value="CS">CS</option>
-                </select>
-              </label>
-            </>
-          )}
-          <label className="field full">
-            <span>Email address</span>
-            <input
-              type="email"
-              className="input"
-              value={form.email}
-              onChange={(e) => updateForm("email", e.target.value)}
-              required
-              placeholder="Email"
-              maxLength={100}
-            />
-          </label>
-          <label className="field full">
-            <span>Password</span>
-            <div className="password-input-wrap">
+        <div className={`bn-auth-bg-layer ${darkMode ? "active" : ""}`}>
+          <AuthBackgroundDark />
+        </div>
+      </div>
+      {}
+      <div
+        className="bn-auth-image-wrap"
+        style={{ "--bn-auth-image": `url(${authImagePlaceholder})` }}
+      >
+        <div className="bn-auth-image-bg" />
+        <div className="bn-auth-image-vignette" />
+        <div className="bn-auth-image-fade" />
+        <div className="bn-auth-image-copy">
+          <div className="bn-auth-brand-inline">
+            <img src={logo} alt="Logo" />
+            <h1>Book Nook</h1>
+          </div>
+          <p>
+            A quiet shelf for the books your neighbours have already loved —
+            borrow, lend, and keep the story moving.
+          </p>
+        </div>
+      </div>
+      {}
+      <div className="bn-auth-right">
+        <button
+          type="button"
+          className="bn-theme-toggle"
+          onClick={() => setDarkMode((v) => !v)}
+          aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+          title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          <span className="bn-icon-spin" key={darkMode ? "sun" : "moon"}>
+            {darkMode ? <Sun size={19} /> : <Moon size={19} />}
+          </span>
+        </button>
+        <div className="bn-auth-card">
+          <div className="bn-auth-card-brand">
+            <img src={logo} alt="Book Nook logo" />
+            <span>Book Nook</span>
+          </div>
+          <h2>{isRegister ? "Create an account" : "Welcome back"}</h2>
+          <p className="bn-auth-sub">
+            {isRegister
+              ? "Join the community library today."
+              : "Sign in to pick up where you left off."}
+          </p>
+          <form onSubmit={handleSubmit} className="bn-auth-form">
+            {isRegister && (
+              <>
+                <label className="bn-auth-field">
+                  <span className="bn-auth-label">Full name</span>
+                  <input
+                    type="text"
+                    className="bn-auth-input"
+                    value={form.fullName}
+                    onChange={(e) => updateForm("fullName", e.target.value)}
+                    required
+                    placeholder="Enter your name"
+                    maxLength={60}
+                  />
+                </label>
+                <label className="bn-auth-field">
+                  <span className="bn-auth-label">Capability</span>
+                  <select
+                    className="bn-auth-select"
+                    value={form.team}
+                    onChange={(e) => updateForm("team", e.target.value)}
+                    required
+                  >
+                    <option value="APIM">APIM</option>
+                    <option value="DAD">DAD</option>
+                    <option value="DM">DM</option>
+                    <option value="AI">AI</option>
+                    <option value="SF">SF</option>
+                    <option value="CS">CS</option>
+                  </select>
+                </label>
+              </>
+            )}
+            <label className="bn-auth-field">
+              <span className="bn-auth-label">Email address</span>
               <input
-                type={showPassword ? "text" : "password"}
-                className="input"
-                value={form.password}
-                onChange={(e) => updateForm("password", e.target.value)}
+                type="email"
+                className="bn-auth-input"
+                value={form.email}
+                onChange={(e) => updateForm("email", e.target.value)}
                 required
-                placeholder="Password"
-                maxLength={72}
+                placeholder="you@example.com"
+                maxLength={100}
               />
-              <button
-                type="button"
-                className="password-toggle-btn"
-                onClick={() => setShowPassword((v) => !v)}
-                tabIndex={-1}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-              </button>
-            </div>
-            {isRegister && !allPasswordRulesValid && (
-              <div className="password-rules">
-                <small>Password must contain:</small>
-                <ul>
-                  <li className={passwordRules.lowercase ? "valid" : ""}>Lowercase letter</li>
-                  <li className={passwordRules.uppercase ? "valid" : ""}>Uppercase letter</li>
-                  <li className={passwordRules.number ? "valid" : ""}>Number</li>
-                  <li className={passwordRules.special ? "valid" : ""}>Special character</li>
-                  <li className={passwordRules.minLength ? "valid" : ""}>Minimum 8 characters</li>
-                </ul>
+            </label>
+            <label className="bn-auth-field">
+              <span className="bn-auth-label">Password</span>
+              <div className="bn-auth-password-wrap">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  className="bn-auth-input"
+                  value={form.password}
+                  onChange={(e) => updateForm("password", e.target.value)}
+                  required
+                  placeholder="Password"
+                  maxLength={72}
+                />
+                <button
+                  type="button"
+                  className="bn-auth-pw-toggle"
+                  onClick={() => setShowPassword((v) => !v)}
+                  tabIndex={-1}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
+              {isRegister && !allPasswordRulesValid && (
+                <div className="bn-auth-rules">
+                  <small>Password must contain:</small>
+                  <ul>
+                    <li className={passwordRules.lowercase ? "valid" : ""}>Lowercase letter</li>
+                    <li className={passwordRules.uppercase ? "valid" : ""}>Uppercase letter</li>
+                    <li className={passwordRules.number ? "valid" : ""}>Number</li>
+                    <li className={passwordRules.special ? "valid" : ""}>Special character</li>
+                    <li className={passwordRules.minLength ? "valid" : ""}>Minimum 8 characters</li>
+                  </ul>
+                </div>
+              )}
+            </label>
+            {!isRegister && (
+              <div className="bn-auth-forgot">
+                <button
+                  type="button"
+                  className="bn-auth-link"
+                  onClick={() => {
+                    setError("");
+                    setShowForgotPassword(true);
+                  }}
+                >
+                  Forgot your password?
+                </button>
               </div>
             )}
-          </label>
-          {error && <div className="error-box">{error}</div>}
-          <button type="submit" className="btn primary full" disabled={loading}>
-            {loading ? (
-              isRegister ? "Creating account..." : "Signing in..."
-            ) : isRegister ? (
-              <><UserPlus size={18} /> Create Account</>
-            ) : (
-              <><LogIn size={18} /> Sign In</>
-            )}
-          </button>
-        </form>
-        <div className="login-toggle">
-          <button
-            className="btn-link"
-            onClick={() => {
-              setIsRegister(!isRegister);
-              setError("");
-              setShowPassword(false);
-            }}
-          >
-            {isRegister
-              ? "Already have an account? Sign in"
-              : "Don't have an account? Sign up"}
-          </button>
+            {error && <div className="bn-auth-error">{error}</div>}
+            <button type="submit" className="bn-auth-submit" disabled={loading}>
+              {loading ? (
+                isRegister ? "Creating account..." : "Signing in..."
+              ) : isRegister ? (
+                <><UserPlus size={18} /> Create account</>
+              ) : (
+                <><LogIn size={18} /> Sign in</>
+              )}
+            </button>
+          </form>
+          <div className="bn-auth-switch">
+            <button
+              type="button"
+              className="bn-auth-link"
+              onClick={() => {
+                setIsRegister(!isRegister);
+                setError("");
+                setShowPassword(false);
+              }}
+            >
+              {isRegister
+                ? "Already have an account? Sign in"
+                : "Don't have an account? Sign up"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -2519,11 +3001,80 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails 
 }
 </file>
 
+<file path="src/styles/images/Animated Shape - Dark.svg">
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:svgjs="http://svgjs.dev/svgjs" width="1920" height="1080" preserveAspectRatio="none" viewBox="0 0 1920 1080"><g mask="url(&quot;#SvgjsMask1017&quot;)" fill="none"><rect width="1920" height="1080" x="0" y="0" fill="rgba(26, 30, 92, 1)"></rect><path d="M-84.31973948238706 398.41041347035184L82.36808380415579 449.37199527460734 133.3296656084113 282.68417198806446-33.35815767813156 231.722590183809z" fill="rgba(52, 58, 137, 1)" class="triangle-float3"></path><path d="M206.8324230190016 56.106790474098446L296.74279790071364 205.742782640175 356.46841518507813-33.80358440761357z" fill="rgba(52, 58, 137, 1)" class="triangle-float3"></path><path d="M1793.094,803.819C1860.43,800.365,1928.594,779.165,1962.668,720.983C1997.059,662.26,1984.093,591.29,1953.017,530.748C1918.328,463.167,1869.055,391.244,1793.094,390.624C1716.503,389.999,1667.009,461.841,1628.585,528.1C1589.983,594.666,1551.018,673.997,1590.445,740.078C1629.333,805.254,1717.298,807.707,1793.094,803.819" fill="rgba(52, 58, 137, 1)" class="triangle-float2"></path><path d="M1145.872,1046.097C1224.171,1046.915,1310.1,1039.185,1352.658,973.457C1398.128,903.23,1387.45,811.186,1344.435,739.429C1302.655,669.733,1227.126,629.363,1145.872,628.501C1063.005,627.622,981.738,663.616,939.874,735.136C897.612,807.336,900.235,899.467,946.438,969.212C988.61,1032.873,1069.514,1045.299,1145.872,1046.097" fill="rgba(52, 58, 137, 1)" class="triangle-float3"></path><path d="M1181.8558001338615 491.56927905441313L1231.5519493098725 318.2582106147198 1058.2408808701791 268.56206143870884 1008.5447316941681 441.87312987840215z" fill="rgba(52, 58, 137, 1)" class="triangle-float1"></path><path d="M295.0035524734916 111.50589067074554L33.28327384809063 106.93754621430799 28.714929391653072 368.65782483970895 290.43520801705404 373.2261692961465z" fill="rgba(52, 58, 137, 1)" class="triangle-float3"></path></g><defs><mask id="SvgjsMask1017"><rect width="1920" height="1080" fill="#ffffff"></rect></mask><style>
+                @keyframes float1 {
+                    0%{transform: translate(0, 0)}
+                    50%{transform: translate(-10px, 0)}
+                    100%{transform: translate(0, 0)}
+                }
+
+                .triangle-float1 {
+                    animation: float1 5s infinite;
+                }
+
+                @keyframes float2 {
+                    0%{transform: translate(0, 0)}
+                    50%{transform: translate(-5px, -5px)}
+                    100%{transform: translate(0, 0)}
+                }
+
+                .triangle-float2 {
+                    animation: float2 4s infinite;
+                }
+
+                @keyframes float3 {
+                    0%{transform: translate(0, 0)}
+                    50%{transform: translate(0, -10px)}
+                    100%{transform: translate(0, 0)}
+                }
+
+                .triangle-float3 {
+                    animation: float3 6s infinite;
+                }
+            </style></defs></svg>
+</file>
+
+<file path="src/styles/images/Animated Shape - Light.svg">
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:svgjs="http://svgjs.dev/svgjs" width="1920" height="1080" preserveAspectRatio="none" viewBox="0 0 1920 1080"><g mask="url(&quot;#SvgjsMask1009&quot;)" fill="none"><rect width="1920" height="1080" x="0" y="0" fill="rgba(250, 247, 245, 1)"></rect><path d="M2035.3750790862205 41.46957613399184L1906.8586579843318-74.24712918483303 1791.1419526655068 54.2692919170557 1919.6583737673957 169.98599723588057z" fill="rgba(245, 230, 220, 1)" class="triangle-float3"></path><path d="M991.3412938933286 79.57777945790295L1172.9317376965437 267.62018871081483 1360.9741469494556 86.02974490759982 1179.3837031462406-102.01266434531206z" fill="rgba(245, 230, 220, 1)" class="triangle-float1"></path><path d="M1323.254,557.151C1385.374,558.629,1449.192,536.886,1480.749,483.357C1512.723,429.121,1505.066,360.033,1470.471,307.431C1438.993,259.568,1380.508,245.821,1323.254,243.883C1261.191,241.782,1190.591,244.17,1157.702,296.845C1123.552,351.54,1143.622,421.749,1178.226,476.158C1210.074,526.234,1263.925,555.739,1323.254,557.151" fill="rgba(245, 230, 220, 1)" class="triangle-float1"></path><path d="M72.02478952693033 1028.9493704345355L228.2917065192511 927.6800492505254 84.56693028755998 851.2602301646996z" fill="rgba(245, 230, 220, 1)" class="triangle-float2"></path><path d="M2104.090081858982 682.226581482079L1897.3822361548923 468.17434115715037 1683.3299958299638 674.88218686124 1890.0378415340533 888.9344271861687z" fill="rgba(245, 230, 220, 1)" class="triangle-float1"></path><path d="M1413.9169093178225 49.164593732860396L1584.872589439276 148.08325387189046 1587.8858523241443-24.546461185601004z" fill="rgba(245, 230, 220, 1)" class="triangle-float1"></path></g><defs><mask id="SvgjsMask1009"><rect width="1920" height="1080" fill="#ffffff"></rect></mask><style>
+                @keyframes float1 {
+                    0%{transform: translate(0, 0)}
+                    50%{transform: translate(-10px, 0)}
+                    100%{transform: translate(0, 0)}
+                }
+
+                .triangle-float1 {
+                    animation: float1 5s infinite;
+                }
+
+                @keyframes float2 {
+                    0%{transform: translate(0, 0)}
+                    50%{transform: translate(-5px, -5px)}
+                    100%{transform: translate(0, 0)}
+                }
+
+                .triangle-float2 {
+                    animation: float2 4s infinite;
+                }
+
+                @keyframes float3 {
+                    0%{transform: translate(0, 0)}
+                    50%{transform: translate(0, -10px)}
+                    100%{transform: translate(0, 0)}
+                }
+
+                .triangle-float3 {
+                    animation: float3 6s infinite;
+                }
+            </style></defs></svg>
+</file>
+
 <file path="src/styles/main.css">
 :root {
   --ink: #1e293b;
   --muted: #64748b;
   --line: #e2e8f0;
+  --surface: #ffffff;
   --panel: #ffffff;
   --bg: #FDFBF7;
   --brand: #667FFF;
@@ -2553,6 +3104,7 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails 
   --nav-bg: rgba(30, 41, 59, 0.8);
   --card-bg: #1e293b;
   --input-bg: #0f172a;
+  --surface: #0f172a;
 }
 * { box-sizing: border-box; }
 body {
@@ -2712,30 +3264,26 @@ button { cursor: pointer; }
 }
 .nav-section {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
 }
 .nav-label {
-  padding: 0 10px 4px;
-  font-size: 9px;
-  font-weight: 800;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  display: none;
 }
 .nav-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: 100%;
   min-height: 38px;
-  padding: 8px 10px;
+  padding: 8px 14px;
   border: 0;
   border-radius: 8px;
   color: var(--ink);
   background: transparent;
   text-align: left;
   font-weight: 700;
+  white-space: nowrap;
   transition: all 0.2s ease;
   position: relative;
 }
@@ -2752,16 +3300,8 @@ button { cursor: pointer; }
   color: var(--brand-dark);
   background: var(--brand-soft);
 }
-.nav-item.active::before {
-  position: absolute;
-  bottom: -2px;
-  left: 8px;
-  right: 8px;
-  height: 3px;
-  width: auto;
-  border-radius: 3px 3px 0 0;
-  background: var(--brand-dark);
-  content: "";
+[data-theme='dark'] .nav-item.active {
+  background: rgba(99, 102, 241, 0.3);
 }
 .nav-badge {
   display: grid;
@@ -3989,6 +4529,13 @@ th:last-child {
   flex-shrink: 0;
   margin-right: 24px;
 }
+.nav-scroll-wrap {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
 .nav {
   margin: 0;
   display: flex;
@@ -3998,7 +4545,38 @@ th:last-child {
   gap: 4px;
   min-width: 0;
   flex: 1;
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-right: 200px;
+  scrollbar-width: none;
+}
+.nav::-webkit-scrollbar {
+  display: none;
+}
+.nav-scroll-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.15s ease;
+  padding: 0;
+}
+.nav-scroll-btn.hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+.nav-scroll-btn:hover {
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  border-color: var(--brand);
 }
 .nav-section {
   display: flex;
@@ -4017,22 +4595,46 @@ th:last-child {
   align-items: center;
   justify-content: space-between;
   font-weight: 700;
+  white-space: nowrap;
   transition: all 0.2s ease;
 }
 .nav-item.active {
   color: var(--brand-dark);
-  border-color: var(--line);
   background: var(--brand-soft);
 }
-.nav-item.active::before { display: none; }
+[data-theme='dark'] .nav-item.active {
+  background: rgba(99, 102, 241, 0.3);
+}
 .top-nav-actions {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
-  flex-shrink: 0;
-  margin-left: 16px;
+  gap: 8px;
+  padding: 0 20px 0 16px;
+  background: var(--surface);
+  border-left: none;
+  box-shadow: none;
 }
+.top-nav-actions::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -32px;
+  width: 32px;
+  height: 100%;
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    rgba(255,255,255,0) 0%,
+    var(--surface) 40%,
+    var(--surface) 100%
+  );
+}
+/* Profile Dropdown Custom Styling */
 .profile-dropdown-container {
   position: relative;
 }
@@ -4081,6 +4683,7 @@ th:last-child {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* Styled Sign Out Button Inside Profile */
 .profile-box .logout-btn {
   margin-top: 16px;
   width: 100%;
@@ -4110,6 +4713,9 @@ th:last-child {
 }
 .grid, .toolbar, .catalog-header { max-width: 1240px; margin-left: auto; margin-right: auto; }
 .home-page { display: flex; flex-direction: column; gap: 24px; }
+/* =========================
+   NEW HERO (Home page)
+   ========================= */
 .new-hero {
   display: flex;
   flex-direction: column;
@@ -4235,6 +4841,7 @@ th:last-child {
   color: var(--brand);
   line-height: 1;
 }
+/* also strip the padding from .main on the home view */
 .home-page {
   margin: calc(-1 * clamp(18px, 3vw, 44px)) calc(-1 * clamp(16px, 4vw, 64px));
 }
@@ -4341,11 +4948,13 @@ th:last-child {
   line-height: 1.7;
   color: var(--muted);
 }
+/* Tablet */
 @media (max-width: 992px) {
   .steps-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+/* Mobile */
 @media (max-width: 768px) {
   .how-it-works {
     padding: 20px;
@@ -4364,9 +4973,46 @@ th:last-child {
     font-size: 14px;
   }
 }
+/* Catalog Page Flex Grid */
+/* .catalog {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: flex-start;
+}
+.book-card {
+  flex: 0 1 280px;
+  max-width: calc(33.333% - 14px);
+}
+@media (max-width: 1100px) {
+  .book-card {
+    flex: 0 1 calc(50% - 10px);
+    max-width: calc(50% - 10px);
+  }
+}
+@media (max-width: 768px) {
+  .book-card {
+    flex: 0 1 100%;
+    max-width: 100%;
+  }
+} */
+/* .cover {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  min-height: 154px;
+  padding: 18px 18px 17px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.cover-art {
+  flex: 0 0 86px;
+} */
 @media (min-width: 1500px) {
   .book-card { border-radius: 16px; }
 }
+/* Toolbar Responsive Flex layout */
 .toolbar {
   display: flex;
   flex-direction: row;
@@ -4411,6 +5057,7 @@ th:last-child {
 .toolbar .select {
   flex: 1 1 150px;
 }
+/* Stats responsive flex layout */
 .stats {
   display: grid;
   grid-template-columns: repeat(2, minmax(180px, 1fr));
@@ -4427,6 +5074,7 @@ th:last-child {
   text-align: center;
   box-shadow: var(--shadow-sm);
 }
+/* Details Page flex layout */
 .detail-layout {
   display: flex;
   flex-direction: row;
@@ -4455,6 +5103,7 @@ th:last-child {
     flex: 1 1 100%;
   }
 }
+/* Login/Register responsive flex layouts */
 .form-grid {
   display: flex;
   flex-direction: column;
@@ -4463,6 +5112,7 @@ th:last-child {
   overflow-y: auto;
   flex: 1;
 }
+/* Media Queries for Layout Responsiveness */
 @media (max-width: 980px) {
   .home-hero, .steps-grid, .stats, .toolbar { flex-direction: column; align-items: stretch; }
   .home-hero > div:first-child { flex: 1 1 auto; }
@@ -4535,6 +5185,7 @@ th:last-child {
 .two-block-pagination .pagination-block svg {
   flex-shrink: 0;
 }
+/* Daily Thought Card */
 .home-quote-card {
   max-width: 1200px;
   margin: 0 auto 2rem;
@@ -4580,6 +5231,7 @@ th:last-child {
   font-weight: 600;
   color: #667fff;
 }
+/* Dark Mode for quote card */
 [data-theme="dark"] .home-quote-card {
   background: linear-gradient(
     135deg,
@@ -5179,6 +5831,532 @@ th:last-child {
     align-items: flex-start;
   }
 }
+.forgot-link-wrapper {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -6px;
+  margin-bottom: 6px;
+  padding: 0 2px;
+}
+.forgot-password-trigger {
+  font-size: 13px !important;
+  color: var(--muted) !important;
+  font-weight: 500 !important;
+  text-decoration: none;
+}
+.forgot-password-trigger:hover {
+  color: var(--brand) !important;
+  text-decoration: underline !important;
+}
+.forgot-back-btn {
+  color: var(--muted) !important;
+  font-weight: 500 !important;
+}
+.forgot-back-btn:hover {
+  color: var(--brand) !important;
+  text-decoration: none !important;
+}
+.otp-boxes-container {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin: 6px 0;
+}
+.otp-box-input {
+  width: 50px !important;
+  height: 54px !important;
+  min-height: 54px !important;
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  padding: 0 !important;
+  border-radius: 10px !important;
+}
+[data-theme='dark'] .otp-box-input {
+  background: var(--input-bg);
+  border-color: var(--line);
+}
+.bn-auth {
+  --auth-paper: #FBF6EC;
+  --auth-paper-dark: #14181F;
+  --auth-ink: #2A2118;
+  --auth-ink-dark: #EDE6D8;
+  --auth-muted: #8A7E6C;
+  --auth-muted-dark: #948A78;
+  --auth-gold: #C9912E;
+  --auth-gold-soft: #E8C988;
+  --auth-card: rgba(255, 252, 245, 0.86);
+  --auth-card-dark: rgba(20, 24, 31, 0.72);
+  --auth-line: rgba(42, 33, 24, 0.12);
+  --auth-line-dark: rgba(237, 230, 216, 0.14);
+  --auth-shadow: 0 30px 60px -20px rgba(42, 33, 24, 0.35);
+  --auth-font-display: 'Fraunces', 'Georgia', serif;
+  --auth-font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  overflow: hidden;
+  background: var(--auth-paper);
+  font-family: var(--auth-font-body);
+  color: var(--auth-ink);
+  transition: background 0.6s ease;
+}
+.bn-auth[data-auth-theme="dark"] {
+  background: var(--auth-paper-dark);
+  color: var(--auth-ink-dark);
+}
+.bn-auth-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0;
+  animation: bnFadeIn 1.1s ease forwards;
+  animation-delay: 0.05s;
+}
+.bn-auth-bg-layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.9s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+.bn-auth-bg-layer.active { opacity: 1; }
+.bn-auth-bg-layer svg { width: 100%; height: 100%; display: block; }
+.bn-auth-image-wrap {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 50%;
+  max-width: 720px;
+  min-width: 320px;
+  height: 100vh;
+  overflow: hidden;
+  transform: translateX(-110%);
+  opacity: 0;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 3rem !important;
+  box-sizing: border-box;
+  mask-image: linear-gradient(to right, rgba(0,0,0,1) 80%, rgba(0,0,0,0.2) 93%, rgba(0,0,0,0) 100%);
+  -webkit-mask-image: linear-gradient(to right, rgba(0,0,0,1) 80%, rgba(0,0,0,0.2) 93%, rgba(0,0,0,0) 100%);
+  filter: drop-shadow(0 0 35px rgba(0, 0, 0, 0.15));
+  animation: bnSlideInImage 1.05s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+             bnCurveBreathe 9s ease-in-out 1.3s infinite;
+}
+@media (max-width: 980px) {
+  .bn-auth-image-wrap { display: none; }
+}
+.bn-auth-image-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background-image: var(--bn-auth-image, none);
+  background-size: cover;
+  background-position: center;
+  filter: brightness(0.72) saturate(0.95);
+}
+.bn-auth-image-fade {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: linear-gradient(
+    100deg,
+    rgba(20, 16, 10, 0) 0%,
+    rgba(20, 16, 10, 0.1) 60%,
+    var(--auth-paper) 100%
+  );
+  transition: background 0.6s ease;
+}
+.bn-auth[data-auth-theme="dark"] .bn-auth-image-fade {
+  background: linear-gradient(
+    100deg,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.25) 60%,
+    var(--auth-paper-dark) 100%
+  );
+}
+.bn-auth-image-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.3) 100%);
+}
+.bn-auth-image-copy {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  max-width: 440px;
+  opacity: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  animation: bnFadeUp 0.9s ease forwards;
+  animation-delay: 0.85s;
+}
+.bn-auth-brand-inline {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 1rem;
+}
+.bn-auth-brand-inline img {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.4));
+}
+.bn-auth-image-copy h1 {
+  font-family: 'Fredoka', 'Comfortaa', sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 3.5rem !important;
+  letter-spacing: -0.02em !important;
+  margin: 0 !important;
+  color: #ffffff !important;
+  text-shadow: 0 4px 16px rgba(0,0,0,0.5) !important;
+  line-height: 1.1 !important;
+}
+.bn-auth-image-copy p {
+  font-family: 'Fredoka', 'Comfortaa', sans-serif !important;
+  font-weight: 500 !important;
+  font-size: 1.4rem !important;
+  line-height: 1.5 !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  margin: 0 !important;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.45) !important;
+}
+.bn-auth-brand-inline {
+  display: flex !important;
+  align-items: center !important;
+  gap: 16px !important;
+  margin-bottom: 1rem !important;
+}
+.bn-auth-brand-inline img {
+  width: 52px !important;
+  height: 52px !important;
+  object-fit: contain !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.4)) !important;
+}
+.bn-auth-right {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  min-height: 100vh;
+}
+.bn-theme-toggle {
+  position: absolute;
+  top: 28px;
+  right: 32px;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  border: 1px solid var(--auth-line);
+  background: var(--auth-card);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--auth-ink);
+  opacity: 0;
+  animation: bnFadeDown 0.7s ease forwards;
+  animation-delay: 1.05s;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+  overflow: hidden;
+}
+.bn-auth[data-auth-theme="dark"] .bn-theme-toggle {
+  background: var(--auth-card-dark);
+  border-color: var(--auth-line-dark);
+  color: var(--auth-ink-dark);
+}
+.bn-theme-toggle:hover {
+  transform: translateY(-2px) scale(1.05) rotate(-4deg);
+  box-shadow: 0 10px 20px -8px rgba(0,0,0,0.3);
+}
+.bn-theme-toggle:active { transform: scale(0.92) rotate(6deg); }
+.bn-theme-toggle .bn-icon-spin {
+  display: flex;
+  animation: bnIconPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes bnIconPop {
+  0% { transform: scale(0) rotate(-90deg); opacity: 0; }
+  60% { transform: scale(1.2) rotate(10deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+.bn-auth-card {
+  position: relative;
+  width: 100%;
+  max-width: 408px;
+  background: var(--auth-card);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--auth-line);
+  border-radius: 22px;
+  padding: 38px 36px 32px;
+  box-shadow: var(--auth-shadow);
+  opacity: 0;
+  transform: translateY(14px);
+  animation: bnCardIn 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: 0.55s;
+}
+.bn-auth[data-auth-theme="dark"] .bn-auth-card {
+  background: var(--auth-card-dark);
+  border-color: var(--auth-line-dark);
+}
+.bn-auth-card::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: 36px;
+  width: 14px;
+  height: 46px;
+  background: linear-gradient(180deg, var(--auth-gold), var(--auth-gold-soft));
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 76%, 0 100%);
+  box-shadow: 0 4px 10px -2px rgba(201, 145, 46, 0.5);
+}
+.bn-auth-card-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.bn-auth-card-brand img { width: 30px; height: 30px; object-fit: contain; }
+.bn-auth-card-brand span {
+  font-family: var(--auth-font-display);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.bn-auth-card h2 {
+  font-family: var(--auth-font-display);
+  font-weight: 600;
+  font-size: 23px;
+  margin: 0 0 6px;
+  color: inherit;
+}
+.bn-auth-card > p.bn-auth-sub {
+  color: var(--auth-muted);
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+.bn-auth[data-auth-theme="dark"] .bn-auth-card > p.bn-auth-sub { color: var(--auth-muted-dark); }
+.bn-auth-form { display: grid; gap: 16px; }
+.bn-auth-field { display: grid; gap: 6px; }
+.bn-auth-field span.bn-auth-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--auth-muted);
+}
+.bn-auth[data-auth-theme="dark"] .bn-auth-field span.bn-auth-label { color: var(--auth-muted-dark); }
+.bn-auth-input, .bn-auth-select {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 11px;
+  border: 1.5px solid var(--auth-line);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--auth-ink);
+  font-family: var(--auth-font-body);
+  font-size: 14.5px;
+  outline: none;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+}
+.bn-auth[data-auth-theme="dark"] .bn-auth-input,
+.bn-auth[data-auth-theme="dark"] .bn-auth-select {
+  border-color: var(--auth-line-dark);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--auth-ink-dark);
+}
+.bn-auth-input:focus, .bn-auth-select:focus {
+  border-color: var(--auth-gold);
+  box-shadow: 0 0 0 4px rgba(201, 145, 46, 0.16);
+}
+.bn-auth-password-wrap { position: relative; }
+.bn-auth-password-wrap .bn-auth-input { padding-right: 42px; }
+.bn-auth-pw-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--auth-muted);
+  display: flex;
+  padding: 4px;
+}
+.bn-auth-pw-toggle:hover { color: var(--auth-gold); }
+.bn-auth-rules {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--auth-muted);
+}
+.bn-auth-rules ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+.bn-auth-rules li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.2s ease;
+}
+.bn-auth-rules li::before {
+  content: "○";
+  font-size: 9px;
+  color: var(--auth-muted);
+}
+.bn-auth-rules li.valid {
+  color: #5C8A5C;
+}
+.bn-auth-rules li.valid::before {
+  content: "●";
+  color: #5C8A5C;
+}
+.bn-auth-forgot { text-align: right; margin-top: -4px; }
+.bn-auth-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--auth-gold);
+  font-weight: 600;
+  font-size: 13.5px;
+  padding: 0;
+}
+.bn-auth-link:hover { text-decoration: underline; }
+.bn-auth-error {
+  background: rgba(212, 84, 65, 0.1);
+  border: 1px solid rgba(212, 84, 65, 0.25);
+  color: #B6452F;
+  padding: 10px 12px;
+  border-radius: 9px;
+  font-size: 13.5px;
+}
+.bn-auth-submit {
+  margin-top: 4px;
+  width: 100%;
+  padding: 13px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  font-family: var(--auth-font-body);
+  font-weight: 700;
+  font-size: 14.5px;
+  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #FBF6EC;
+  background: linear-gradient(135deg, var(--auth-gold), #B07A24);
+  box-shadow: 0 8px 18px -6px rgba(201, 145, 46, 0.55);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, filter 0.2s ease;
+}
+.bn-auth-submit:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 22px -6px rgba(201, 145, 46, 0.6); }
+.bn-auth-submit:active:not(:disabled) { transform: translateY(0) scale(0.98); }
+.bn-auth-submit:disabled { opacity: 0.7; cursor: not-allowed; }
+.bn-auth-switch {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--auth-muted);
+}
+.bn-auth[data-auth-theme="dark"] .bn-auth-switch { color: var(--auth-muted-dark); }
+@keyframes bnFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes bnSlideInImage {
+  from { transform: translateX(-110%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes bnFadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes bnFadeDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes bnCardIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes bnCurveBreathe {
+  0%, 100% {
+    clip-path: path('M0,0 H650 C 560,160 560,420 600,600 C 640,780 540,940 650,1080 H0 Z') !important;
+  }
+  50% {
+    clip-path: path('M0,0 H655 C 570,170 550,410 610,600 C 650,790 545,930 655,1080 H0 Z') !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bn-auth-image-wrap, .bn-auth-card, .bn-theme-toggle, .bn-auth-image-copy, .bn-auth-bg {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+@media (max-width: 980px) {
+  .bn-auth-right { padding: 20px; }
+  .bn-theme-toggle { top: 18px; right: 18px; }
+}
+@media (max-width: 480px) {
+  .bn-auth-card { padding: 28px 22px 24px; border-radius: 18px; }
+}
+.bn-auth-centered {
+  align-items: center;
+  justify-content: center;
+}
+.bn-auth-card-standalone {
+  z-index: 1;
+  animation: bnCardIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.bn-auth-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 18px;
+  font-size: 13.5px;
+}
+.bn-auth-step-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  color: var(--auth-gold);
+  background: rgba(201, 145, 46, 0.12);
+}
+.bn-auth-success {
+  background: rgba(92, 138, 92, 0.12);
+  border-color: rgba(92, 138, 92, 0.3);
+  color: #4C7A4C;
+}
+.otp-boxes-container {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+.otp-box-input {
+  width: 44px;
+  height: 52px;
+  text-align: center;
+  font-size: 19px;
+  font-weight: 700;
+  padding: 0;
+}
+@media (max-width: 480px) {
+  .otp-box-input { width: 38px; height: 46px; font-size: 16px; }
+}
 </file>
 
 <file path="src/utils/helpers.js">
@@ -5383,7 +6561,7 @@ ALTER TABLE `audit_logs` ADD CONSTRAINT `audit_logs_actor_id_fkey` FOREIGN KEY (
 <file path="prisma/migrations/migration_lock.toml">
 # Please do not edit this file manually
 # It should be added in your version-control system (e.g., Git)
-provider = "mysql"
+provider = "postgresql"
 </file>
 
 <file path="prisma/schema.prisma">
@@ -5430,6 +6608,18 @@ model User {
   auditLogs       AuditLog[]
 
   @@map("users")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  email     String   @db.VarChar(180)
+  otpHash   String   @map("otp_hash") @db.VarChar(255)
+  expiresAt DateTime @map("expires_at") @db.Timestamp(6)
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([email])
+  @@map("password_reset_tokens")
 }
 
 model Genre {
@@ -5847,11 +7037,11 @@ export class AppController {
 <file path="src/controllers/auth.controller.ts">
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
-import { callWorkatoSignupWebhook } from "../utils/workato";
+import { callWorkatoSignupWebhook, callWorkatoForgotPasswordWebhook } from "../utils/workato";
 export class AuthController {
   static async register(req: Request, res: Response) {
-  try {
-    const result = await AuthService.register(req.body);
+    try {
+      const result = await AuthService.register(req.body);
       const isProd = process.env.NODE_ENV === "production";
       res.cookie("token", result.token, {
         httpOnly: true,
@@ -5899,6 +7089,39 @@ export class AuthController {
       });
     }
   }
+  static async forgotPasswordRequest(req: Request, res: Response) {
+    try {
+      const { email } = req.body;
+      if (!email) { res.status(400).json({ message: "Email is required." }); return; }
+      const otp = await AuthService.requestOtp(email);
+      if (otp) {
+        await callWorkatoForgotPasswordWebhook(email, otp);
+      }
+      res.json({ message: "If this email exists, an OTP has been sent." });
+    } catch (error: any) {
+      res.status(500).json({ message: "Something went wrong. Please try again." });
+    }
+  }
+  static async forgotPasswordVerifyOtp(req: Request, res: Response) {
+    try {
+      const { email, otp } = req.body;
+      if (!email || !otp) { res.status(400).json({ message: "Email and OTP are required." }); return; }
+      await AuthService.verifyOtp(email, otp);
+      res.json({ message: "OTP verified." });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Invalid OTP." });
+    }
+  }
+  static async forgotPasswordReset(req: Request, res: Response) {
+    try {
+      const { email, otp, password } = req.body;
+      if (!email || !otp || !password) { res.status(400).json({ message: "All fields are required." }); return; }
+      await AuthService.resetPassword(email, otp, password);
+      res.json({ message: "Password reset successfully." });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to reset password." });
+    }
+  }
   static async logout(req: Request, res: Response) {
     const isProd = process.env.NODE_ENV === "production";
     res.clearCookie("token", {
@@ -5941,6 +7164,9 @@ app.use(express.json());
 app.post("/api/auth/register", AuthController.register);
 app.post("/api/auth/login", AuthController.login);
 app.post("/api/auth/logout", AuthController.logout);
+app.post("/api/auth/forgot-password/request", AuthController.forgotPasswordRequest);
+app.post("/api/auth/forgot-password/verify-otp", AuthController.forgotPasswordVerifyOtp);
+app.post("/api/auth/forgot-password/reset", AuthController.forgotPasswordReset);
 app.get("/api/me", authenticate, AppController.me);
 app.get("/api/genres", authenticate, AppController.genres);
 app.get("/api/dashboard", authenticate, AppController.dashboard);
@@ -5964,7 +7190,7 @@ app.get("/api/health", (req, res) => {
 });
 app.get("/api/quote/today", async (req, res) => {
   try {
-    const response = await fetch("https://dummyjson.com/quotes/random");
+    const response = await fetch("https://zenquotes.io/api/today");
     if (!response.ok) {
       return res.status(response.status).json({
         message: "ZenQuotes API failed",
@@ -6053,6 +7279,7 @@ export const errorHandler = (
 
 <file path="src/services/auth.service.ts">
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import prisma from "../config/prisma";
 import { generateToken } from "../utils/jwt";
 import { StatsCacheService } from "./stats-cache.service";
@@ -6093,6 +7320,63 @@ export class AuthService {
     }
     const token = generateToken({ email: user.email, id: user.id });
     return { token, user: this.mapUser(user) };
+  }
+  static async requestOtp(email: string) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return;
+    await prisma.passwordResetToken.deleteMany({ where: { email } });
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const otpHash = await bcrypt.hash(otp, 10);
+    const expiresAt = new Date(Date.now() + 90 * 1000);
+    await prisma.passwordResetToken.create({
+      data: { email, otpHash, expiresAt },
+    });
+    return otp;
+  }
+  static async verifyOtp(email: string, otp: string) {
+    const record = await prisma.passwordResetToken.findFirst({
+      where: { email, used: false },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!record) throw new Error("Invalid or expired OTP.");
+    if (record.expiresAt < new Date()) {
+      await prisma.passwordResetToken.delete({ where: { id: record.id } });
+      throw new Error("OTP has expired. Please request a new one.");
+    }
+    const isValid = await bcrypt.compare(otp, record.otpHash);
+    if (!isValid) throw new Error("Invalid OTP. Please check and try again.");
+    return true;
+  }
+  static async resetPassword(email: string, otp: string, newPassword: string) {
+    const record = await prisma.passwordResetToken.findFirst({
+      where: { email, used: false },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!record) throw new Error("Invalid or expired OTP.");
+    if (record.expiresAt < new Date()) {
+      await prisma.passwordResetToken.delete({ where: { id: record.id } });
+      throw new Error("OTP has expired. Please request a new one.");
+    }
+    const isValid = await bcrypt.compare(otp, record.otpHash);
+    if (!isValid) throw new Error("Invalid OTP.");
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (user && user.password) {
+      const isSameAsLast = await bcrypt.compare(newPassword, user.password);
+      if (isSameAsLast) {
+        throw new Error("Your new password cannot be the same as your current password.");
+      }
+    }
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { email },
+        data: { password: hashedPassword },
+      }),
+      prisma.passwordResetToken.update({
+        where: { id: record.id },
+        data: { used: true },
+      }),
+    ]);
   }
   private static mapUser(user: any) {
     const { password, ...userWithoutPassword } = user;
@@ -6163,10 +7447,10 @@ export class BookService {
     }
     if (search) {
       where.OR = [
-        { title: { contains: search } },
-        { author: { contains: search } },
-        { description: { contains: search } },
-        { owner: { fullName: { contains: search } } },
+        { title: { contains: search, mode: "insensitive" } },
+        { author: { contains: search, mode: "insensitive" } },
+        { description: { contains: search, mode: "insensitive" } },
+        { owner: { fullName: { contains: search, mode: "insensitive" } } },
       ];
     }
     const orderBy: any =
@@ -6461,6 +7745,7 @@ export class BookService {
 
 <file path="src/services/lookup.service.ts">
 import prisma from "../config/prisma";
+import { StatsCacheService } from "./stats-cache.service";
 export class LookupService {
   static async genres() {
     const genres = await prisma.genre.findMany({
@@ -6502,7 +7787,7 @@ export class LookupService {
       pageSize: size,
     };
   }
-  static async static async dashboard(userId: string) {
+  static async dashboard(userId: string) {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const cachedStats = await StatsCacheService.getStats();
@@ -6869,7 +8154,7 @@ export class WorkflowService {
   }
   static async reject(userId: string, transactionId: string, isAdmin: boolean) {
     const now = new Date();
-    const updatedTransaction = await prisma.$transaction(async (tx) => {
+    const { updatedTransaction, shouldMakeAvailable } = await prisma.$transaction(async (tx) => {
       const transaction = await tx.bookTransaction.findUnique({
         where: { id: transactionId },
         include: {
@@ -6909,7 +8194,8 @@ export class WorkflowService {
           status: { in: ["active", "overdue", "return_pending"] },
         },
       });
-      if (pendingCount === 0 && activeCount === 0) {
+      const isNowAvailable = pendingCount === 0 && activeCount === 0;
+      if (isNowAvailable) {
         await tx.book.update({
           where: { id: transaction.bookId },
           data: { availabilityStatus: "available" },
@@ -6919,15 +8205,20 @@ export class WorkflowService {
         data: {
           bookId: transaction.bookId,
           actorId: userId,
-          eventType: "book_returned",
-          eventTitle: "Book returned",
-          eventMessage: `${tr.requester.fullName} returned ${tr.book.title}.`,
+          eventType: "request_rejected",
+          eventTitle: "Request rejected",
+          eventMessage: `${transaction.owner.fullName} rejected ${tr.requester.fullName}'s request.`,
           transactionId: tr.id,
         },
       });
-      return tr;
+      return {
+        updatedTransaction: tr,
+        shouldMakeAvailable: isNowAvailable
+      };
     }, TX_OPTIONS);
-    await StatsCacheService.adjustFields({ availableBooks: 1, totalBooksReadGlobal: 1 });
+    await StatsCacheService.adjustFields({
+      availableBooks: shouldMakeAvailable ? 1 : 0
+    });
     return this.mapTransaction(updatedTransaction);
   }
   static async returnBook(userId: string, transactionId: string, isAdmin: boolean) {
@@ -6979,6 +8270,7 @@ export class WorkflowService {
       });
       return tr;
     }, TX_OPTIONS);
+    await StatsCacheService.adjustFields({ availableBooks: 1, totalBooksReadGlobal: 1 });
     return this.mapTransaction(updatedTransaction);
   }
   private static mapTransaction(transaction: any) {
@@ -7103,6 +8395,18 @@ export const verifyToken = (token: string): any => {
 </file>
 
 <file path="src/utils/workato.ts">
+export async function callWorkatoForgotPasswordWebhook(email: string, otp: string) {
+  if (!process.env.WORKATO_FORGOT_PASSWORD_WEBHOOK_URL) return;
+  try {
+    await fetch(process.env.WORKATO_FORGOT_PASSWORD_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, otp }),
+    });
+  } catch (error: any) {
+    console.error("Forgot password webhook failed:", error.message);
+  }
+}
 export async function callWorkatoSignupWebhook(user: any) {
   if (!process.env.WORKATO_SIGNUP_WEBHOOK_URL) return;
   try {
@@ -7156,134 +8460,6 @@ export async function callWorkatoSignupWebhook(user: any) {
 }
 </file>
 
-<file path="package.json">
-{
-  "name": "booknook-frontend",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
-    "dotenv": "^17.4.2",
-    "lucide-react": "^1.21.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "three": "^0.185.0",
-    "vite": "^5.4.11"
-  }
-}
-</file>
-
-<file path="package.json">
-{
-  "name": "booknook-frontend",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
-    "dotenv": "^17.4.2",
-    "lucide-react": "^1.21.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "three": "^0.185.0",
-    "vite": "^5.4.11"
-  }
-}
-</file>
-
-<file path="package.json">
-{
-  "name": "backend-node",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "ts-node src/index.ts",
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
-    "prisma:generate": "prisma generate"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "@prisma/client": "^6.2.1",
-    "@types/cookie-parser": "^1.4.8",
-    "bcryptjs": "^3.0.3",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "prisma": "^6.2.1",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^25.9.3",
-    "eslint": "^10.5.0",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^6.0.3"
-  }
-}
-</file>
-
-<file path="package.json">
-{
-  "name": "backend-node",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "ts-node src/index.ts",
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
-    "prisma:generate": "prisma generate"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "@prisma/client": "^6.2.1",
-    "@types/cookie-parser": "^1.4.8",
-    "bcryptjs": "^3.0.3",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "prisma": "^6.2.1",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^25.9.3",
-    "eslint": "^10.5.0",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^6.0.3"
-  }
-}
-</file>
-
 <file path=".gitignore">
 node_modules
 # Keep environment variables out of version control
@@ -7294,6 +8470,134 @@ node_modules
 /scripts/
 /Docker/
 *.txt
+</file>
+
+<file path="package.json">
+{
+  "name": "booknook-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "dotenv": "^17.4.2",
+    "lucide-react": "^1.21.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.185.0",
+    "vite": "^5.4.11"
+  }
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "booknook-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "dotenv": "^17.4.2",
+    "lucide-react": "^1.21.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.185.0",
+    "vite": "^5.4.11"
+  }
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "backend-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "prisma:generate": "prisma generate"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "@types/cookie-parser": "^1.4.8",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "prisma": "^6.2.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.5.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^6.0.3"
+  }
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "backend-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "prisma:generate": "prisma generate"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "@types/cookie-parser": "^1.4.8",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "prisma": "^6.2.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.5.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^6.0.3"
+  }
+}
 </file>
 
 </files>

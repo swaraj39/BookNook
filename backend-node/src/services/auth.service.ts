@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import prisma from "../config/prisma";
 import { generateToken } from "../utils/jwt";
 import { StatsCacheService } from "./stats-cache.service";
@@ -26,7 +27,7 @@ export class AuthService {
         status: "active",
       },
     });
-    
+
     // Sync systemic cache row
     await StatsCacheService.adjustFields({ totalUsers: 1 });
 
@@ -50,6 +51,79 @@ export class AuthService {
 
     const token = generateToken({ email: user.email, id: user.id });
     return { token, user: this.mapUser(user) };
+  }
+
+  static async requestOtp(email: string) {
+    // Always respond the same way — don't leak whether the email exists
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return; // silently do nothing
+
+    // Invalidate any existing tokens for this email
+    await prisma.passwordResetToken.deleteMany({ where: { email } });
+
+    const otp = String(Math.floor(100000 + Math.random() * 900000)); // 6-digit
+    const otpHash = await bcrypt.hash(otp, 10);
+    const expiresAt = new Date(Date.now() + 90 * 1000); // 1 min 30 sec
+
+    await prisma.passwordResetToken.create({
+      data: { email, otpHash, expiresAt },
+    });
+
+    return otp; // caller sends this via Workato webhook
+  }
+
+  static async verifyOtp(email: string, otp: string) {
+    const record = await prisma.passwordResetToken.findFirst({
+      where: { email, used: false },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!record) throw new Error("Invalid or expired OTP.");
+    if (record.expiresAt < new Date()) {
+      await prisma.passwordResetToken.delete({ where: { id: record.id } });
+      throw new Error("OTP has expired. Please request a new one.");
+    }
+
+    const isValid = await bcrypt.compare(otp, record.otpHash);
+    if (!isValid) throw new Error("Invalid OTP. Please check and try again.");
+
+    // Don't mark as used yet — reset step needs to verify again
+    return true;
+  }
+
+  static async resetPassword(email: string, otp: string, newPassword: string) {
+    const record = await prisma.passwordResetToken.findFirst({
+      where: { email, used: false },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!record) throw new Error("Invalid or expired OTP.");
+    if (record.expiresAt < new Date()) {
+      await prisma.passwordResetToken.delete({ where: { id: record.id } });
+      throw new Error("OTP has expired. Please request a new one.");
+    }
+    const isValid = await bcrypt.compare(otp, record.otpHash);
+    if (!isValid) throw new Error("Invalid OTP.");
+
+    // Enforce uniqueness constraint: Read current record hash verification 
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (user && user.password) {
+      const isSameAsLast = await bcrypt.compare(newPassword, user.password);
+      if (isSameAsLast) {
+        throw new Error("Your new password cannot be the same as your current password.");
+      }
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { email },
+        data: { password: hashedPassword },
+      }),
+      prisma.passwordResetToken.update({
+        where: { id: record.id },
+        data: { used: true },
+      }),
+    ]);
   }
 
   private static mapUser(user: any) {

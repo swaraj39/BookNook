@@ -1,13 +1,19 @@
 import React from "react";
+import { RotateCcw } from "lucide-react";
 import { Panel } from "../components/common/Panel";
 import { Table } from "../components/common/Table";
 import { Pagination } from "../components/common/Pagination";
 import { EmptyState } from "../components/common/EmptyState";
 import { label, toBookForm } from "../utils/helpers";
-export function MyBooks({ page, onPageChange, setBookModal, deleteBook, openDetails }) {
+export function MyBooks({ page, onPageChange, onRefresh, setBookModal, deleteBook, openDetails }) {
+  const refreshBtn = (
+    <button className="btn icon-only" onClick={onRefresh} title="Refresh" style={{ width: "32px", height: "32px", minHeight: "32px", padding: 0, border: "none", background: "transparent", color: "var(--muted)" }}>
+      <RotateCcw size={15} />
+    </button>
+  );
   if (page.content.length === 0) {
     return (
-      <Panel title="My Shelf">
+      <Panel title="My Shelf" actions={refreshBtn}>
         <EmptyState
           icon="BookPlus"
           title="Your library is empty"
@@ -19,7 +25,7 @@ export function MyBooks({ page, onPageChange, setBookModal, deleteBook, openDeta
     );
   }
   return (
-    <Panel title="My Shelf" >
+    <Panel title="My Shelf" actions={refreshBtn} >
       <Table headers={["Book", "Genre", "Status", "Actions"]}>
         {page.content.map((book) => (
           <tr key={book.id}>
