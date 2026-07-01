@@ -1,0 +1,9 @@
+node_modules/
+dist/
+target/
+.idea/
+.vscode/
+*.log
+.env
+*.txt
+docker-compose.yml

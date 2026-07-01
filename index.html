@@ -1,0 +1,1760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Book Nook - BA Reading Community</title>
+  <style>
+    :root {
+      --ink: #16202a;
+      --muted: #66717f;
+      --line: #e6ebf0;
+      --panel: #ffffff;
+      --bg: #f4f6f8;
+      --brand: #16756f;
+      --brand-dark: #0f5954;
+      --brand-soft: #e2f6f2;
+      --accent: #a66a18;
+      --danger: #b42318;
+      --ok: #15803d;
+      --soft: #f7f9fb;
+      --focus: #2563eb;
+      --shadow: 0 20px 60px rgba(22, 32, 42, 0.09);
+      --shadow-sm: 0 8px 26px rgba(22, 32, 42, 0.055);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 18% 0, rgba(22, 117, 111, 0.11), transparent 30%),
+        radial-gradient(circle at 90% 5%, rgba(166, 106, 24, 0.08), transparent 25%),
+        linear-gradient(180deg, #fbfcfd 0, #f4f6f8 360px),
+        var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: 272px 1fr;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 22px 18px 18px;
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.94);
+      border-right: 1px solid var(--line);
+      box-shadow: 10px 0 34px rgba(22, 32, 42, 0.035);
+      backdrop-filter: blur(16px);
+      overflow: hidden;
+    }
+
+    .brand {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 4px 4px 18px;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      background: linear-gradient(145deg, var(--brand), #0d4f4b);
+      color: white;
+      font-weight: 900;
+      box-shadow: 0 12px 28px rgba(22, 117, 111, 0.24);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 21px;
+      line-height: 1.05;
+    }
+
+    .brand p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .profile-box {
+      margin-top: 8px;
+      padding: 15px;
+      border: 1px solid #dceeea;
+      border-radius: 8px;
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(226, 246, 242, 0.86)),
+        white;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .field label {
+      display: block;
+      margin-bottom: 6px;
+      color: inherit;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .profile-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .profile-eyebrow {
+      margin: 0;
+      color: var(--brand-dark);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .profile-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 22px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      color: #0f6b45;
+      background: #dcfce7;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .profile-status::before {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: #16a34a;
+      content: "";
+    }
+
+    .profile-row {
+      display: grid;
+      grid-template-columns: 46px 1fr;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .avatar {
+      display: grid;
+      place-items: center;
+      width: 46px;
+      height: 46px;
+      border-radius: 8px;
+      color: white;
+      background: linear-gradient(145deg, #123c3a, var(--brand));
+      font-weight: 900;
+      font-size: 14px;
+      box-shadow: 0 12px 24px rgba(22, 117, 111, 0.18);
+    }
+
+    .user-meta {
+      min-width: 0;
+      color: #35565c;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .user-meta strong,
+    .user-meta span {
+      display: block;
+      overflow-wrap: anywhere;
+    }
+
+    .user-meta strong {
+      color: #102329;
+      font-size: 15px;
+      line-height: 1.2;
+    }
+
+    .user-email {
+      margin-top: 3px;
+      color: #63727d;
+      font-size: 12px;
+    }
+
+    .profile-role {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      margin-top: 12px;
+      padding: 5px 9px;
+      border: 1px solid #d8e7e4;
+      border-radius: 999px;
+      color: #315b58;
+      background: rgba(255, 255, 255, 0.72);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .signed-note {
+      display: none;
+    }
+
+    .nav {
+      display: grid;
+      gap: 6px;
+      margin-top: 18px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+    }
+
+    .nav button {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      min-height: 42px;
+      padding: 10px 12px;
+      border: 0;
+      border-radius: 8px;
+      color: #425466;
+      background: transparent;
+      text-align: left;
+      font-weight: 700;
+      transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+    }
+
+    .nav button:hover {
+      color: var(--brand-dark);
+      background: #eef7f5;
+    }
+
+    .nav button.active {
+      color: white;
+      background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+      box-shadow: 0 12px 26px rgba(22, 117, 111, 0.2);
+    }
+
+    .nav svg,
+    .icon {
+      flex: 0 0 auto;
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+    }
+
+    .main {
+      min-width: 0;
+      padding: 32px 36px 44px;
+    }
+
+    .topbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 22px;
+      align-items: center;
+      justify-content: space-between;
+      margin: 0 auto 20px;
+      max-width: 1240px;
+      padding: 10px 0 8px;
+    }
+
+    .page-kicker {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      margin: 0 0 12px;
+      padding: 5px 10px;
+      border: 1px solid #cfe8e4;
+      border-radius: 999px;
+      color: var(--brand-dark);
+      background: rgba(226, 246, 242, 0.78);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .page-title h2 {
+      margin: 0;
+      max-width: 740px;
+      font-size: clamp(30px, 4vw, 44px);
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    .page-title p {
+      max-width: 760px;
+      margin: 10px 0 0;
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 15px;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      padding: 5px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 38px;
+      padding: 9px 14px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.94);
+      font-weight: 700;
+      text-decoration: none;
+      white-space: nowrap;
+      box-shadow: 0 2px 0 rgba(15, 23, 42, 0.03);
+      transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, background 150ms ease;
+    }
+
+    .btn:hover {
+      border-color: #9fb0bc;
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .btn.primary {
+      color: white;
+      border-color: var(--brand);
+      background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+      box-shadow: 0 12px 24px rgba(22, 117, 111, 0.2);
+    }
+
+    .btn.primary:hover {
+      background: var(--brand-dark);
+    }
+
+    .btn.warn {
+      color: white;
+      border-color: var(--accent);
+      background: var(--accent);
+    }
+
+    .btn.danger {
+      color: white;
+      border-color: var(--danger);
+      background: var(--danger);
+    }
+
+    .btn.icon-only {
+      width: 38px;
+      padding: 0;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+      max-width: 1240px;
+      margin-right: auto;
+      margin-left: auto;
+    }
+
+    .stats {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .stat {
+      position: relative;
+      overflow: hidden;
+      min-height: 106px;
+      padding: 18px 18px 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: var(--shadow-sm);
+      transition: transform 150ms ease, box-shadow 150ms ease;
+    }
+
+    .stat:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+    }
+
+    .stat::after {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 74px;
+      height: 74px;
+      border-radius: 0 8px 0 90px;
+      background: linear-gradient(135deg, rgba(22, 117, 111, 0.15), rgba(22, 117, 111, 0));
+      content: "";
+    }
+
+    .stat span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .stat strong {
+      display: block;
+      margin-top: 9px;
+      font-size: 32px;
+      line-height: 1;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(260px, 1.6fr) 170px 176px 150px;
+      gap: 12px;
+      margin: 18px auto 20px;
+      max-width: 1240px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .toolbar .input {
+      padding-left: 14px;
+    }
+
+    .input,
+    .select,
+    .textarea {
+      width: 100%;
+      min-height: 42px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--ink);
+      background: #ffffff;
+      outline: none;
+      transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+    }
+
+    .textarea {
+      min-height: 86px;
+      resize: vertical;
+    }
+
+    .input:focus,
+    .select:focus,
+    .textarea:focus {
+      border-color: var(--focus);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+      background: white;
+    }
+
+    .catalog {
+      grid-template-columns: repeat(3, minmax(280px, 1fr));
+    }
+
+    .book-card {
+      display: flex;
+      flex-direction: column;
+      min-height: 382px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.98);
+      box-shadow: var(--shadow-sm);
+      transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+    }
+
+    .book-card:hover {
+      border-color: #b9c8d4;
+      transform: translateY(-3px);
+      box-shadow: var(--shadow);
+    }
+
+    .cover {
+      display: grid;
+      grid-template-columns: 86px 1fr;
+      gap: 16px;
+      min-height: 154px;
+      padding: 18px 18px 17px;
+      background:
+        linear-gradient(135deg, rgba(226, 246, 242, 0.94), rgba(255, 249, 238, 0.95)),
+        #f8fbfa;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .cover-art {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      position: relative;
+      width: 86px;
+      height: 120px;
+      padding: 9px;
+      border-radius: 6px;
+      color: white;
+      background: #0f766e;
+      box-shadow: 10px 10px 0 rgba(22, 32, 42, 0.1);
+      font-size: 11px;
+      font-weight: 900;
+      text-align: center;
+      line-height: 1.1;
+    }
+
+    .cover-art::before {
+      position: absolute;
+      inset: 8px auto 8px 8px;
+      width: 3px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.48);
+      content: "";
+    }
+
+    .book-card h3 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.2;
+      word-break: break-word;
+    }
+
+    .book-card .author {
+      margin: 7px 0 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 4px 9px 5px;
+      border-radius: 999px;
+      color: #24414a;
+      background: #e9eef2;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .chip.available {
+      color: #065f46;
+      background: #dff6ec;
+    }
+
+    .chip.borrowed,
+    .chip.pending {
+      color: #92400e;
+      background: #fff3d8;
+    }
+
+    .chip.overdue,
+    .chip.rejected {
+      color: #991b1b;
+      background: #fee2e2;
+    }
+
+    .book-body {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      gap: 14px;
+      padding: 16px 18px 18px;
+    }
+
+    .book-desc {
+      flex: 1;
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 14px;
+    }
+
+    .mini-meta {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 12px 13px;
+      border-radius: 8px;
+      background: #f7faf9;
+      border: 1px solid #edf2f5;
+    }
+
+    .card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: auto;
+      padding-top: 2px;
+    }
+
+    .card-actions .btn {
+      min-height: 36px;
+      padding: 8px 11px;
+      font-size: 13px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.98);
+      box-shadow: var(--shadow-sm);
+      max-width: 1240px;
+      margin-right: auto;
+      margin-left: auto;
+    }
+
+    .panel-head {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-head h3 {
+      margin: 0;
+      font-size: 19px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+      background: transparent;
+    }
+
+    th,
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      background: #f8faf9;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    tbody tr:hover {
+      background: #fbfefd;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .row-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .empty {
+      padding: 34px 18px;
+      color: var(--muted);
+      text-align: center;
+      background: #fbfefd;
+    }
+
+    .view {
+      display: none;
+    }
+
+    .view.active {
+      display: block;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      padding: 18px;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    .field label {
+      color: var(--muted);
+    }
+
+    .detail-layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 20px;
+      max-width: 1240px;
+      margin: 0 auto;
+      align-items: start;
+    }
+
+    .detail-cover {
+      display: grid;
+      place-items: center;
+      min-height: 380px;
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background:
+        linear-gradient(135deg, rgba(226, 246, 242, 0.94), rgba(255, 249, 238, 0.96)),
+        white;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .detail-book {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      width: 180px;
+      height: 270px;
+      padding: 18px;
+      border-radius: 6px;
+      color: white;
+      background: #17313b;
+      box-shadow: 20px 18px 0 rgba(15, 23, 42, 0.12);
+      text-align: center;
+      font-size: 22px;
+      font-weight: 900;
+      line-height: 1.08;
+    }
+
+    .detail-panel {
+      padding: 20px;
+    }
+
+    .detail-panel h3 {
+      margin: 12px 0 8px;
+      font-size: 30px;
+      line-height: 1.1;
+    }
+
+    .detail-panel p {
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .timeline-item {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfefd;
+    }
+
+    .timeline-item strong {
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(15, 23, 42, 0.55);
+      backdrop-filter: blur(5px);
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal {
+      width: min(760px, 100%);
+      max-height: 92vh;
+      overflow-y: auto;
+      border-radius: 8px;
+      background: white;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.3);
+    }
+
+    .modal-head,
+    .modal-foot {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .modal-foot {
+      border-top: 1px solid var(--line);
+      border-bottom: 0;
+    }
+
+    .modal h3 {
+      margin: 0;
+    }
+
+    .toast {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 20;
+      display: none;
+      max-width: min(420px, calc(100vw - 40px));
+      padding: 13px 14px;
+      border-radius: 8px;
+      color: white;
+      background: #17313b;
+      box-shadow: var(--shadow);
+    }
+
+    .toast.show {
+      display: block;
+    }
+
+    @media (max-width: 1100px) {
+      .catalog {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .stats,
+      .toolbar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .detail-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        height: auto;
+        overflow: visible;
+      }
+
+      .main {
+        padding: 18px;
+      }
+
+      .catalog,
+      .stats,
+      .toolbar,
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .cover {
+        grid-template-columns: 64px 1fr;
+      }
+
+      .cover-art {
+        width: 64px;
+        height: 94px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">BN</div>
+        <div>
+          <h1>Book Nook</h1>
+          <p>BA reading community</p>
+        </div>
+      </div>
+
+      <div class="profile-box">
+        <div class="profile-top">
+          <p class="profile-eyebrow">My profile</p>
+          <span class="profile-status">Active</span>
+        </div>
+        <div class="profile-row">
+          <div class="avatar" id="userAvatar">GC</div>
+          <div class="user-meta" id="userMeta"></div>
+        </div>
+        <div class="profile-role" id="userRole">Book Nook Member</div>
+      </div>
+
+      <nav class="nav" aria-label="Primary">
+        <button class="active" data-view="catalogView" type="button">
+          <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z"/></svg>
+          Catalog
+        </button>
+        <button data-view="requestsView" type="button">
+          <svg viewBox="0 0 24 24"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="m3 6 1 1 2-2"/><path d="m3 12 1 1 2-2"/><path d="m3 18 1 1 2-2"/></svg>
+          Requests
+        </button>
+        <button data-view="myBooksView" type="button">
+          <svg viewBox="0 0 24 24"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
+          My Books
+        </button>
+        <button data-view="borrowedView" type="button">
+          <svg viewBox="0 0 24 24"><path d="M10 2v8l3-3 3 3V2"/><path d="M4 6h16v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg>
+          Borrowed
+        </button>
+        <button data-view="historyView" type="button">
+          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/><path d="M12 7v5l3 2"/></svg>
+          History
+        </button>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <section class="topbar">
+        <div class="page-title">
+          <div class="page-kicker">Community library tracker</div>
+          <h2>BA Reading Community Tracker</h2>
+          <p>List books you can lend, browse what others have shared, request a borrow, approve or reject incoming requests, and track returns from one place.</p>
+        </div>
+        <div class="actions">
+          <button class="btn primary" id="addBookBtn" type="button">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            Add book
+          </button>
+          <button class="btn" id="resetDemoBtn" type="button">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/></svg>
+            Reset demo
+          </button>
+        </div>
+      </section>
+
+      <section class="grid stats" id="stats"></section>
+
+      <section class="view active" id="catalogView">
+        <div class="toolbar" aria-label="Catalog filters">
+          <input class="input" id="searchInput" type="search" placeholder="Search title, author, owner, or description" />
+          <select class="select" id="genreFilter"></select>
+          <select class="select" id="availabilityFilter">
+            <option value="all">All availability</option>
+            <option value="available">Available</option>
+            <option value="borrowed">Borrowed</option>
+            <option value="pending">Pending request</option>
+          </select>
+          <select class="select" id="sortSelect">
+            <option value="title">Sort by title</option>
+            <option value="newest">Newest first</option>
+            <option value="due">Due date</option>
+          </select>
+        </div>
+        <div class="grid catalog" id="catalog"></div>
+      </section>
+
+      <section class="view" id="requestsView">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Borrow Requests</h3>
+            <span class="chip" id="requestCount">0 open</span>
+          </div>
+          <div class="table-wrap" id="requestsTable"></div>
+        </div>
+      </section>
+
+      <section class="view" id="myBooksView">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>My Shared Books</h3>
+            <button class="btn primary" type="button" onclick="openBookModal()">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+              Add book
+            </button>
+          </div>
+          <div class="table-wrap" id="myBooksTable"></div>
+        </div>
+      </section>
+
+      <section class="view" id="borrowedView">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Borrow Status</h3>
+            <span class="chip" id="borrowedCount">0 active</span>
+          </div>
+          <div class="table-wrap" id="borrowedTable"></div>
+        </div>
+      </section>
+
+      <section class="view" id="historyView">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Borrowing History</h3>
+            <span class="chip" id="historyCount">0 records</span>
+          </div>
+          <div class="table-wrap" id="historyTable"></div>
+        </div>
+      </section>
+
+      <section class="view" id="detailView">
+        <div id="bookDetail"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="bookModal" role="dialog" aria-modal="true" aria-labelledby="bookModalTitle">
+    <form class="modal" id="bookForm">
+      <div class="modal-head">
+        <h3 id="bookModalTitle">Add book</h3>
+        <button class="btn icon-only" type="button" onclick="closeBookModal()" aria-label="Close modal">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div class="form-grid">
+        <input type="hidden" id="bookId" />
+        <div class="field">
+          <label for="bookTitle">Title</label>
+          <input class="input" id="bookTitle" required />
+        </div>
+        <div class="field">
+          <label for="bookAuthor">Author</label>
+          <input class="input" id="bookAuthor" required />
+        </div>
+        <div class="field">
+          <label for="bookGenre">Genre</label>
+          <select class="select" id="bookGenre" required></select>
+        </div>
+        <div class="field">
+          <label for="bookCondition">Condition</label>
+          <select class="select" id="bookCondition" required>
+            <option>Like new</option>
+            <option>Good</option>
+            <option>Well loved</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="bookLocation">Exchange location</label>
+          <input class="input" id="bookLocation" placeholder="BA office / floor / capability bay" required />
+        </div>
+        <div class="field">
+          <label for="bookDueDays">Default loan days</label>
+          <input class="input" id="bookDueDays" type="number" min="3" max="60" value="14" required />
+        </div>
+        <div class="field full">
+          <label for="bookDescription">Description</label>
+          <textarea class="textarea" id="bookDescription" required></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" onclick="closeBookModal()">Cancel</button>
+        <button class="btn primary" type="submit">Save book</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="modal-backdrop" id="requestModal" role="dialog" aria-modal="true" aria-labelledby="requestModalTitle">
+    <form class="modal" id="requestForm">
+      <div class="modal-head">
+        <h3 id="requestModalTitle">Request book</h3>
+        <button class="btn icon-only" type="button" onclick="closeRequestModal()" aria-label="Close modal">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div class="form-grid">
+        <input type="hidden" id="requestBookId" />
+        <div class="field">
+          <label for="requestDays">Borrow for days</label>
+          <input class="input" id="requestDays" type="number" min="3" max="60" value="14" required />
+        </div>
+        <div class="field">
+          <label for="requestPickup">Preferred exchange location</label>
+          <input class="input" id="requestPickup" required />
+        </div>
+        <div class="field full">
+          <label for="requestNote">Note to owner</label>
+          <textarea class="textarea" id="requestNote" placeholder="When would you like to collect it?"></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" onclick="closeRequestModal()">Cancel</button>
+        <button class="btn primary" type="submit">Send request</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    const genres = ["Leadership", "Fiction", "Product", "Technology", "Biography", "Design", "Psychology", "Business", "Career"];
+    const CURRENT_USER_ID = "u1";
+    const users = [
+      { id: "u1", name: "Gaurav Choudhary", team: "Book Nook Member", email: "gaurav.choudhary@booknook.com" },
+      { id: "u2", name: "Aarav Mehta", team: "Data Engineering", email: "aarav.mehta@bluealtair.com" },
+      { id: "u3", name: "Nisha Rao", team: "Product", email: "nisha.rao@bluealtair.com" },
+      { id: "u4", name: "Kabir Sen", team: "Design", email: "kabir.sen@bluealtair.com" }
+    ];
+
+    const seed = {
+      currentUserId: CURRENT_USER_ID,
+      books: [
+        {
+          id: "b1",
+          title: "Atomic Habits",
+          author: "James Clear",
+          genre: "Psychology",
+          ownerId: "u2",
+          condition: "Good",
+          location: "BA office, 5th floor",
+          loanDays: 14,
+          description: "A practical system for building habits and improving daily routines.",
+          createdAt: "2026-06-01T10:00:00.000Z"
+        },
+        {
+          id: "b2",
+          title: "The Phoenix Project",
+          author: "Gene Kim, Kevin Behr, George Spafford",
+          genre: "Technology",
+          ownerId: "u3",
+          condition: "Well loved",
+          location: "Product bay",
+          loanDays: 21,
+          description: "A novel about DevOps, collaboration, bottlenecks, and building better systems.",
+          createdAt: "2026-06-04T10:00:00.000Z"
+        },
+        {
+          id: "b3",
+          title: "Inspired",
+          author: "Marty Cagan",
+          genre: "Product",
+          ownerId: "u1",
+          condition: "Like new",
+          location: "BA office reception",
+          loanDays: 14,
+          description: "Product management practices for creating technology products customers love.",
+          createdAt: "2026-06-07T10:00:00.000Z"
+        },
+        {
+          id: "b4",
+          title: "Project Hail Mary",
+          author: "Andy Weir",
+          genre: "Fiction",
+          ownerId: "u4",
+          condition: "Good",
+          location: "Design studio",
+          loanDays: 14,
+          description: "A fast-moving science fiction story with problem solving at its heart.",
+          createdAt: "2026-06-10T10:00:00.000Z"
+        },
+        {
+          id: "b5",
+          title: "The Design of Everyday Things",
+          author: "Don Norman",
+          genre: "Design",
+          ownerId: "u4",
+          condition: "Good",
+          location: "Design studio",
+          loanDays: 21,
+          description: "A classic guide to usability, affordances, and human-centered design.",
+          createdAt: "2026-06-12T10:00:00.000Z"
+        }
+      ],
+      requests: [
+        {
+          id: "r1",
+          bookId: "b3",
+          borrowerId: "u2",
+          ownerId: "u1",
+          status: "pending",
+          requestedAt: "2026-06-15T09:30:00.000Z",
+          days: 14,
+          pickup: "BA cafeteria",
+          note: "Could collect it after the afternoon standup."
+        },
+        {
+          id: "r2",
+          bookId: "b2",
+          borrowerId: "u1",
+          ownerId: "u3",
+          status: "approved",
+          requestedAt: "2026-06-08T09:30:00.000Z",
+          approvedAt: "2026-06-08T12:00:00.000Z",
+          borrowedAt: "2026-06-09T10:00:00.000Z",
+          dueAt: "2026-06-30T18:00:00.000Z",
+          days: 21,
+          pickup: "Product bay",
+          note: "Will return before the month ends."
+        },
+        {
+          id: "r3",
+          bookId: "b4",
+          borrowerId: "u1",
+          ownerId: "u4",
+          status: "returned",
+          requestedAt: "2026-05-15T09:30:00.000Z",
+          approvedAt: "2026-05-15T12:00:00.000Z",
+          borrowedAt: "2026-05-16T10:00:00.000Z",
+          dueAt: "2026-05-30T18:00:00.000Z",
+          returnedAt: "2026-05-28T16:00:00.000Z",
+          days: 14,
+          pickup: "Design studio",
+          note: "Returned in good condition."
+        },
+        {
+          id: "r4",
+          bookId: "b1",
+          borrowerId: "u4",
+          ownerId: "u2",
+          status: "rejected",
+          requestedAt: "2026-06-05T09:30:00.000Z",
+          rejectedAt: "2026-06-05T15:00:00.000Z",
+          days: 14,
+          pickup: "Design studio",
+          note: "Owner needed it for a workshop."
+        }
+      ]
+    };
+
+    let state = loadState();
+    let activeView = "catalogView";
+
+    const $ = (id) => document.getElementById(id);
+    const today = new Date("2026-06-16T12:00:00+05:30");
+
+    function loadState() {
+      const saved = localStorage.getItem("bookNookState");
+      const nextState = saved ? JSON.parse(saved) : structuredClone(seed);
+      nextState.currentUserId = CURRENT_USER_ID;
+      return nextState;
+    }
+
+    function saveState() {
+      localStorage.setItem("bookNookState", JSON.stringify(state));
+    }
+
+    function resetDemo() {
+      state = structuredClone(seed);
+      saveState();
+      render();
+      showToast("Demo data reset.");
+    }
+
+    function currentUser() {
+      return users.find((user) => user.id === CURRENT_USER_ID);
+    }
+
+    function userName(id) {
+      return users.find((user) => user.id === id)?.name || "Unknown";
+    }
+
+    function bookById(id) {
+      return state.books.find((book) => book.id === id);
+    }
+
+    function activeRequestFor(bookId) {
+      return state.requests.find((request) => request.bookId === bookId && ["pending", "approved"].includes(request.status));
+    }
+
+    function statusForBook(book) {
+      const request = activeRequestFor(book.id);
+      if (!request) return "available";
+      return request.status === "approved" ? "borrowed" : "pending";
+    }
+
+    function statusLabel(status) {
+      return status.charAt(0).toUpperCase() + status.slice(1);
+    }
+
+    function isOverdue(request) {
+      return request.status === "approved" && request.dueAt && new Date(request.dueAt) < today;
+    }
+
+    function dateText(value) {
+      if (!value) return "-";
+      return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
+    }
+
+    function makeId(prefix) {
+      return `${prefix}${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    }
+
+    function coverColor(book) {
+      const palette = ["#0f766e", "#17313b", "#7c2d12", "#1d4ed8", "#6d28d9", "#9d174d", "#166534"];
+      return palette[Math.abs(hashCode(book.title)) % palette.length];
+    }
+
+    function hashCode(text) {
+      return text.split("").reduce((hash, char) => ((hash << 5) - hash) + char.charCodeAt(0), 0);
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function showView(viewId) {
+      activeView = viewId;
+      document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === viewId));
+      document.querySelectorAll(".nav button").forEach((button) => button.classList.toggle("active", button.dataset.view === viewId));
+      if (viewId !== "detailView") render();
+    }
+
+    function render() {
+      renderProfile();
+      renderStats();
+      renderFilters();
+      renderCatalog();
+      renderRequests();
+      renderMyBooks();
+      renderBorrowed();
+      renderHistory();
+    }
+
+    function renderProfile() {
+      const user = currentUser();
+      $("userAvatar").textContent = user.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+      $("userMeta").innerHTML = `<strong>${escapeHtml(user.name)}</strong><span class="user-email">${escapeHtml(user.email)}</span>`;
+      $("userRole").textContent = user.team;
+    }
+
+    function renderStats() {
+      const available = state.books.filter((book) => statusForBook(book) === "available").length;
+      const pendingForMe = state.requests.filter((request) => request.ownerId === state.currentUserId && request.status === "pending").length;
+      const borrowedByMe = state.requests.filter((request) => request.borrowerId === state.currentUserId && request.status === "approved").length;
+      const overdue = state.requests.filter((request) => isOverdue(request)).length;
+      $("stats").innerHTML = [
+        ["Books listed", state.books.length],
+        ["Available now", available],
+        ["Pending approvals", pendingForMe],
+        ["Overdue loans", overdue || borrowedByMe]
+      ].map(([label, value]) => `<article class="stat"><span>${label}</span><strong>${value}</strong></article>`).join("");
+    }
+
+    function renderFilters() {
+      const currentGenre = $("genreFilter").value || "all";
+      $("genreFilter").innerHTML = `<option value="all">All genres</option>${genres.map((genre) => `<option>${genre}</option>`).join("")}`;
+      $("genreFilter").value = genres.includes(currentGenre) ? currentGenre : "all";
+      $("bookGenre").innerHTML = genres.map((genre) => `<option>${genre}</option>`).join("");
+    }
+
+    function filteredBooks() {
+      const query = $("searchInput").value.trim().toLowerCase();
+      const genre = $("genreFilter").value;
+      const availability = $("availabilityFilter").value;
+      const sort = $("sortSelect").value;
+      let books = [...state.books].filter((book) => {
+        const haystack = [book.title, book.author, book.genre, book.description, userName(book.ownerId)].join(" ").toLowerCase();
+        const matchesQuery = !query || haystack.includes(query);
+        const matchesGenre = genre === "all" || book.genre === genre;
+        const matchesAvailability = availability === "all" || statusForBook(book) === availability;
+        return matchesQuery && matchesGenre && matchesAvailability;
+      });
+
+      books.sort((a, b) => {
+        if (sort === "newest") return new Date(b.createdAt) - new Date(a.createdAt);
+        if (sort === "due") {
+          const aReq = activeRequestFor(a.id);
+          const bReq = activeRequestFor(b.id);
+          return new Date(aReq?.dueAt || "2999-01-01") - new Date(bReq?.dueAt || "2999-01-01");
+        }
+        return a.title.localeCompare(b.title);
+      });
+      return books;
+    }
+
+    function renderCatalog() {
+      const books = filteredBooks();
+      if (!books.length) {
+        $("catalog").innerHTML = `<div class="panel empty" style="grid-column: 1 / -1;">No books match the current filters.</div>`;
+        return;
+      }
+
+      $("catalog").innerHTML = books.map((book) => {
+        const request = activeRequestFor(book.id);
+        const status = statusForBook(book);
+        const ownedByMe = book.ownerId === state.currentUserId;
+        const requestedByMe = request?.borrowerId === state.currentUserId;
+        const canRequest = status === "available" && !ownedByMe;
+        const canReturn = request?.status === "approved" && requestedByMe;
+        return `
+          <article class="book-card">
+            <div class="cover">
+              <div class="cover-art" style="background:${coverColor(book)}">${escapeHtml(book.genre)}</div>
+              <div>
+                <h3>${escapeHtml(book.title)}</h3>
+                <div class="author">${escapeHtml(book.author)}</div>
+                <div class="chips">
+                  <span class="chip ${status}">${statusLabel(status)}</span>
+                  <span class="chip">${escapeHtml(book.genre)}</span>
+                </div>
+              </div>
+            </div>
+            <div class="book-body">
+              <p class="book-desc">${escapeHtml(book.description)}</p>
+              <div class="mini-meta">
+                <span><strong>Owner:</strong> ${escapeHtml(userName(book.ownerId))}</span>
+                <span><strong>Location:</strong> ${escapeHtml(book.location)}</span>
+                <span><strong>Loan:</strong> ${book.loanDays} days${request?.dueAt ? `, due ${dateText(request.dueAt)}` : ""}</span>
+              </div>
+              <div class="card-actions">
+                <button class="btn" type="button" onclick="showBookDetail('${book.id}')">Details</button>
+                ${canRequest ? `<button class="btn primary" type="button" onclick="openRequestModal('${book.id}')">Request</button>` : ""}
+                ${canReturn ? `<button class="btn warn" type="button" onclick="returnBook('${request.id}')">Return</button>` : ""}
+                ${ownedByMe ? `<button class="btn" type="button" onclick="openBookModal('${book.id}')">Edit</button>` : ""}
+              </div>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderRequests() {
+      const rows = state.requests
+        .filter((request) => request.ownerId === state.currentUserId || request.borrowerId === state.currentUserId)
+        .sort((a, b) => new Date(b.requestedAt) - new Date(a.requestedAt));
+      const open = rows.filter((request) => request.status === "pending").length;
+      $("requestCount").textContent = `${open} open`;
+      $("requestsTable").innerHTML = tableOrEmpty(rows, ["Book", "Borrower", "Owner", "Status", "Requested", "Actions"], (request) => {
+        const book = bookById(request.bookId);
+        const ownerCanAct = request.ownerId === state.currentUserId && request.status === "pending";
+        return `
+          <tr>
+            <td><strong>${escapeHtml(book?.title || "Deleted book")}</strong><br><span class="mini-meta">${escapeHtml(book?.author || "")}</span></td>
+            <td>${escapeHtml(userName(request.borrowerId))}</td>
+            <td>${escapeHtml(userName(request.ownerId))}</td>
+            <td><span class="chip ${isOverdue(request) ? "overdue" : request.status}">${isOverdue(request) ? "Overdue" : statusLabel(request.status)}</span></td>
+            <td>${dateText(request.requestedAt)}</td>
+            <td><div class="row-actions">
+              ${ownerCanAct ? `<button class="btn primary" type="button" onclick="approveRequest('${request.id}')">Approve</button><button class="btn danger" type="button" onclick="rejectRequest('${request.id}')">Reject</button>` : ""}
+              ${request.status === "approved" && request.borrowerId === state.currentUserId ? `<button class="btn warn" type="button" onclick="returnBook('${request.id}')">Return</button>` : ""}
+              <button class="btn" type="button" onclick="showBookDetail('${request.bookId}')">Book</button>
+            </div></td>
+          </tr>
+        `;
+      });
+    }
+
+    function renderMyBooks() {
+      const rows = state.books.filter((book) => book.ownerId === state.currentUserId);
+      $("myBooksTable").innerHTML = tableOrEmpty(rows, ["Book", "Genre", "Status", "Location", "Actions"], (book) => {
+        const status = statusForBook(book);
+        return `
+          <tr>
+            <td><strong>${escapeHtml(book.title)}</strong><br>${escapeHtml(book.author)}</td>
+            <td>${escapeHtml(book.genre)}</td>
+            <td><span class="chip ${status}">${statusLabel(status)}</span></td>
+            <td>${escapeHtml(book.location)}</td>
+            <td><div class="row-actions">
+              <button class="btn" type="button" onclick="openBookModal('${book.id}')">Edit</button>
+              <button class="btn" type="button" onclick="showBookDetail('${book.id}')">Details</button>
+              <button class="btn danger" type="button" onclick="deleteBook('${book.id}')">Delete</button>
+            </div></td>
+          </tr>
+        `;
+      });
+    }
+
+    function renderBorrowed() {
+      const rows = state.requests.filter((request) => request.borrowerId === state.currentUserId && request.status === "approved");
+      $("borrowedCount").textContent = `${rows.length} active`;
+      $("borrowedTable").innerHTML = tableOrEmpty(rows, ["Book", "Owner", "Borrowed", "Due", "Status", "Actions"], (request) => {
+        const book = bookById(request.bookId);
+        return `
+          <tr>
+            <td><strong>${escapeHtml(book?.title || "Deleted book")}</strong><br>${escapeHtml(book?.author || "")}</td>
+            <td>${escapeHtml(userName(request.ownerId))}</td>
+            <td>${dateText(request.borrowedAt)}</td>
+            <td>${dateText(request.dueAt)}</td>
+            <td><span class="chip ${isOverdue(request) ? "overdue" : "borrowed"}">${isOverdue(request) ? "Overdue" : "Borrowed"}</span></td>
+            <td><div class="row-actions"><button class="btn warn" type="button" onclick="returnBook('${request.id}')">Return</button><button class="btn" type="button" onclick="showBookDetail('${request.bookId}')">Details</button></div></td>
+          </tr>
+        `;
+      });
+    }
+
+    function renderHistory() {
+      const rows = state.requests
+        .filter((request) => ["returned", "rejected"].includes(request.status) || request.borrowerId === state.currentUserId || request.ownerId === state.currentUserId)
+        .sort((a, b) => new Date(b.returnedAt || b.rejectedAt || b.requestedAt) - new Date(a.returnedAt || a.rejectedAt || a.requestedAt));
+      $("historyCount").textContent = `${rows.length} records`;
+      $("historyTable").innerHTML = tableOrEmpty(rows, ["Book", "Borrower", "Owner", "Status", "Requested", "Closed"], (request) => {
+        const book = bookById(request.bookId);
+        return `
+          <tr>
+            <td><strong>${escapeHtml(book?.title || "Deleted book")}</strong><br>${escapeHtml(book?.author || "")}</td>
+            <td>${escapeHtml(userName(request.borrowerId))}</td>
+            <td>${escapeHtml(userName(request.ownerId))}</td>
+            <td><span class="chip ${isOverdue(request) ? "overdue" : request.status}">${isOverdue(request) ? "Overdue" : statusLabel(request.status)}</span></td>
+            <td>${dateText(request.requestedAt)}</td>
+            <td>${dateText(request.returnedAt || request.rejectedAt || "")}</td>
+          </tr>
+        `;
+      });
+    }
+
+    function tableOrEmpty(rows, headers, rowTemplate) {
+      if (!rows.length) return `<div class="empty">Nothing to show yet.</div>`;
+      return `
+        <table>
+          <thead><tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr></thead>
+          <tbody>${rows.map(rowTemplate).join("")}</tbody>
+        </table>
+      `;
+    }
+
+    function showBookDetail(bookId) {
+      const book = bookById(bookId);
+      if (!book) return;
+      const status = statusForBook(book);
+      const request = activeRequestFor(book.id);
+      const history = state.requests.filter((item) => item.bookId === book.id).sort((a, b) => new Date(b.requestedAt) - new Date(a.requestedAt));
+      $("bookDetail").innerHTML = `
+        <div class="detail-layout">
+          <div class="detail-cover">
+            <div class="detail-book" style="background:${coverColor(book)}">${escapeHtml(book.title)}</div>
+          </div>
+          <div class="panel detail-panel">
+            <button class="btn" type="button" onclick="showView('catalogView')">Back to catalog</button>
+            <h3>${escapeHtml(book.title)}</h3>
+            <div class="author">${escapeHtml(book.author)}</div>
+            <div class="chips">
+              <span class="chip ${status}">${statusLabel(status)}</span>
+              <span class="chip">${escapeHtml(book.genre)}</span>
+              <span class="chip">${escapeHtml(book.condition)}</span>
+            </div>
+            <p>${escapeHtml(book.description)}</p>
+            <div class="mini-meta">
+              <span><strong>Owner:</strong> ${escapeHtml(userName(book.ownerId))}</span>
+              <span><strong>Exchange location:</strong> ${escapeHtml(book.location)}</span>
+              <span><strong>Default loan:</strong> ${book.loanDays} days</span>
+              ${request?.dueAt ? `<span><strong>Current due date:</strong> ${dateText(request.dueAt)}</span>` : ""}
+            </div>
+            <div class="card-actions" style="margin-top:16px;">
+              ${status === "available" && book.ownerId !== state.currentUserId ? `<button class="btn primary" type="button" onclick="openRequestModal('${book.id}')">Request this book</button>` : ""}
+              ${book.ownerId === state.currentUserId ? `<button class="btn" type="button" onclick="openBookModal('${book.id}')">Edit book</button>` : ""}
+            </div>
+            <div class="timeline">
+              <h3>Activity</h3>
+              ${history.length ? history.map((item) => `<div class="timeline-item"><strong>${escapeHtml(userName(item.borrowerId))} - ${statusLabel(item.status)}</strong><span>${dateText(item.requestedAt)}${item.dueAt ? `, due ${dateText(item.dueAt)}` : ""}</span><br><span>${escapeHtml(item.note || "No note added.")}</span></div>`).join("") : `<div class="timeline-item">No borrowing activity yet.</div>`}
+            </div>
+          </div>
+        </div>
+      `;
+      showView("detailView");
+    }
+
+    function openBookModal(bookId) {
+      const book = bookId ? bookById(bookId) : null;
+      $("bookModalTitle").textContent = book ? "Edit book" : "Add book";
+      $("bookId").value = book?.id || "";
+      $("bookTitle").value = book?.title || "";
+      $("bookAuthor").value = book?.author || "";
+      $("bookGenre").value = book?.genre || genres[0];
+      $("bookCondition").value = book?.condition || "Good";
+      $("bookLocation").value = book?.location || "";
+      $("bookDueDays").value = book?.loanDays || 14;
+      $("bookDescription").value = book?.description || "";
+      $("bookModal").classList.add("open");
+      $("bookTitle").focus();
+    }
+
+    function closeBookModal() {
+      $("bookModal").classList.remove("open");
+    }
+
+    function saveBook(event) {
+      event.preventDefault();
+      const id = $("bookId").value;
+      const payload = {
+        title: $("bookTitle").value.trim(),
+        author: $("bookAuthor").value.trim(),
+        genre: $("bookGenre").value,
+        condition: $("bookCondition").value,
+        location: $("bookLocation").value.trim(),
+        loanDays: Number($("bookDueDays").value),
+        description: $("bookDescription").value.trim()
+      };
+
+      if (id) {
+        const index = state.books.findIndex((book) => book.id === id);
+        state.books[index] = { ...state.books[index], ...payload };
+        showToast("Book updated.");
+      } else {
+        state.books.unshift({ id: makeId("b"), ownerId: state.currentUserId, createdAt: new Date().toISOString(), ...payload });
+        showToast("Book added to the community catalog.");
+      }
+      saveState();
+      closeBookModal();
+      render();
+    }
+
+    function deleteBook(bookId) {
+      const active = activeRequestFor(bookId);
+      if (active) {
+        showToast("This book has an active request or loan. Close that workflow before deleting.");
+        return;
+      }
+      state.books = state.books.filter((book) => book.id !== bookId || book.ownerId !== state.currentUserId);
+      state.requests = state.requests.filter((request) => request.bookId !== bookId);
+      saveState();
+      render();
+      showToast("Book deleted.");
+    }
+
+    function openRequestModal(bookId) {
+      const book = bookById(bookId);
+      $("requestBookId").value = book.id;
+      $("requestDays").value = book.loanDays;
+      $("requestPickup").value = book.location;
+      $("requestNote").value = "";
+      $("requestModalTitle").textContent = `Request: ${book.title}`;
+      $("requestModal").classList.add("open");
+      $("requestDays").focus();
+    }
+
+    function closeRequestModal() {
+      $("requestModal").classList.remove("open");
+    }
+
+    function sendRequest(event) {
+      event.preventDefault();
+      const book = bookById($("requestBookId").value);
+      if (!book || book.ownerId === state.currentUserId || statusForBook(book) !== "available") {
+        showToast("This book is not available for request.");
+        return;
+      }
+      state.requests.unshift({
+        id: makeId("r"),
+        bookId: book.id,
+        borrowerId: state.currentUserId,
+        ownerId: book.ownerId,
+        status: "pending",
+        requestedAt: new Date().toISOString(),
+        days: Number($("requestDays").value),
+        pickup: $("requestPickup").value.trim(),
+        note: $("requestNote").value.trim()
+      });
+      saveState();
+      closeRequestModal();
+      render();
+      showToast(`Request sent to ${userName(book.ownerId)}.`);
+    }
+
+    function approveRequest(requestId) {
+      const request = state.requests.find((item) => item.id === requestId);
+      if (!request || request.ownerId !== state.currentUserId) return;
+      const borrowedAt = new Date();
+      const dueAt = new Date(borrowedAt);
+      dueAt.setDate(dueAt.getDate() + Number(request.days || 14));
+      request.status = "approved";
+      request.approvedAt = borrowedAt.toISOString();
+      request.borrowedAt = borrowedAt.toISOString();
+      request.dueAt = dueAt.toISOString();
+      state.requests
+        .filter((item) => item.bookId === request.bookId && item.id !== request.id && item.status === "pending")
+        .forEach((item) => {
+          item.status = "rejected";
+          item.rejectedAt = new Date().toISOString();
+          item.note = item.note ? `${item.note} | Auto-rejected because another request was approved.` : "Auto-rejected because another request was approved.";
+        });
+      saveState();
+      render();
+      showToast("Request approved and due date created.");
+    }
+
+    function rejectRequest(requestId) {
+      const request = state.requests.find((item) => item.id === requestId);
+      if (!request || request.ownerId !== state.currentUserId) return;
+      request.status = "rejected";
+      request.rejectedAt = new Date().toISOString();
+      saveState();
+      render();
+      showToast("Request rejected.");
+    }
+
+    function returnBook(requestId) {
+      const request = state.requests.find((item) => item.id === requestId);
+      if (!request || request.borrowerId !== state.currentUserId || request.status !== "approved") return;
+      request.status = "returned";
+      request.returnedAt = new Date().toISOString();
+      saveState();
+      render();
+      showToast("Book marked as returned.");
+    }
+
+    function showToast(message) {
+      const toast = $("toast");
+      toast.textContent = message;
+      toast.classList.add("show");
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => toast.classList.remove("show"), 2600);
+    }
+
+    document.querySelectorAll(".nav button").forEach((button) => {
+      button.addEventListener("click", () => showView(button.dataset.view));
+    });
+
+    ["searchInput", "genreFilter", "availabilityFilter", "sortSelect"].forEach((id) => {
+      $(id).addEventListener("input", renderCatalog);
+      $(id).addEventListener("change", renderCatalog);
+    });
+
+    $("addBookBtn").addEventListener("click", () => openBookModal());
+    $("resetDemoBtn").addEventListener("click", resetDemo);
+    $("bookForm").addEventListener("submit", saveBook);
+    $("requestForm").addEventListener("submit", sendRequest);
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        closeBookModal();
+        closeRequestModal();
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>
