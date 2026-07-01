@@ -2587,15 +2587,22 @@ th:last-child {
   gap: 28px;
   width: 100%;
 }
-.dashboard-loader {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 60vh;
-  gap: 20px;
+/* Enforce strict full-screen view-blocking properties */
+.dashboard-loader, .nav-loader-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 99999 !important;
+  background: var(--bg) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
+/* Ensure centering inside the layout blocks */
 .dashboard-loader-spinner-wrap {
   position: relative;
   width: 90px;
@@ -2603,6 +2610,7 @@ th:last-child {
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-bottom: 20px;
 }
 
 .dashboard-loader-spinner {
