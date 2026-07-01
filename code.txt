@@ -8,6 +8,7 @@
   src/App.jsx
   src/components/BookCard.jsx
   src/components/BookModal.jsx
+  src/components/common/BookAddedDialog.jsx
   src/components/common/ConfirmDialog.jsx
   src/components/common/EmptyState.jsx
   src/components/common/FormInput.jsx
@@ -46,6 +47,7 @@
   Dockerfile
   package.json
   prisma/migrations/20260624073730_merge_requests_and_loans/migration.sql
+  prisma/migrations/20260629000000_add_author_model/migration.sql
   prisma/migrations/migration_lock.toml
   prisma/schema.prisma
   src/config/prisma.ts
@@ -130,7 +132,27 @@ CMD ["nginx", "-g", "daemon off;"]
 </file>
 
 <file path="src/api/index.js">
-const API_URL = "https://booknook-gfb8.onrender.com/api";
+const API_URL = "http://localhost:8080/api";
+function friendlyErrorMessage(message) {
+  const text = String(message || "").toLowerCase();
+  const looksLikeDatabaseError = [
+    "prisma.",
+    "prismaclient",
+    "error querying the database",
+    "emaxconnsession",
+    "max clients reached",
+    "pool_size",
+    "connection pool",
+    "too many connections",
+  ].some((needle) => text.includes(needle));
+  if (looksLikeDatabaseError) {
+    return "The library desk is a bit overloaded right now. Please try again in a moment.";
+  }
+  if (!message || text === "internal server error") {
+    return "Something wobbled on our side. Please try again in a moment.";
+  }
+  return message;
+}
 async function request(path, options = {}) {
   const token = localStorage.getItem("bn_token");
   const headers = {
@@ -159,7 +181,7 @@ async function request(path, options = {}) {
     } catch {
       message = text || message;
     }
-    throw new Error(message);
+    throw new Error(friendlyErrorMessage(message));
   }
   if (response.status === 204) return null;
   return text ? JSON.parse(text) : null;
@@ -191,6 +213,11 @@ export const api = {
     request("/books", {
       method: "POST",
       body: JSON.stringify(payload),
+    }),
+  importBooks: (rows) =>
+    request("/books/import", {
+      method: "POST",
+      body: JSON.stringify({ rows }),
     }),
   updateBook: (id, payload) =>
     request(`/books/${id}`, {
@@ -253,7 +280,15 @@ export const api = {
       throw new Error("Your session has expired. Please sign in again.");
     }
     if (!response.ok) {
-      throw new Error("Failed to export books.");
+      const text = await response.text();
+      let message = "Failed to export books.";
+      try {
+        const body = text ? JSON.parse(text) : {};
+        message = body.message || message;
+      } catch {
+        message = text || message;
+      }
+      throw new Error(friendlyErrorMessage(message));
     }
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
@@ -265,6 +300,15 @@ export const api = {
     a.remove();
     window.URL.revokeObjectURL(url);
   },
+  authors: (search) => {
+    const query = search ? `?search=${encodeURIComponent(search)}` : "";
+    return request(`/authors${query}`);
+  },
+  createAuthor: (name) =>
+    request("/authors", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
 };
 </file>
 
@@ -291,6 +335,7 @@ import {
   ChevronRight,
   Info
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import { api } from "./api";
 import { Profile } from "./components/Profile";
 import { Stats } from "./components/Stats";
@@ -305,7 +350,8 @@ import { MyBooks } from "./pages/MyBooks";
 import { Borrowed } from "./pages/Borrowed";
 import { LoanHistory } from "./pages/LoanHistory";
 import { Details } from "./pages/Details";
-import { initials } from "./utils/helpers";
+import { BookAddedDialog } from "./components/common/BookAddedDialog";
+import { initials, parseDelimitedText, normalizeImportRow } from "./utils/helpers";
 import { ConfirmDialog } from "./components/common/ConfirmDialog";
 import logo from "./styles/blue_altair_logo-removebg-preview.png";
 const VALID_VIEWS = new Set(["dashboard", "home", "catalog", "requests", "myBooks", "borrowed", "history", "detail"]);
@@ -334,19 +380,20 @@ const blankBook = {
 };
 function DashboardLoader() {
   const messages = [
-  { text: "Welcome back", icon: "👋" },
-  { text: "Preparing your dashboard", icon: "⚙️" },
-  { text: "Gathering your reading stats", icon: "📊" },
-  { text: "Loading your latest activity", icon: "📚" },
-  { text: "Syncing your bookshelf", icon: "🗂️" },
-  { text: "Calculating your reading progress", icon: "📈" },
-  { text: "Curating today's picks", icon: "✨" },
-  { text: "Almost ready", icon: "⏳" },
-  { text: "Putting the final touches", icon: "🧩" },
-  { text: "Good things take a moment", icon: "🌱" },
-  { text: "Thanks for your patience", icon: "🙏" },
-  { text: "Just a few seconds more", icon: "⏱️" }
-];
+    { text: "Welcome back", icon: "👋" },
+    { text: "Preparing your dashboard", icon: "⚙️" },
+    { text: "Gathering your reading stats", icon: "📊" },
+    { text: "Loading your latest activity", icon: "📚" },
+    { text: "Syncing your bookshelf", icon: "🗂️" },
+    { text: "Calculating your reading progress", icon: "📈" },
+    { text: "Curating today's picks", icon: "✨" },
+    { text: "Almost ready", icon: "⏳" },
+    { text: "Putting the final touches", icon: "🧩" },
+    { text: "Good things take a moment", icon: "🌱" },
+    { text: "Thanks for your patience", icon: "🙏" },
+    { text: "Just a few seconds more", icon: "⏱️" }
+  ];
+  const [bookAdded, setBookAdded] = useState(false);
   const [index, setIndex] = useState(0);
   useEffect(() => {
     const id = setInterval(() => {
@@ -364,7 +411,20 @@ function DashboardLoader() {
         {messages[index].text}
       </p>
       {
+      }
+    </div>
+  );
 }
+function NavLoader() {
+  return (
+    <div className="nav-loader-overlay">
+      <div className="nav-loader-card">
+        <div className="nav-loader-icon-wrap">
+          <BookOpen size={38} className="nav-loader-icon" />
+          <div className="nav-loader-ring" />
+        </div>
+        <p className="nav-loader-message">Loading your bookshelf</p>
+      </div>
     </div>
   );
 }
@@ -463,6 +523,10 @@ export default function App() {
   }, []);
   function navigateTo(newView, options = {}) {
     if (!VALID_VIEWS.has(newView)) return;
+    setShowProfileDropdown(false);
+    if (newView !== view && !isDataReady(newView)) {
+      setNavLoading(newView);
+    }
     const nextBookId = newView === "detail" ? (options.bookId || selectedBookId) : null;
     const nextStack = options.replace
       ? [...navStack.slice(0, -1), newView]
@@ -509,12 +573,28 @@ export default function App() {
   const [requestModal, setRequestModal] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [navLoading, setNavLoading] = useState(null);
   const [dailyThought, setDailyThought] = useState(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
   const navRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [bookAddedMessage, setBookAddedMessage] = useState(null);
+  function isDataReady(v) {
+    switch (v) {
+      case "dashboard": return stats !== null;
+      case "catalog":
+      case "requests":
+      case "myBooks":
+      case "borrowed":
+      case "history":
+        return true;
+      case "detail": return selectedBook !== null;
+      case "home": return stats !== null;
+      default: return true;
+    }
+  }
   const checkNavScroll = useCallback(() => {
     const el = navRef.current;
     if (el) {
@@ -542,7 +622,7 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-    fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+    fetch(`http://localhost:8080/api/quote/today`)
       .then((response) => response.ok ? response.json() : null)
       .then((quote) => {
         if (quote) setDailyThought(quote);
@@ -626,6 +706,10 @@ export default function App() {
       window.removeEventListener("auth-expired", handler);
     };
   }, []);
+  useEffect(() => {
+    if (!navLoading || navLoading !== view) return;
+    if (isDataReady(view)) setNavLoading(null);
+  }, [view, navLoading, stats, booksPage, requestsPage, myBooksPage, borrowedPage, historyPage, selectedBook, loading]);
   async function handleLogin(token, user) {
     localStorage.setItem("bn_token", token);
     setMe(user);
@@ -640,7 +724,8 @@ export default function App() {
   async function handleLogout() {
     setShowProfileDropdown(false);
     try {
-      await fetch("https:
+      // await fetch("https:
+      await fetch("http://localhost:8080/api/auth/logout", {
         method: "POST",
         credentials: "include",
       });
@@ -657,331 +742,381 @@ export default function App() {
     localStorage.removeItem("bn_navStack");
     localStorage.removeItem("bn_selectedBookId");
     notify("Logged out successfully.");
-}
-async function loadBootstrap() {
-  try {
-    setLoading(true);
-    const [user, genreList] = await Promise.all([api.me(), api.genres()]);
-    setMe(user);
-    setGenres(genreList);
-    await refresh();
-  } catch (error) {
-    notify(error.message, "error");
-  } finally {
-    setLoading(false);
   }
-}
-async function refresh() {
-  const dashboard = await api.dashboard();
-  setStats(dashboard);
-  await Promise.all([
-    loadCatalog(),
-    loadRequests(requestsPage.page),
-    loadMyBooks(myBooksPage.page),
-    loadBorrowed(borrowedPage.page),
-    loadHistory(historyPage.page)
-  ]);
-}
-async function loadCatalog() {
-  try {
-    setLoading(true);
-    const params = {
-      search: filters.search,
-      availability: filters.availability,
-      sort: filters.sort,
-      page: filters.page,
-      size: 20
-    };
-    if (filters.genreId) params.genreId = filters.genreId;
-    setBooksPage(await api.books(params));
-  } catch (error) {
-    notify(error.message, "error");
-  } finally {
-    setLoading(false);
-  }
-}
-function askConfirm(message, onConfirm) {
-  setConfirm({ message, onConfirm });
-}
-async function resolveConfirm(confirmed) {
-  if (confirmed && confirm?.onConfirm) await confirm.onConfirm();
-  setConfirm(null);
-}
-async function loadRequests(page) {
-  try { setRequestsPage(await api.requests(page)); } catch (e) { notify(e.message, "error"); }
-}
-async function loadMyBooks(page) {
-  try { setMyBooksPage(await api.myBooks(page)); } catch (e) { notify(e.message, "error"); }
-}
-async function loadBorrowed(page) {
-  try { setBorrowedPage(await api.borrowed(page)); } catch (e) { notify(e.message, "error"); }
-}
-async function loadHistory(page) {
-  try { setHistoryPage(await api.loanHistory(page)); } catch (e) { notify(e.message, "error"); }
-}
-async function loadBookHistory(id, page) {
-  try { setBookHistoryPage(await api.bookHistory(id, page)); } catch (e) { notify(e.message, "error"); }
-}
-async function openDetails(book) {
-  setDetailsLoading(true);
-  try {
-    const freshBook = await api.book(book.id);
-    setSelectedBook(freshBook);
-    setSelectedBookId(book.id);
-    await loadBookHistory(book.id, 0);
-    navigateTo("detail", { bookId: book.id });
-  } finally {
-    setDetailsLoading(false);
-  }
-}
-async function saveBook(payload) {
-  try {
-    if (bookModal?.id) await api.updateBook(bookModal.id, payload);
-    else await api.createBook(payload);
-    setBookModal(null);
-    notify(bookModal?.id ? "Book updated." : "Book added.");
-    await refresh();
-  } catch (error) {
-    notify(error.message, "error");
-  }
-}
-async function deleteBook(id) {
-  askConfirm("Are you sure you want to remove this book from the library? This cannot be undone.", async () => {
+  async function loadBootstrap() {
     try {
-      await api.deleteBook(id);
-      notify("Book deleted.");
+      setLoading(true);
+      const [user, genreList] = await Promise.all([api.me(), api.genres()]);
+      setMe(user);
+      setGenres(genreList);
       await refresh();
     } catch (error) {
       notify(error.message, "error");
+    } finally {
+      setLoading(false);
     }
-  });
-  return;
-}
-async function sendRequest(payload) {
-  try {
-    await api.requestBook(payload);
-    setRequestModal(null);
-    notify("Borrow request sent.");
-    await refresh();
-  } catch (error) {
-    notify(error.message, "error");
   }
-}
-async function approve(id) {
-  try {
-    await api.approve(id);
-    notify("Request approved and loan started.");
-    await refresh();
-  } catch (error) {
-    notify(error.message, "error");
+  async function refresh() {
+    const dashboard = await api.dashboard();
+    setStats(dashboard);
+    await Promise.all([
+      loadCatalog(),
+      loadRequests(requestsPage.page),
+      loadMyBooks(myBooksPage.page),
+      loadBorrowed(borrowedPage.page),
+      loadHistory(historyPage.page)
+    ]);
   }
-}
-async function reject(id) {
-  askConfirm("Are you sure you want to reject this request?", async () => {
+  async function loadCatalog() {
     try {
-      await api.reject(id);
-      notify("Request rejected.");
-      await refresh();
+      setLoading(true);
+      const params = {
+        search: filters.search,
+        availability: filters.availability,
+        sort: filters.sort,
+        page: filters.page,
+        size: 20
+      };
+      if (filters.genreId) params.genreId = filters.genreId;
+      setBooksPage(await api.books(params));
+    } catch (error) {
+      notify(error.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+  function askConfirm(message, onConfirm) {
+    setConfirm({ message, onConfirm });
+  }
+  async function resolveConfirm(confirmed) {
+    if (confirmed && confirm?.onConfirm) await confirm.onConfirm();
+    setConfirm(null);
+  }
+  async function loadRequests(page) {
+    try { setRequestsPage(await api.requests(page)); } catch (e) { notify(e.message, "error"); }
+  }
+  async function loadMyBooks(page) {
+    try { setMyBooksPage(await api.myBooks(page)); } catch (e) { notify(e.message, "error"); }
+  }
+  async function loadBorrowed(page) {
+    try { setBorrowedPage(await api.borrowed(page)); } catch (e) { notify(e.message, "error"); }
+  }
+  async function loadHistory(page) {
+    try { setHistoryPage(await api.loanHistory(page)); } catch (e) { notify(e.message, "error"); }
+  }
+  async function loadBookHistory(id, page) {
+    try { setBookHistoryPage(await api.bookHistory(id, page)); } catch (e) { notify(e.message, "error"); }
+  }
+  async function openDetails(book) {
+    setDetailsLoading(true);
+    try {
+      const freshBook = await api.book(book.id);
+      setSelectedBook(freshBook);
+      setSelectedBookId(book.id);
+      await loadBookHistory(book.id, 0);
+      navigateTo("detail", { bookId: book.id });
+    } finally {
+      setDetailsLoading(false);
+    }
+  }
+  async function saveBook(payload) {
+    try {
+      if (bookModal?.id) await api.updateBook(bookModal.id, payload);
+      else await api.createBook(payload);
+      setBookModal(null);
+      notify(bookModal?.id ? "Book updated." : "Book added.");
+      await loadMyBooks(bookModal?.id ? myBooksPage.page : 0);
     } catch (error) {
       notify(error.message, "error");
     }
-  });
-  return;
-}
-async function returnBook(id, bookTitle) {
-  askConfirm(`Return "${bookTitle}"? This will mark the book as returned.`, async () => {
-    try {
-      await api.returnBook(id);
-      notify("Book marked as returned.");
-      await refresh();
-    } catch (error) {
-      notify(error.message, "error");
-    }
-  });
-}
-function notify(message, type = "success") {
-  const id = Math.random().toString(36).substring(2, 9);
-  setToasts((prev) => [...prev, { id, message, type }]);
-}
-function removeToast(id) {
-  setToasts((prev) => prev.filter((t) => t.id !== id));
-}
-const navSections = [
-  {
-    label: "Analytics & Shelf",
-    items: [
-      ["dashboard", "Dashboard", CheckSquare],
-      ["catalog", "Browse", Globe]
-    ]
-  },
-  {
-    label: "Your Activity",
-    items: [
-      ["requests", "Requests", CheckSquare, stats?.pendingApprovals],
-      ["myBooks", "My Shelf", LibraryBig],
-      ["borrowed", "Currently Reading", BookOpenText],
-      ["history", "History", History]
-    ]
   }
-];
-if (authChecking) {
-  return <div>Loading...</div>;
-}
-if (!isAuthenticated) {
-  return (
-    <>
-      <Login onLogin={handleLogin} />
-      <ToastContainer toasts={toasts} onRemove={removeToast} />
-    </>
-  );
-}
-return (
-  <div className="app-shell">
-    <aside className="sidebar">
-      <button className="brand" onClick={() => navigateTo("dashboard")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
-        <img className="brand-mark" src={logo} alt="Book Nook Logo" />
-        <div>
-          <h1>Book Nook</h1>
-          <p>BA Reading Community</p>
-        </div>
-      </button>
-      <div className="nav-scroll-wrap">
-        <button className={`nav-scroll-btn left ${canScrollLeft ? "" : "hidden"}`} onClick={() => scrollNav(-1)} aria-label="Scroll left">
-          <ChevronLeft size={18} />
-        </button>
-        <nav className="nav" ref={navRef} onScroll={checkNavScroll}>
-          {navSections.map((section) => (
-            <div key={section.label} className="nav-section">
-              <div className="nav-label">{section.label}</div>
-              {section.items.map(([id, label, Icon, badge]) => (
-                <button key={id} className={`nav-item ${view === id ? "active" : ""}`} onClick={() => navigateTo(id)}>
-                  <div className="nav-item-content">
-                    <Icon size={18} />
-                    <span>{label}</span>
-                  </div>
-                  {badge > 0 && <span className="nav-badge">{badge}</span>}
-                </button>
-              ))}
-            </div>
-          ))}
-        </nav>
-        <button className={`nav-scroll-btn right ${canScrollRight ? "" : "hidden"}`} onClick={() => scrollNav(1)} aria-label="Scroll right">
-          <ChevronRight size={18} />
-        </button>
-      </div>
-      <div className="top-nav-actions">
-        <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
-          {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
-        {me && (
-          <div
-            ref={profileDropdownRef}
-            className="profile-dropdown-container"
-            style={{ position: "relative" }}
-          >
-            <button className="user-profile-trigger" onClick={() => setShowProfileDropdown(!showProfileDropdown)}>
-              <div className="user-avatar-small">
-                {me.avatarInitials || initials(me.fullName)}
-              </div>
-              <ChevronDown size={14} color="var(--muted)" />
-            </button>
-            {showProfileDropdown && (
-              <div className="profile-dropdown-card">
-                <Profile user={me} onLogout={handleLogout} />
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </aside>
-    <main className="main">
-      {view === "dashboard" && stats && (
-        <Dashboard
-          stats={stats}
-          me={me}
-          dailyThought={dailyThought}
-          openDetails={openDetails}
-        />
-      )}
-      {view === "dashboard" && !stats && <DashboardLoader />}
-      {view !== "home" && view !== "catalog" && view !== "dashboard" && (
-        <section className="topbar">
-          <div className="page-title">
-            { }
-            <h2>BA Reading Community Tracker</h2>
-            <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
-          </div>
-          <div>
-            <button className="btn primary" onClick={() => setBookModal({ ...blankBook })}><Plus size={17} /> Add book</button>
-          </div>
-        </section>
-      )}
-      {
+  async function importBooks(file) {
+    try {
+      const extension = file.name.split(".").pop().toLowerCase();
+      let rawRows = [];
+      if (extension === "xlsx" || extension === "xls") {
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: "array" });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        rawRows = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+      } else if (extension === "csv" || extension === "txt") {
+        const text = await file.text();
+        rawRows = parseDelimitedText(text);
+      } else {
+        window.alert("Please upload a .csv, .xlsx, or .xls file.");
+        notify("Unsupported file type.", "error");
+        return;
       }
-      {view === "home" && (
-        <HomePage
-          stats={stats}
-          dailyThought={dailyThought}
-          navigateTo={navigateTo}
-          setFilters={setFilters}
-          setBookModal={setBookModal}
-        />
-      )}
-      {loading && !["catalog", "home", "dashboard"].includes(view) && <div className="panel empty">Loading Book Nook...</div>}
-      {view === "catalog" && (
-        <Catalog
-          page={booksPage}
-          genres={genres}
-          filters={filters}
-          setFilters={setFilters}
-          searchTerm={searchTerm}
-          setSearchTerm={setSearchTerm}
-          loading={loading}
-          me={me}
-          openDetails={openDetails}
-          setRequestModal={setRequestModal}
-          setBookModal={setBookModal}
-          returnBook={returnBook}
-        />
-      )}
-      {!loading && view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} />}
-      {!loading && view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} />}
-      {!loading && view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} returnBook={returnBook} openDetails={openDetails} />}
-      {!loading && view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} />}
-      {!loading && view === "detail" && selectedBook && (
-        <Details
-          book={selectedBook}
-          historyPage={bookHistoryPage}
-          onPageChange={(p) => loadBookHistory(selectedBook.id, p)}
-          me={me}
-          navigateBack={navigateBack}
-          navigateTo={navigateTo}
-          setBookModal={setBookModal}
-          setRequestModal={setRequestModal}
-          returnBook={returnBook}
-        />
-      )}
-    </main>
-    {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
-    {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
-    <ConfirmDialog
-      message={confirm?.message}
-      onConfirm={() => resolveConfirm(true)}
-      onCancel={() => resolveConfirm(false)}
-    />
-    {detailsLoading && (
-      <div className="details-loader-overlay">
-        <div className="details-loader-box">
-          <svg className="details-loader-spinner" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round">
-            <path d="M12 2a10 10 0 0 1 10 10" />
-          </svg>
-          <span>Loading book details...</span>
+      const rows = rawRows
+        .map(normalizeImportRow)
+        .filter((row) => row.Title || row.Author || row.Genre);
+      if (rows.length === 0) {
+        window.alert("No valid rows were found in that file. Make sure it has Title, Author, and Genre columns.");
+        notify("No valid rows found in the file.", "error");
+        return;
+      }
+      const result = await api.importBooks(rows);
+      if (result.imported > 0 || result.skipped > 0) {
+        setBookAddedMessage(
+          `${result.imported} book(s) added successfully.` +
+          (result.skipped ? ` ${result.skipped} row(s) skipped as duplicates.` : "") +
+          (result.failed ? ` ${result.failed} row(s) failed to import — check the console for details.` : "")
+        );
+        notify(`Imported ${result.imported} book(s).${result.skipped ? ` ${result.skipped} skipped.` : ""}`);
+      } else {
+        notify("No books were imported. Please check the file and try again.", "error");
+      }
+      if (result.errors?.length) {
+        console.error("Import errors:", result.errors);
+      }
+      await loadMyBooks(0);
+    } catch (error) {
+      window.alert(error.message || "Import failed.");
+      notify(error.message, "error");
+    }
+  }
+  async function deleteBook(id) {
+    askConfirm("Are you sure you want to remove this book from the library? This cannot be undone.", async () => {
+      try {
+        await api.deleteBook(id);
+        notify("Book deleted.");
+        await loadMyBooks(myBooksPage.page);
+      } catch (error) {
+        notify(error.message, "error");
+      }
+    });
+    return;
+  }
+  async function sendRequest(payload) {
+    try {
+      await api.requestBook(payload);
+      setRequestModal(null);
+      notify("Borrow request sent.");
+      await loadRequests(requestsPage.page);
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  }
+  async function approve(id) {
+    try {
+      await api.approve(id);
+      notify("Request approved and loan started.");
+      await loadRequests(requestsPage.page);
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  }
+  async function reject(id) {
+    askConfirm("Are you sure you want to reject this request?", async () => {
+      try {
+        await api.reject(id);
+        notify("Request rejected.");
+        await loadRequests(requestsPage.page);
+      } catch (error) {
+        notify(error.message, "error");
+      }
+    });
+    return;
+  }
+  async function returnBook(id, bookTitle) {
+    askConfirm(`Return "${bookTitle}"? This will mark the book as returned.`, async () => {
+      try {
+        await api.returnBook(id);
+        notify("Book marked as returned.");
+        await loadBorrowed(borrowedPage.page);
+      } catch (error) {
+        notify(error.message, "error");
+      }
+    });
+  }
+  function notify(message, type = "success") {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id, message, type }]);
+  }
+  function removeToast(id) {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }
+  const navSections = [
+    {
+      label: "Analytics & Shelf",
+      items: [
+        ["dashboard", "Dashboard", CheckSquare],
+        ["catalog", "Browse", Globe]
+      ]
+    },
+    {
+      label: "Your Activity",
+      items: [
+        ["requests", "Requests", CheckSquare, stats?.pendingApprovals],
+        ["myBooks", "My Shelf", LibraryBig],
+        ["borrowed", "Currently Reading", BookOpenText],
+        ["history", "History", History]
+      ]
+    }
+  ];
+  if (authChecking) {
+    return <div>Loading...</div>;
+  }
+  if (!isAuthenticated) {
+    return (
+      <>
+        <Login onLogin={handleLogin} />
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+      </>
+    );
+  }
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <button className="brand" onClick={() => navigateTo("dashboard")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
+          <img className="brand-mark" src={logo} alt="Book Nook Logo" />
+          <div>
+            <h1>Book Nook</h1>
+            <p>BA Reading Community</p>
+          </div>
+        </button>
+        <div className="nav-scroll-wrap">
+          <button className={`nav-scroll-btn left ${canScrollLeft ? "" : "hidden"}`} onClick={() => scrollNav(-1)} aria-label="Scroll left">
+            <ChevronLeft size={18} />
+          </button>
+          <nav className="nav" ref={navRef} onScroll={checkNavScroll}>
+            {navSections.map((section) => (
+              <div key={section.label} className="nav-section">
+                <div className="nav-label">{section.label}</div>
+                {section.items.map(([id, label, Icon, badge]) => (
+                  <button key={id} className={`nav-item ${view === id ? "active" : ""}`} onClick={() => navigateTo(id)}>
+                    <div className="nav-item-content">
+                      <Icon size={18} />
+                      <span>{label}</span>
+                    </div>
+                    {badge > 0 && <span className="nav-badge">{badge}</span>}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </nav>
+          <button className={`nav-scroll-btn right ${canScrollRight ? "" : "hidden"}`} onClick={() => scrollNav(1)} aria-label="Scroll right">
+            <ChevronRight size={18} />
+          </button>
         </div>
-      </div>
-    )}
-    <ToastContainer toasts={toasts} onRemove={removeToast} />
-  </div>
-);
+        <div className="top-nav-actions">
+          <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
+            {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          {me && (
+            <div
+              ref={profileDropdownRef}
+              className="profile-dropdown-container"
+              style={{ position: "relative" }}
+            >
+              <button className="user-profile-trigger" onClick={() => setShowProfileDropdown(!showProfileDropdown)}>
+                <div className="user-avatar-small">
+                  {me.avatarInitials || initials(me.fullName)}
+                </div>
+                <ChevronDown size={14} color="var(--muted)" />
+              </button>
+              {showProfileDropdown && (
+                <div className="profile-dropdown-card">
+                  <Profile user={me} onLogout={handleLogout} />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </aside>
+      <main className="main">
+        {navLoading && <NavLoader />}
+        {view === "dashboard" && stats && (
+          <Dashboard
+            stats={stats}
+            me={me}
+            dailyThought={dailyThought}
+            openDetails={openDetails}
+          />
+        )}
+        {view === "dashboard" && !stats && <DashboardLoader />}
+        {view !== "home" && view !== "catalog" && view !== "dashboard" && (
+          <section className="topbar">
+            <div className="page-title">
+              { }
+              <h2>BA Reading Community Tracker</h2>
+              <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
+            </div>
+            <div>
+              <button className="btn primary" onClick={() => setBookModal({ ...blankBook })}><Plus size={17} /> Add book</button>
+            </div>
+          </section>
+        )}
+        {
+        }
+        {view === "home" && (
+          <HomePage
+            stats={stats}
+            dailyThought={dailyThought}
+            navigateTo={navigateTo}
+            setFilters={setFilters}
+            setBookModal={setBookModal}
+          />
+        )}
+        {view === "catalog" && (
+          <Catalog
+            page={booksPage}
+            genres={genres}
+            filters={filters}
+            setFilters={setFilters}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            loading={loading}
+            me={me}
+            openDetails={openDetails}
+            setRequestModal={setRequestModal}
+            setBookModal={setBookModal}
+            returnBook={returnBook}
+            importBooks={importBooks}
+          />
+        )}
+        {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} onRefresh={() => loadRequests(requestsPage.page)} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} />}
+        {view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} onRefresh={() => loadMyBooks(myBooksPage.page)} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} />}
+        {view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} onRefresh={() => loadBorrowed(borrowedPage.page)} returnBook={returnBook} openDetails={openDetails} />}
+        {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={() => loadHistory(historyPage.page)} />}
+        {!loading && view === "detail" && selectedBook && (
+          <Details
+            book={selectedBook}
+            historyPage={bookHistoryPage}
+            onPageChange={(p) => loadBookHistory(selectedBook.id, p)}
+            me={me}
+            navigateBack={navigateBack}
+            navigateTo={navigateTo}
+            setBookModal={setBookModal}
+            setRequestModal={setRequestModal}
+            returnBook={returnBook}
+          />
+        )}
+      </main>
+      {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
+      {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
+      <ConfirmDialog
+        message={confirm?.message}
+        onConfirm={() => resolveConfirm(true)}
+        onCancel={() => resolveConfirm(false)}
+      />
+      <BookAddedDialog
+        message={bookAddedMessage}
+        onClose={() => setBookAddedMessage(null)}
+      />
+      {detailsLoading && (
+        <div className="details-loader-overlay">
+          <div className="details-loader-box">
+            <svg className="details-loader-spinner" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M12 2a10 10 0 0 1 10 10" />
+            </svg>
+            <span>Loading book details...</span>
+          </div>
+        </div>
+      )}
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+    </div>
+  );
 }
 </file>
 
@@ -1054,30 +1189,88 @@ function toBookForm(book) {
 </file>
 
 <file path="src/components/BookModal.jsx">
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Modal } from "./common/Modal";
 import { FormInput } from "./common/FormInput";
 import { validateBookForm } from "../utils/helpers";
+import { api } from "../api";
 export function BookModal({ book, genres, onClose, onSave }) {
   if (!book) return null;
   const [form, setForm] = useState({ ...book, genreId: book.genreId || book.genre?.id || genres[0]?.id || "" });
   const [errors, setErrors] = useState({});
+  const [authors, setAuthors] = useState([]);
+  const [authorSearch, setAuthorSearch] = useState(book.author || "");
+  const [showAuthorDropdown, setShowAuthorDropdown] = useState(false);
+  const authorRef = useRef(null);
+  useEffect(() => {
+    api.authors().then(setAuthors).catch(() => {});
+  }, []);
+  useEffect(() => {
+    function handleClick(e) {
+      if (authorRef.current && !authorRef.current.contains(e.target)) {
+        setShowAuthorDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+  const filteredAuthors = authors.filter((a) =>
+    a.name.toLowerCase().includes(authorSearch.toLowerCase())
+  );
   async function submit() {
-    const nextErrors = validateBookForm(form);
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length === 0) await onSave({
-      ...form,
-      defaultLoanDays: Math.floor(Number(form.defaultLoanDays)),
-      title: form.title.trim(),
-      author: form.author.trim(),
-      description: form.description?.trim() || "",
-      coverUrl: form.coverUrl?.trim() || ""
-    });
+    const nextErrors = validateBookForm({ ...form, author: authorSearch || form.author });
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      alert(Object.values(nextErrors).join("\n"));
+      return;
+    }
+    try {
+      const authorName = (authorSearch.trim() || form.author?.trim() || "").trim();
+      const matchedAuthor = authors.find((a) => a.name.toLowerCase() === authorName.toLowerCase());
+      const payload = {
+        ...form,
+        defaultLoanDays: Math.floor(Number(form.defaultLoanDays)),
+        title: form.title.trim(),
+        author: authorName,
+        authorId: matchedAuthor ? matchedAuthor.id : undefined,
+        description: form.description?.trim() || "",
+        coverUrl: form.coverUrl?.trim() || ""
+      };
+      await onSave(payload);
+    } catch (error) {
+      alert(error.message || "Something went wrong while saving.");
+    }
   }
   return (
     <Modal title={book.id ? "Edit book" : "Add book"} onClose={onClose} onSubmit={submit}>
       <FormInput label="Title" required error={errors.title} value={form.title} onChange={(v) => setForm({ ...form, title: v })} />
-      <FormInput label="Author" required error={errors.author} value={form.author} onChange={(v) => setForm({ ...form, author: v })} />
+      <div className="field" ref={authorRef}>
+        <span>Author <b>*</b></span>
+        <div className="author-combobox">
+          <input
+            className="input"
+            value={authorSearch}
+            onChange={(e) => { setAuthorSearch(e.target.value); setShowAuthorDropdown(true); }}
+            onFocus={() => setShowAuthorDropdown(true)}
+            placeholder="Search or type author name"
+          />
+          {showAuthorDropdown && filteredAuthors.length > 0 && (
+            <div className="author-dropdown">
+              {filteredAuthors.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  className="author-dropdown-item"
+                  onClick={() => { setAuthorSearch(a.name); setShowAuthorDropdown(false); }}
+                >
+                  {a.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {errors.author && <small>{errors.author}</small>}
+      </div>
       <label className="field"><span>Genre <b>*</b></span><select className="select" value={form.genreId} onChange={(e) => setForm({ ...form, genreId: e.target.value })}>{genres.map((genre) => <option key={genre.id} value={genre.id}>{genre.name}</option>)}</select>{errors.genreId && <small>{errors.genreId}</small>}</label>
       <label className="field"><span>Condition <b>*</b></span><select className="select" value={form.condition} onChange={(e) => setForm({ ...form, condition: e.target.value })}><option value="like_new">Like new</option><option value="good">Good</option><option value="well_loved">Well loved</option><option value="damaged">Damaged</option></select></label>
       <FormInput
@@ -1091,6 +1284,28 @@ export function BookModal({ book, genres, onClose, onSave }) {
       <FormInput label="Cover image URL" value={form.coverUrl} onChange={(v) => setForm({ ...form, coverUrl: v })} />
       <label className="field full"><span>Description</span><textarea className="textarea" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />{errors.description && <small>{errors.description}</small>}</label>
     </Modal>
+  );
+}
+</file>
+
+<file path="src/components/common/BookAddedDialog.jsx">
+import React from "react";
+export function BookAddedDialog({ message, onClose }) {
+  if (!message) return null;
+  return (
+    <div className="modal-backdrop open" onClick={onClose}>
+      <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h3>Book Added Successfully</h3>
+        </div>
+        <div className="confirm-body">
+          <p>{message}</p>
+        </div>
+        <div className="modal-foot">
+          <button className="btn primary" onClick={onClose}>OK</button>
+        </div>
+      </div>
+    </div>
   );
 }
 </file>
@@ -1247,8 +1462,8 @@ export function Pagination({ page, totalPages, totalElements, onPageChange }) {
 
 <file path="src/components/common/Panel.jsx">
 import React from "react";
-export function Panel({ title, badge, children }) {
-  return <div className="panel"><div className="panel-head"><h3>{title}</h3>{badge && <span className="chip">{badge}</span>}</div>{children}</div>;
+export function Panel({ title, badge, actions, children }) {
+  return <div className="panel"><div className="panel-head"><h3>{title}</h3><div style={{ display: "flex", gap: "8px", alignItems: "center" }}>{badge && <span className="chip">{badge}</span>}{actions}</div></div>{children}</div>;
 }
 </file>
 
@@ -1509,6 +1724,7 @@ createRoot(document.getElementById("root")).render(<App />);
 
 <file path="src/pages/Borrowed.jsx">
 import React from "react";
+import { RotateCcw } from "lucide-react";
 import { Panel } from "../components/common/Panel";
 import { Table } from "../components/common/Table";
 import { Pagination } from "../components/common/Pagination";
@@ -1535,10 +1751,15 @@ function ReturnButton({ loan, returnBook }) {
     </button>
   );
 }
-export function Borrowed({ page, onPageChange, returnBook, openDetails }) {
+export function Borrowed({ page, onPageChange, onRefresh, returnBook, openDetails }) {
+  const refreshBtn = (
+    <button className="btn icon-only" onClick={onRefresh} title="Refresh" style={{ width: "32px", height: "32px", minHeight: "32px", padding: 0, border: "none", background: "transparent", color: "var(--muted)" }}>
+      <RotateCcw size={15} />
+    </button>
+  );
   if (page.content.length === 0) {
     return (
-      <Panel title="Borrow Status">
+      <Panel title="Borrow Status" actions={refreshBtn}>
         <EmptyState
           icon="LibraryBig"
           title="No active reads"
@@ -1548,7 +1769,7 @@ export function Borrowed({ page, onPageChange, returnBook, openDetails }) {
     );
   }
   return (
-    <Panel title="Borrow Status" >
+    <Panel title="Borrow Status" actions={refreshBtn} >
       <Table headers={["Book", "Owner", "Borrowed", "Due", "Status", "Actions"]}>
         {page.content.map((loan) => (
           <tr key={loan.id}>
@@ -1571,9 +1792,9 @@ export function Borrowed({ page, onPageChange, returnBook, openDetails }) {
 </file>
 
 <file path="src/pages/Catalog.jsx">
-import React from "react";
+import React, { useRef } from "react";
 import { api } from "../api";
-import { Search, Download, Plus } from "lucide-react";
+import { Search, Download, Plus, Upload } from "lucide-react";
 import { BookCard } from "../components/BookCard";
 import { Pagination } from "../components/common/Pagination";
 import { BookCardSkeleton } from "../components/common/Skeleton";
@@ -1587,8 +1808,10 @@ const handleExportBooks = async () => {
 };
 export function Catalog({
   page, genres, filters, setFilters, searchTerm, setSearchTerm,
-  loading, me, openDetails, setRequestModal, setBookModal, returnBook
+  loading, me, openDetails, setRequestModal, setBookModal, returnBook, importBooks
 }) {
+  const fileInputRef = useRef(null);
+  const isAdmin = me?.role === "ADMIN";
   const capsules = [
     { label: "All", value: "all" },
     { label: "Available", value: "available" },
@@ -1599,6 +1822,11 @@ export function Catalog({
   function setCapsule(value) {
     setFilters({ ...filters, availability: value, page: 0 });
   }
+  function handleFileChange(e) {
+    const file = e.target.files?.[0];
+    if (file && importBooks) importBooks(file);
+    e.target.value = "";
+  }
   return (
   <section className="catalog-page">
     <div className="catalog-header">
@@ -1606,6 +1834,20 @@ export function Catalog({
         <h3>Books on the shelf</h3>
       </div>
       <div className="catalog-header-right">
+        {isAdmin && (
+          <>
+            <input
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              style={{ display: "none" }}
+            />
+            <button className="btn" onClick={() => fileInputRef.current?.click()}>
+              <Upload size={15} /> Import
+            </button>
+          </>
+        )}
         <button className="btn" onClick={() => handleExportBooks()}>Export</button>
         <button className="btn primary" onClick={() => setBookModal({ title: "", author: "", genreId: "", condition: "good", exchangeLocation: "", defaultLoanDays: 14, description: "" })}>
           <Plus size={15} /> Add book
@@ -2345,13 +2587,19 @@ export const Home = ({ stats, setView, setBookModal }) => {
 
 <file path="src/pages/LoanHistory.jsx">
 import React from "react";
+import { RotateCcw } from "lucide-react";
 import { Panel } from "../components/common/Panel";
 import { Table } from "../components/common/Table";
 import { Pagination } from "../components/common/Pagination";
 import { label, dateText } from "../utils/helpers";
-export function LoanHistory({ page, onPageChange }) {
+export function LoanHistory({ page, onPageChange, onRefresh }) {
+  const refreshBtn = (
+    <button className="btn icon-only" onClick={onRefresh} title="Refresh" style={{ width: "32px", height: "32px", minHeight: "32px", padding: 0, border: "none", background: "transparent", color: "var(--muted)" }}>
+      <RotateCcw size={15} />
+    </button>
+  );
   return (
-    <Panel title="Borrowing History">
+    <Panel title="Borrowing History" actions={refreshBtn}>
       <Table headers={["Book", "Borrower", "Owner", "Status", "Opened", "Closed"]}>
         {page.content.map((row) => (
           <tr key={row.id}>
@@ -2582,10 +2830,8 @@ export function Login({ onLogin }) {
           </span>
         </button>
         <div className="bn-auth-card">
-          <div className="bn-auth-card-brand">
-            <img src={logo} alt="Book Nook logo" />
-            <span>Book Nook</span>
-          </div>
+          {
+}<br></br>
           <h2>{isRegister ? "Create an account" : "Welcome back"}</h2>
           <p className="bn-auth-sub">
             {isRegister
@@ -2720,16 +2966,35 @@ export function Login({ onLogin }) {
 </file>
 
 <file path="src/pages/MyBooks.jsx">
-import React from "react";
+import React, { useState } from "react";
+import { RotateCcw } from "lucide-react";
 import { Panel } from "../components/common/Panel";
 import { Table } from "../components/common/Table";
 import { Pagination } from "../components/common/Pagination";
 import { EmptyState } from "../components/common/EmptyState";
 import { label, toBookForm } from "../utils/helpers";
-export function MyBooks({ page, onPageChange, setBookModal, deleteBook, openDetails }) {
+function SpinnerInline() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+      style={{ animation: "btn-spin 0.7s linear infinite", flexShrink: 0 }}>
+      <path d="M12 2a10 10 0 0 1 10 10" />
+    </svg>
+  );
+}
+export function MyBooks({ page, onPageChange, onRefresh, setBookModal, deleteBook, openDetails }) {
+  const [refreshing, setRefreshing] = useState(false);
+  async function handleRefresh() {
+    setRefreshing(true);
+    try { await onRefresh(); } finally { setRefreshing(false); }
+  }
+  const refreshBtn = (
+    <button className="btn icon-only" onClick={handleRefresh} title="Refresh" disabled={refreshing} style={{ width: "32px", height: "32px", minHeight: "32px", padding: 0, border: "none", background: "transparent", color: "var(--muted)", opacity: refreshing ? 0.6 : 1 }}>
+      {refreshing ? <SpinnerInline /> : <RotateCcw size={15} />}
+    </button>
+  );
   if (page.content.length === 0) {
     return (
-      <Panel title="My Shelf">
+      <Panel title="My Shelf" actions={refreshBtn}>
         <EmptyState
           icon="BookPlus"
           title="Your library is empty"
@@ -2741,7 +3006,7 @@ export function MyBooks({ page, onPageChange, setBookModal, deleteBook, openDeta
     );
   }
   return (
-    <Panel title="My Shelf" >
+    <Panel title="My Shelf" actions={refreshBtn} >
       <Table headers={["Book", "Genre", "Status", "Actions"]}>
         {page.content.map((book) => (
           <tr key={book.id}>
@@ -2770,6 +3035,7 @@ export function MyBooks({ page, onPageChange, setBookModal, deleteBook, openDeta
 
 <file path="src/pages/Requests.jsx">
 import React, { useState } from "react";
+import { RotateCcw } from "lucide-react";
 import { Panel } from "../components/common/Panel";
 import { Table } from "../components/common/Table";
 import { Pagination } from "../components/common/Pagination";
@@ -2916,8 +3182,18 @@ function RequestRow({ row, me, approve, reject, openDetails }) {
     </>
   );
 }
-export function Requests({ page, onPageChange, me, approve, reject, openDetails }) {
+export function Requests({ page, onPageChange, onRefresh, me, approve, reject, openDetails }) {
   const [filter, setFilter] = useState("all");
+  const [refreshing, setRefreshing] = useState(false);
+  async function handleRefresh() {
+    setRefreshing(true);
+    try { await onRefresh(); } finally { setRefreshing(false); }
+  }
+  const refreshBtn = (
+    <button className="btn icon-only" onClick={handleRefresh} title="Refresh" disabled={refreshing} style={{ width: "32px", height: "32px", minHeight: "32px", padding: 0, border: "none", background: "transparent", color: "var(--muted)", opacity: refreshing ? 0.6 : 1 }}>
+      {refreshing ? <SpinnerInline /> : <RotateCcw size={15} />}
+    </button>
+  );
   const filteredContent = page.content.filter((row) => {
     if (filter === "mine") return row.requester.id === me.id;
     if (filter === "owner") return row.owner.id === me.id;
@@ -2925,7 +3201,7 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails 
   });
   if (page.content.length === 0) {
     return (
-      <Panel title="Borrow Requests">
+      <Panel title="Borrow Requests" actions={refreshBtn}>
         <EmptyState
           icon="ClipboardCheck"
           title="No requests yet"
@@ -2936,7 +3212,7 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails 
   }
   return (
     <div className="request-container">
-      <Panel title="Borrow Requests">
+      <Panel title="Borrow Requests" actions={refreshBtn}>
         <div className="request-filters">
           <button
             className={`filter-btn ${filter === "all" ? "active" : ""}`}
@@ -3441,6 +3717,7 @@ button { cursor: pointer; }
   width: 32px;
 }
 .main {
+  position: relative;
   min-width: 0;
   padding: 32px 36px 44px;
   animation: page-fade-in 0.4s ease-out;
@@ -3537,7 +3814,7 @@ button { cursor: pointer; }
   background: var(--danger) !important;
   border-color: var(--danger) !important;
 }
-.btn.icon-only { width: 38px; padding: 0; }
+.btn.icon-only { width: 45px; padding: 0; border-radius: 1000px;}
 .grid {
   display: grid;
   gap: 16px;
@@ -3923,6 +4200,8 @@ th:last-child {
   white-space: nowrap;
 }
 .empty { padding: 34px 18px; color: var(--muted); text-align: center; background: var(--bg); }
+.loading-state { display: flex; align-items: center; justify-content: center; min-height: 40vh; }
+.loading-state.empty { background: transparent; }
 .empty-state-box {
   display: flex;
   flex-direction: column;
@@ -4253,6 +4532,40 @@ th:last-child {
   .textarea {
     font-size: 16px;
   }
+}
+.author-combobox {
+  position: relative;
+  width: 100%;
+}
+.author-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  margin-top: 4px;
+}
+.author-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.author-dropdown-item:hover {
+  background: var(--brand-soft);
+  color: var(--brand-dark);
 }
 .toast-container {
   position: fixed;
@@ -4600,6 +4913,7 @@ th:last-child {
 }
 .nav-item.active {
   color: var(--brand-dark);
+  border-radius: 90px;
   background: var(--brand-soft);
 }
 [data-theme='dark'] .nav-item.active {
@@ -4614,10 +4928,13 @@ th:last-child {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  background: var(--panel);
   padding: 0 20px 0 16px;
+  border-radius: 9px;
   background: var(--surface);
   border-left: none;
   box-shadow: none;
+  z-index: 180;
 }
 .top-nav-actions::before {
   content: "";
@@ -4671,7 +4988,7 @@ th:last-child {
   right: 0;
   margin-top: 10px;
   min-width: 260px;
-  z-index: 250;
+  z-index: 1000;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -5448,6 +5765,13 @@ th:last-child {
 }
 .password-input-wrap .input {
   padding-right: 44px;
+}
+.password-input-wrap input[type="password"]::-webkit-credentials-auto-fill-button,
+.password-input-wrap input[type="password"]::-webkit-reveal {
+  display: none;
+}
+.password-input-wrap input[type="password"]::-ms-reveal {
+  display: none;
 }
 .password-toggle-btn {
   position: absolute;
@@ -6357,6 +6681,409 @@ th:last-child {
 @media (max-width: 480px) {
   .otp-box-input { width: 38px; height: 46px; font-size: 16px; }
 }
+:root {
+  --ink: #2A2118;
+  --muted: #7E715F;
+  --line: rgba(76, 55, 32, 0.15);
+  --surface: #FAF6EB;
+  --panel: rgba(255, 253, 247, 0.92);
+  --bg: #FAF6EB;
+  --brand: #B9822D;
+  --brand-dark: #6F4A21;
+  --brand-soft: rgba(201, 145, 46, 0.16);
+  --accent: #2F766F;
+  --danger: #B6452F;
+  --focus: #C9912E;
+  --shadow: 0 24px 60px -28px rgba(64, 43, 22, 0.48);
+  --shadow-sm: 0 12px 28px -22px rgba(64, 43, 22, 0.42);
+  --nav-bg: rgba(250, 246, 235, 0.86);
+  --sidebar-bg: rgba(250, 246, 235, 0.86);
+  --card-bg: rgba(255, 253, 247, 0.9);
+  --input-bg: rgba(255, 253, 247, 0.95);
+}
+[data-theme='dark'] {
+  --ink: #F3ECDD;
+  --muted: #B9A98F;
+  --line: rgba(237, 230, 216, 0.16);
+  --surface: #17140F;
+  --panel: rgba(35, 29, 21, 0.92);
+  --bg: #14100B;
+  --brand: #E0B365;
+  --brand-dark: #F1D28E;
+  --brand-soft: rgba(224, 179, 101, 0.16);
+  --accent: #73B9AD;
+  --danger: #E07861;
+  --focus: #E0B365;
+  --shadow: 0 28px 70px -28px rgba(0, 0, 0, 0.72);
+  --shadow-sm: 0 16px 34px -24px rgba(0, 0, 0, 0.68);
+  --nav-bg: rgba(20, 16, 11, 0.88);
+  --sidebar-bg: rgba(20, 16, 11, 0.88);
+  --card-bg: rgba(35, 29, 21, 0.9);
+  --input-bg: rgba(23, 20, 15, 0.92);
+}
+[data-theme='light'] body {
+  background:
+    radial-gradient(circle at 14% -8%, rgba(47, 118, 111, 0.12), transparent 28%),
+    radial-gradient(circle at 88% 4%, rgba(201, 145, 46, 0.18), transparent 30%),
+    linear-gradient(180deg, #FAF6EB 0, #F6EDDB 420px, #FAF6EB 100%);
+}
+[data-theme='dark'] body {
+  background:
+    radial-gradient(circle at 14% -8%, rgba(115, 185, 173, 0.13), transparent 30%),
+    radial-gradient(circle at 88% 4%, rgba(224, 179, 101, 0.12), transparent 32%),
+    linear-gradient(180deg, #17140F 0, #100D09 100%);
+}
+.sidebar,
+.top-nav-actions {
+  background: var(--nav-bg);
+  backdrop-filter: blur(18px) saturate(1.08);
+}
+.top-nav-actions::before {
+  background: linear-gradient(to right, rgba(250, 246, 235, 0), var(--surface) 55%, var(--surface));
+}
+[data-theme='dark'] .top-nav-actions::before {
+  background: linear-gradient(to right, rgba(20, 16, 11, 0), var(--surface) 55%, var(--surface));
+}
+.brand h1,
+.page-title h2,
+.catalog-header-left h3,
+.welcome-message-node h1,
+.new-hero-title {
+  color: var(--ink);
+}
+.nav-item,
+.btn,
+.new-btn-primary,
+.new-btn-outline,
+.catalog-capsule,
+.filter-btn,
+.user-profile-trigger {
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    color 180ms ease;
+}
+.nav-item:hover,
+.nav-item.active {
+  border-color: rgba(185, 130, 45, 0.22);
+  background: linear-gradient(180deg, rgba(255, 253, 247, 0.72), var(--brand-soft));
+  color: var(--brand-dark);
+  box-shadow: inset 0 -1px 0 rgba(111, 74, 33, 0.08);
+  transform: translateY(-1px);
+}
+[data-theme='dark'] .nav-item:hover,
+[data-theme='dark'] .nav-item.active {
+  border-color: rgba(224, 179, 101, 0.26);
+  background: var(--brand-soft);
+}
+.btn.primary,
+.new-btn-primary {
+  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+  border-color: var(--brand);
+  box-shadow: 0 16px 28px -18px rgba(111, 74, 33, 0.62);
+}
+.btn.primary:hover:not([disabled]),
+.new-btn-primary:hover {
+  filter: saturate(1.06);
+  transform: translateY(-2px);
+  box-shadow: 0 22px 34px -20px rgba(111, 74, 33, 0.72);
+}
+.btn:hover:not([disabled]),
+.new-btn-outline:hover,
+.user-profile-trigger:hover,
+.nav-scroll-btn:hover {
+  border-color: var(--brand);
+  color: var(--brand-dark);
+  transform: translateY(-1px);
+}
+.input,
+.select,
+.textarea {
+  background: var(--input-bg);
+}
+.input:focus,
+.select:focus,
+.textarea:focus {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 4px rgba(201, 145, 46, 0.16);
+}
+.panel,
+.toolbar,
+.book-card,
+.detail-cover,
+.modal,
+.custom-confirm-modal,
+.toast-item,
+.profile-dropdown-card,
+.new-stat-card,
+.new-hero-quote,
+.how-it-works,
+.dashboard-welcome-banner,
+.metrics-pill-card,
+.analytics-graph-container,
+.history-scroll-viewport,
+.book-of-the-day-showcase-panel .showcase-content-box {
+  background: var(--card-bg);
+  border-color: var(--line);
+  box-shadow: var(--shadow-sm);
+}
+.book-card,
+.metrics-pill-card,
+.analytics-graph-container,
+.dashboard-welcome-banner,
+.history-scroll-viewport,
+.book-of-the-day-showcase-panel .showcase-content-box,
+.steps-grid article,
+.new-stat-card {
+  animation: warm-card-in 460ms ease both;
+}
+.catalog .book-card:nth-child(2n),
+.stats-cards-quad .metrics-pill-card:nth-child(2),
+.steps-grid article:nth-child(2) {
+  animation-delay: 45ms;
+}
+.catalog .book-card:nth-child(3n),
+.stats-cards-quad .metrics-pill-card:nth-child(3),
+.steps-grid article:nth-child(3) {
+  animation-delay: 90ms;
+}
+.book-card:hover,
+.metrics-pill-card:hover,
+.steps-grid article:hover,
+.new-stat-card:hover,
+.book-of-the-day-showcase-panel .showcase-content-box:hover,
+.reading-log-item-strip:hover {
+  border-color: rgba(185, 130, 45, 0.38);
+  box-shadow: var(--shadow);
+  transform: translateY(-4px);
+}
+.cover,
+.mini-meta,
+th,
+tbody tr:hover,
+.empty,
+.steps-grid article {
+  background: rgba(250, 246, 235, 0.68);
+}
+[data-theme='dark'] .cover,
+[data-theme='dark'] .mini-meta,
+[data-theme='dark'] th,
+[data-theme='dark'] tbody tr:hover,
+[data-theme='dark'] .empty,
+[data-theme='dark'] .steps-grid article {
+  background: rgba(20, 16, 11, 0.48);
+}
+.avatar,
+.user-avatar-small,
+.steps-grid span,
+.cover-art,
+.showcase-cover-card,
+.log-book-thumbnail {
+  background: linear-gradient(145deg, var(--brand-dark), var(--brand));
+}
+.new-hero {
+  background:
+    radial-gradient(circle at 16% 34%, rgba(47, 118, 111, 0.13), transparent 34%),
+    radial-gradient(circle at 84% 18%, rgba(201, 145, 46, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(255, 253, 247, 0.24), rgba(250, 246, 235, 0));
+}
+.new-hero-badge,
+.page-kicker,
+.admin-tag,
+.admin-badge,
+.badge-owner-tag,
+.profile-role,
+.catalog-capsule.active,
+.filter-btn.active {
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  border-color: rgba(185, 130, 45, 0.28);
+}
+.dashboard-welcome-banner {
+  position: relative;
+  overflow: hidden;
+}
+.dashboard-welcome-banner::after {
+  content: "";
+  position: absolute;
+  inset: auto 24px 0 auto;
+  width: 180px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--brand), transparent);
+  opacity: 0.45;
+  animation: warm-shelf-glide 5s ease-in-out infinite;
+}
+.bar-track-container,
+.chip {
+  background: var(--brand-soft);
+}
+.user-count-fill-bar {
+  background: linear-gradient(to top, var(--brand-dark), var(--brand));
+}
+.global-avg-dot-marker {
+  border-top-color: var(--accent);
+}
+.dashboard-loader-spinner {
+  border-color: rgba(201, 145, 46, 0.18);
+  border-top-color: var(--brand);
+}
+.dashboard-loader-text {
+  background: linear-gradient(90deg, var(--brand-dark), var(--accent), var(--brand));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+@keyframes warm-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes warm-shelf-glide {
+  0%, 100% { transform: translateX(-24px); opacity: 0.18; }
+  50% { transform: translateX(18px); opacity: 0.52; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .book-card,
+  .metrics-pill-card,
+  .analytics-graph-container,
+  .dashboard-welcome-banner,
+  .history-scroll-viewport,
+  .book-of-the-day-showcase-panel .showcase-content-box,
+  .steps-grid article,
+  .new-stat-card,
+  .dashboard-welcome-banner::after {
+    animation: none !important;
+  }
+  .nav-item,
+  .btn,
+  .book-card,
+  .metrics-pill-card,
+  .steps-grid article,
+  .new-stat-card,
+  .reading-log-item-strip {
+    transition: none !important;
+  }
+}
+.bn-auth {
+  height: 100vh;
+  height: 100svh;
+  min-height: 100vh;
+  min-height: 100svh;
+  overflow: hidden;
+}
+.bn-auth-image-wrap {
+  height: 100vh;
+  height: 100svh;
+  min-height: 100vh;
+  min-height: 100svh;
+  flex-shrink: 0;
+}
+.bn-auth-right {
+  height: 100vh;
+  height: 100svh;
+  min-height: 0;
+  justify-content: flex-start;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.bn-auth-card {
+  flex: 0 0 auto;
+  margin: auto 0;
+}
+.bn-theme-toggle {
+  position: fixed;
+  z-index: 4;
+}
+@media (max-width: 980px) {
+  .bn-auth-right {
+    width: 100%;
+  }
+}
+.nav-loader-overlay {
+  position: fixed;
+  top: 64px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(250, 246, 235, 0.86);
+  backdrop-filter: blur(10px);
+  animation: nav-loader-fade-in 0.25s ease;
+  min-height: 0;
+  pointer-events: none;
+}
+[data-theme='dark'] .nav-loader-overlay {
+  background: rgba(20, 16, 11, 0.86);
+}
+.nav-loader-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+.nav-loader-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+}
+.nav-loader-icon {
+  color: var(--brand);
+  z-index: 1;
+  animation: nav-loader-breathe 1.6s ease-in-out infinite;
+  filter: drop-shadow(0 0 14px rgba(102, 127, 255, 0.25));
+}
+.nav-loader-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2.5px solid var(--line);
+  border-top-color: var(--brand);
+  animation: nav-loader-spin 1s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+.nav-loader-message {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  background: linear-gradient(90deg, var(--muted), var(--brand), var(--muted));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: nav-loader-shimmer 2.4s linear infinite;
+}
+@keyframes nav-loader-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes nav-loader-breathe {
+  0%, 100% { transform: scale(1) translateY(0); }
+  50% { transform: scale(1.1) translateY(-4px); }
+}
+@keyframes nav-loader-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes nav-loader-shimmer {
+  to { background-position: 200% center; }
+}
+@media (max-width: 768px) {
+  .nav-loader-overlay {
+    top: 56px;
+  }
+}
 </file>
 
 <file path="src/utils/helpers.js">
@@ -6391,6 +7118,92 @@ export function validateRequestForm(form) {
 }
 export function toBookForm(book) {
   return { ...book, genreId: book.genre?.id };
+}
+function detectDelimiter(sampleLine) {
+  const counts = {
+    ",": (sampleLine.match(/,/g) || []).length,
+    "\t": (sampleLine.match(/\t/g) || []).length,
+    ";": (sampleLine.match(/;/g) || []).length,
+  };
+  let best = ",";
+  let bestCount = 0;
+  for (const [delim, count] of Object.entries(counts)) {
+    if (count > bestCount) { best = delim; bestCount = count; }
+  }
+  return best;
+}
+export function parseDelimitedText(text) {
+  const cleaned = text.replace(/^\uFEFF/, ""); // strip BOM if present
+  const firstLineEnd = cleaned.indexOf("\n");
+  const firstLine = firstLineEnd === -1 ? cleaned : cleaned.slice(0, firstLineEnd);
+  const delimiter = detectDelimiter(firstLine);
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < cleaned.length; i++) {
+    const char = cleaned[i];
+    const next = cleaned[i + 1];
+    if (inQuotes) {
+      if (char === '"' && next === '"') { field += '"'; i++; }
+      else if (char === '"') { inQuotes = false; }
+      else { field += char; }
+    } else {
+      if (char === '"') inQuotes = true;
+      else if (char === delimiter) { row.push(field); field = ""; }
+      else if (char === '\n') { row.push(field); rows.push(row); row = []; field = ""; }
+      else if (char === '\r') { /* skip */ }
+      else field += char;
+    }
+  }
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  if (rows.length === 0) return [];
+  const headers = rows[0].map((h) => h.trim());
+  return rows
+    .slice(1)
+    .filter((r) => r.some((cell) => String(cell).trim() !== ""))
+    .map((r) => {
+      const obj = {};
+      headers.forEach((h, idx) => { obj[h] = (r[idx] ?? "").toString().trim(); });
+      return obj;
+    });
+}
+// Kept for backwards compatibility with anything still calling parseCsv.
+export function parseCsv(text) {
+  return parseDelimitedText(text);
+}
+function normalizeKey(key) {
+  return String(key || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+// Maps every header variant we expect to see (export format, the import
+// template, manual edits, etc.) onto the canonical field names the backend
+// understands.
+const IMPORT_HEADER_MAP = {
+  title: "Title",
+  author: "Author",
+  genre: "Genre",
+  condition: "Condition",
+  loandays: "DefaultLoanDays",
+  defaultloandays: "DefaultLoanDays",
+  description: "Description",
+  descriptionoptional: "Description",
+  isbn: "ISBN",
+  coverimageurl: "CoverUrl",
+  coverimageurloptional: "CoverUrl",
+  coverurl: "CoverUrl",
+  coverurloptional: "CoverUrl",
+  email: "Email",
+  owneremail: "Email",
+};
+export function normalizeImportRow(row) {
+  const normalized = {};
+  Object.entries(row || {}).forEach(([key, value]) => {
+    const mapped = IMPORT_HEADER_MAP[normalizeKey(key)];
+    if (mapped) {
+      normalized[mapped] = typeof value === "string" ? value.trim() : value;
+    }
+  });
+  return normalized;
 }
 </file>
 
@@ -6558,6 +7371,27 @@ ALTER TABLE `reviews` ADD CONSTRAINT `reviews_reviewer_id_fkey` FOREIGN KEY (`re
 ALTER TABLE `audit_logs` ADD CONSTRAINT `audit_logs_actor_id_fkey` FOREIGN KEY (`actor_id`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 </file>
 
+<file path="prisma/migrations/20260629000000_add_author_model/migration.sql">
+CREATE TABLE "authors" (
+    "id" TEXT NOT NULL,
+    "name" VARCHAR(180) NOT NULL,
+    "created_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "authors_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX "authors_name_key" ON "authors"("name");
+INSERT INTO "authors" ("id", "name")
+SELECT gen_random_uuid()::text, "author"
+FROM (SELECT DISTINCT "author" FROM "books") AS distinct_authors;
+ALTER TABLE "books" ADD COLUMN "author_id" TEXT;
+UPDATE "books" b
+SET "author_id" = a."id"
+FROM "authors" a
+WHERE b."author" = a."name";
+ALTER TABLE "books" ALTER COLUMN "author_id" SET NOT NULL;
+ALTER TABLE "books" DROP COLUMN "author";
+ALTER TABLE "books" ADD CONSTRAINT "books_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "authors"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+</file>
+
 <file path="prisma/migrations/migration_lock.toml">
 # Please do not edit this file manually
 # It should be added in your version-control system (e.g., Git)
@@ -6632,12 +7466,21 @@ model Genre {
   @@map("genres")
 }
 
+model Author {
+  id        String   @id @default(uuid())
+  name      String   @unique @db.VarChar(180)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  books     Book[]
+
+  @@map("authors")
+}
+
 model Book {
   id                String   @id @default(uuid())
   ownerId           String   @map("owner_id")
   genreId           String?  @map("genre_id")
+  authorId          String   @map("author_id")
   title             String   @db.VarChar(220)
-  author            String   @db.VarChar(180)
   isbn              String?  @db.VarChar(30)
   description       String?  @db.Text
   condition         String   @default("good") @db.VarChar(40)
@@ -6651,6 +7494,7 @@ model Book {
 
   owner             User     @relation("BookOwner", fields: [ownerId], references: [id])
   genre             Genre?   @relation(fields: [genreId], references: [id])
+  author            Author   @relation(fields: [authorId], references: [id])
   transactions      BookTransaction[]
   history           BookHistory[]
   notifications     Notification[]
@@ -6778,6 +7622,7 @@ import { WorkflowService } from "../services/workflow.service";
 import { LookupService } from "../services/lookup.service";
 import prisma from "../config/prisma";
 import { getSafeErrorMessage, getStatusCode } from "../utils/app-error";
+import { logError } from "../middleware/error";
 function paramString(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
   if (!value) throw new Error("Missing required route parameter");
@@ -6795,6 +7640,7 @@ function queryNumber(value: unknown, fallback: number): number {
 export class AppController {
   private static handleError(res: Response, error: any) {
     console.error("Error in AppController:", error);
+    logError(error, res.req);
     return res.status(getStatusCode(error)).json({
       message: getSafeErrorMessage(error),
     });
@@ -6805,11 +7651,12 @@ export class AppController {
         include: {
           genre: true,
           owner: true,
+          author: true,
         },
       });
       const result = books.map((book) => ({
         Title: book.title,
-        Author: book.author,
+        Author: book.author?.name ?? "",
         Genre: book.genre?.name ?? "",
         Owner: book.owner?.fullName ?? "",
         AvailabilityStatus: book.availabilityStatus,
@@ -6832,6 +7679,21 @@ export class AppController {
       res.setHeader("Content-Type", "text/csv");
       res.setHeader("Content-Disposition", "attachment; filename=BookNook.csv");
       return res.status(200).send(csv);
+    } catch (error: any) {
+      return AppController.handleError(res, error);
+    }
+  }
+  static async importBooks(req: AuthRequest, res: Response) {
+    try {
+      const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+      if (rows.length === 0) {
+        return res.status(400).json({ message: "No rows to import." });
+      }
+      if (rows.length > 1000) {
+        return res.status(400).json({ message: "Import is limited to 1000 rows at a time." });
+      }
+      const result = await BookService.importCsv(req.user.id, rows);
+      return res.status(200).json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
     }
@@ -7031,6 +7893,34 @@ export class AppController {
       return AppController.handleError(res, error);
     }
   }
+  static async authors(req: AuthRequest, res: Response) {
+    try {
+      const { search } = req.query;
+      const where: any = {};
+      if (search) {
+        where.name = { contains: queryString(search), mode: "insensitive" };
+      }
+      const result = await prisma.author.findMany({
+        where,
+        orderBy: { name: "asc" },
+      });
+      return res.json(result);
+    } catch (error: any) {
+      return AppController.handleError(res, error);
+    }
+  }
+  static async createAuthor(req: AuthRequest, res: Response) {
+    try {
+      const { name } = req.body;
+      if (!name?.trim()) throw new Error("Author name is required.");
+      const existing = await prisma.author.findUnique({ where: { name: name.trim() } });
+      if (existing) return res.json(existing);
+      const author = await prisma.author.create({ data: { name: name.trim() } });
+      return res.status(201).json(author);
+    } catch (error: any) {
+      return AppController.handleError(res, error);
+    }
+  }
 }
 </file>
 
@@ -7038,6 +7928,8 @@ export class AppController {
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
 import { callWorkatoSignupWebhook, callWorkatoForgotPasswordWebhook } from "../utils/workato";
+import { getSafeErrorMessage, getStatusCode, isDatabaseError } from "../utils/app-error";
+import { logError } from "../middleware/error";
 export class AuthController {
   static async register(req: Request, res: Response) {
     try {
@@ -7059,12 +7951,18 @@ export class AuthController {
         user: result.user,
       });
     } catch (error: any) {
+      logError(error, req);
       const status =
+        isDatabaseError(error)
+          ? getStatusCode(error)
+          :
         error.message === "An account with this email already exists. Please sign in instead."
           ? 409
           : 400;
       res.status(status).json({
-        message: error.message || "Registration failed. Please try again.",
+        message: isDatabaseError(error)
+          ? getSafeErrorMessage(error)
+          : error.message || "Registration failed. Please try again.",
       });
     }
   }
@@ -7083,9 +7981,11 @@ export class AuthController {
         user: result.user,
       });
     } catch (error: any) {
-      res.status(401).json({
-        message:
-          error.message || "Incorrect email or password.",
+      logError(error, req);
+      res.status(isDatabaseError(error) ? getStatusCode(error) : 401).json({
+        message: isDatabaseError(error)
+          ? getSafeErrorMessage(error)
+          : error.message || "Incorrect email or password.",
       });
     }
   }
@@ -7099,7 +7999,8 @@ export class AuthController {
       }
       res.json({ message: "If this email exists, an OTP has been sent." });
     } catch (error: any) {
-      res.status(500).json({ message: "Something went wrong. Please try again." });
+      logError(error, req);
+      res.status(getStatusCode(error)).json({ message: getSafeErrorMessage(error) });
     }
   }
   static async forgotPasswordVerifyOtp(req: Request, res: Response) {
@@ -7109,7 +8010,10 @@ export class AuthController {
       await AuthService.verifyOtp(email, otp);
       res.json({ message: "OTP verified." });
     } catch (error: any) {
-      res.status(400).json({ message: error.message || "Invalid OTP." });
+      logError(error, req);
+      res.status(isDatabaseError(error) ? getStatusCode(error) : 400).json({
+        message: isDatabaseError(error) ? getSafeErrorMessage(error) : error.message || "Invalid OTP.",
+      });
     }
   }
   static async forgotPasswordReset(req: Request, res: Response) {
@@ -7119,7 +8023,10 @@ export class AuthController {
       await AuthService.resetPassword(email, otp, password);
       res.json({ message: "Password reset successfully." });
     } catch (error: any) {
-      res.status(400).json({ message: error.message || "Failed to reset password." });
+      logError(error, req);
+      res.status(isDatabaseError(error) ? getStatusCode(error) : 400).json({
+        message: isDatabaseError(error) ? getSafeErrorMessage(error) : error.message || "Failed to reset password.",
+      });
     }
   }
   static async logout(req: Request, res: Response) {
@@ -7145,7 +8052,8 @@ import dotenv from "dotenv";
 import { AuthController } from "./controllers/auth.controller";
 import { AppController } from "./controllers/app.controller";
 import { authenticate } from "./middleware/auth";
-import { errorHandler } from "./middleware/error";
+import { errorHandler, logError } from "./middleware/error";
+import { getSafeErrorMessage, getStatusCode } from "./utils/app-error";
 dotenv.config();
 const app = express();
 const port = process.env.PORT || 8080;
@@ -7175,8 +8083,11 @@ app.get("/api/books/mine", authenticate, AppController.myBooks);
 app.get("/api/books/:id", authenticate, AppController.getBook);
 app.get("/api/books/:id/history", authenticate, AppController.bookHistory);
 app.post("/api/books", authenticate, AppController.createBook);
+app.post("/api/books/import", authenticate, AppController.importBooks);
 app.patch("/api/books/:id", authenticate, AppController.updateBook);
 app.delete("/api/books/:id", authenticate, AppController.deleteBook);
+app.get("/api/authors", authenticate, AppController.authors);
+app.post("/api/authors", authenticate, AppController.createAuthor);
 app.get("/api/borrow-requests", authenticate, AppController.myRequests);
 app.post("/api/borrow-requests", authenticate, AppController.requestBook);
 app.post("/api/borrow-requests/:id/approve", authenticate, AppController.approveRequest);
@@ -7190,7 +8101,7 @@ app.get("/api/health", (req, res) => {
 });
 app.get("/api/quote/today", async (req, res) => {
   try {
-    const response = await fetch("https://zenquotes.io/api/today");
+    const response = await fetch("https://dummyjson.com/quotes/random");
     if (!response.ok) {
       return res.status(response.status).json({
         message: "ZenQuotes API failed",
@@ -7200,8 +8111,9 @@ app.get("/api/quote/today", async (req, res) => {
     const data = await response.json();
     res.json(data);
   } catch (error: any) {
-    console.error("Quote API error:", error.message);
-    res.status(500).json({
+    logError(error, req);
+    res.status(getStatusCode(error)).json({
+      message: getSafeErrorMessage(error),
     });
   }
 });
@@ -7215,6 +8127,8 @@ app.listen(port, () => {
 import { Request, Response, NextFunction } from "express";
 import { verifyToken } from "../utils/jwt";
 import prisma from "../config/prisma";
+import { getSafeErrorMessage, getStatusCode } from "../utils/app-error";
+import { logError } from "./error";
 export interface AuthRequest extends Request {
   user?: any;
   cookies: {
@@ -7226,22 +8140,29 @@ export const authenticate = async (
   res: Response,
   next: NextFunction
 ) => {
-  const token = req.cookies?.token;
-  if (!token) {
-    return res.status(401).json({ message: "Unauthorized" });
+  try {
+    const token = req.cookies?.token;
+    if (!token) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    const decoded = verifyToken(token);
+    if (!decoded || !decoded.email) {
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+    const user = await prisma.user.findUnique({
+      where: { email: decoded.email },
+    });
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+    req.user = user;
+    next();
+  } catch (error: any) {
+    logError(error, req);
+    return res.status(getStatusCode(error)).json({
+      message: getSafeErrorMessage(error),
+    });
   }
-  const decoded = verifyToken(token);
-  if (!decoded || !decoded.email) {
-    return res.status(401).json({ message: "Invalid or expired token" });
-  }
-  const user = await prisma.user.findUnique({
-    where: { email: decoded.email },
-  });
-  if (!user) {
-    return res.status(401).json({ message: "User not found" });
-  }
-  req.user = user;
-  next();
 };
 </file>
 
@@ -7249,12 +8170,14 @@ export const authenticate = async (
 import { Request, Response, NextFunction } from "express";
 import fs from "fs";
 import path from "path";
+import { getSafeErrorMessage, getStatusCode } from "../utils/app-error";
 const LOG_FILE = path.join(__dirname, "../../error-logged.txt");
-function logError(err: any) {
+export function logError(err: any, req?: Request) {
   try {
     const timestamp = new Date().toISOString();
-    const stack = err.stack || err.message || "No stack trace";
-    const logEntry = `[${timestamp}] ${stack}\n\n`;
+    const stack = err?.stack || err?.message || "No stack trace";
+    const requestLine = req ? `${req.method} ${req.originalUrl}` : "No request context";
+    const logEntry = `[${timestamp}] ${requestLine}\n${stack}\n\n`;
     fs.appendFileSync(LOG_FILE, logEntry);
     console.log(`Error logged to ${LOG_FILE}`);
   } catch (logError) {
@@ -7267,12 +8190,9 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ) => {
-  logError(err);
-  const status = err.status || err.statusCode || 500;
-  let message = err.message || "Something went wrong";
-  if (status >= 500) {
-    message = "Something went wrong on our end. Our tech wizards have been alerted and are brewing a fix.";
-  }
+  logError(err, req);
+  const status = err.status || err.statusCode || getStatusCode(err) || 500;
+  const message = getSafeErrorMessage(err);
   res.status(status).json({ message });
 };
 </file>
@@ -7448,7 +8368,7 @@ export class BookService {
     if (search) {
       where.OR = [
         { title: { contains: search, mode: "insensitive" } },
-        { author: { contains: search, mode: "insensitive" } },
+        { author: { name: { contains: search, mode: "insensitive" } } },
         { description: { contains: search, mode: "insensitive" } },
         { owner: { fullName: { contains: search, mode: "insensitive" } } },
       ];
@@ -7462,6 +8382,7 @@ export class BookService {
         include: {
           owner: true,
           genre: true,
+          author: true,
         },
         orderBy,
         skip: currentPage * pageSize,
@@ -7501,6 +8422,7 @@ export class BookService {
         include: {
           owner: true,
           genre: true,
+          author: true,
         },
         orderBy: { createdAt: "desc" },
         skip: currentPage * pageSize,
@@ -7522,6 +8444,7 @@ export class BookService {
       include: {
         owner: true,
         genre: true,
+        author: true,
       },
     });
     if (!book) throw new Error("Book not found");
@@ -7532,10 +8455,18 @@ export class BookService {
     const coverColor = this.pickCoverColor(payload.title);
     const book = await prisma.$transaction(
       async (tx) => {
+        const author = payload.authorId
+          ? await tx.author.findUnique({ where: { id: payload.authorId } })
+          : await tx.author.upsert({
+              where: { name: payload.author.trim() },
+              update: {},
+              create: { name: payload.author.trim() },
+            });
+        if (!author) throw new Error("Author not found.");
         const createdBook = await tx.book.create({
           data: {
             title: payload.title.trim(),
-            author: payload.author.trim(),
+            authorId: author.id,
             genreId: payload.genreId,
             condition: payload.condition || "good",
             defaultLoanDays: Number(payload.defaultLoanDays) || 14,
@@ -7549,6 +8480,7 @@ export class BookService {
           include: {
             owner: true,
             genre: true,
+            author: true,
           },
         });
         await tx.bookHistory.create({
@@ -7570,6 +8502,111 @@ export class BookService {
     await StatsCacheService.adjustFields({ totalBooks: 1, availableBooks: 1 });
     return this.mapBook(book);
   }
+static async importCsv(actorId: string, rows: any[]) {
+    const results: {
+      imported: number;
+      skipped: number;
+      failed: number;
+      errors: { row: number; message: string }[];
+    } = {
+      imported: 0,
+      skipped: 0,
+      failed: 0,
+      errors: [],
+    };
+    for (let i = 0; i < rows.length; i++) {
+      const raw = rows[i] || {};
+      try {
+        const title = String(raw.Title || raw.title || "").trim();
+        const author = String(raw.Author || raw.author || "").trim();
+        const genreName = String(raw.Genre || raw.genre || "").trim();
+        const ownerEmail = String(raw.Email || raw.email || "").trim().toLowerCase();
+        const isbn = String(raw.ISBN || raw.isbn || "").trim() || null;
+        const description = String(raw.Description || raw.description || "").trim() || null;
+        const condition = String(raw.Condition || raw.condition || "good").trim().toLowerCase();
+        const defaultLoanDays = Number(raw.DefaultLoanDays || raw.defaultLoanDays) || 14;
+        if (!title) throw new Error("Title is required.");
+        if (!author) throw new Error("Author is required.");
+        if (!genreName) throw new Error("Genre is required.");
+        if (!ownerEmail) throw new Error("Email is required.");
+        if (!Number.isInteger(defaultLoanDays) || defaultLoanDays < 3 || defaultLoanDays > 60) {
+          throw new Error("Default loan days must be a whole number between 3 and 60.");
+        }
+        const coverColor = this.pickCoverColor(title);
+        const wasSkipped = await prisma.$transaction(
+          async (tx) => {
+            const owner = await tx.user.findUnique({
+              where: { email: ownerEmail },
+            });
+            if (!owner) {
+              throw new Error(`No user found with email "${ownerEmail}".`);
+            }
+            const existingBook = await tx.book.findFirst({
+              where: {
+                title: { equals: title, mode: "insensitive" },
+                visibilityStatus: { not: "deleted" },
+              },
+            });
+            if (existingBook && existingBook.ownerId === owner.id) {
+              return true;
+            }
+            let genre = await tx.genre.findFirst({
+              where: { name: { equals: genreName, mode: "insensitive" } },
+            });
+            if (!genre) {
+              genre = await tx.genre.create({ data: { name: genreName } });
+            }
+            const authorRecord = await tx.author.upsert({
+              where: { name: author },
+              update: {},
+              create: { name: author },
+            });
+            const createdBook = await tx.book.create({
+              data: {
+                title,
+                authorId: authorRecord.id,
+                genreId: genre.id,
+                isbn,
+                description,
+                condition,
+                defaultLoanDays,
+                coverColor,
+                ownerId: owner.id,
+                availabilityStatus: "available",
+                visibilityStatus: "visible",
+              },
+            });
+            await tx.bookHistory.create({
+              data: {
+                bookId: createdBook.id,
+                actorId,
+                eventType: "book_added",
+                eventTitle: "Book added",
+                eventMessage: `${title} was imported via CSV for ${owner.fullName}.`,
+              },
+            });
+            return false;
+          },
+          { maxWait: 10000, timeout: 10000 }
+        );
+        if (wasSkipped) {
+          results.skipped += 1;
+        } else {
+          results.imported += 1;
+        }
+      } catch (error: any) {
+        results.failed += 1;
+        results.errors.push({ row: i + 2, message: error.message || "Unknown error" });
+      }
+    }
+    if (results.imported > 0) {
+      await StatsCacheService.adjustFields({
+        totalBooks: results.imported,
+        availableBooks: results.imported,
+      });
+    }
+    return results;
+  }
   static async update(
     userId: string,
     id: string,
@@ -7586,11 +8623,19 @@ export class BookService {
         if (book.ownerId !== userId && !isAdmin) {
           throw new Error("Unauthorized");
         }
+        const author = payload.authorId
+          ? await tx.author.findUnique({ where: { id: payload.authorId } })
+          : await tx.author.upsert({
+              where: { name: payload.author.trim() },
+              update: {},
+              create: { name: payload.author.trim() },
+            });
+        if (!author) throw new Error("Author not found.");
         const result = await tx.book.update({
           where: { id },
           data: {
             title: payload.title.trim(),
-            author: payload.author.trim(),
+            authorId: author.id,
             genreId: payload.genreId,
             condition: payload.condition,
             defaultLoanDays: Number(payload.defaultLoanDays),
@@ -7600,6 +8645,7 @@ export class BookService {
           include: {
             owner: true,
             genre: true,
+            author: true,
           },
         });
         await tx.bookHistory.create({
@@ -7683,7 +8729,7 @@ export class BookService {
   }
   private static validateBookPayload(payload: any) {
     if (!payload.title?.trim()) throw new Error("Title is required.");
-    if (!payload.author?.trim()) throw new Error("Author is required.");
+    if (!payload.author?.trim() && !payload.authorId) throw new Error("Author is required.");
     if (!payload.genreId) throw new Error("Genre is required.");
     const loanDays = Number(payload.defaultLoanDays);
     if (!Number.isInteger(loanDays) || loanDays < 3 || loanDays > 60) {
@@ -7696,7 +8742,8 @@ export class BookService {
     return {
       id: book.id,
       title: book.title,
-      author: book.author,
+      author: book.author?.name || book.author,
+      authorId: book.author?.id || book.authorId,
       isbn: book.isbn,
       description: book.description,
       condition: book.condition,
@@ -7805,7 +8852,7 @@ export class LookupService {
     ]);
     const rawLatestReadings = await prisma.bookTransaction.findMany({
       where: { requesterId: userId },
-      include: { book: { include: { genre: true } } },
+      include: { book: { include: { genre: true, author: true } } },
       orderBy: { requestedAt: "desc" },
       take: 15,
     });
@@ -7819,7 +8866,7 @@ export class LookupService {
       book: {
         id: t.book.id,
         title: t.book.title,
-        author: t.book.author,
+        author: t.book.author?.name ?? null,
         coverColor: t.book.coverColor,
         coverUrl: t.book.coverUrl,
         genreName: t.book.genre?.name ?? "N/A"
@@ -7835,7 +8882,7 @@ export class LookupService {
     }];
     const activeBooks = await prisma.book.findMany({
       where: { visibilityStatus: "visible" },
-      include: { owner: true, genre: true }
+      include: { owner: true, genre: true, author: true }
     });
     let bookOfTheDay = null;
     if (activeBooks.length > 0) {
@@ -7845,7 +8892,7 @@ export class LookupService {
       bookOfTheDay = {
         id: chosen.id,
         title: chosen.title,
-        author: chosen.author,
+        author: chosen.author?.name ?? null,
         coverColor: chosen.coverColor,
         coverUrl: chosen.coverUrl,
         description: chosen.description,
@@ -7954,7 +9001,7 @@ export class WorkflowService {
       prisma.bookTransaction.findMany({
         where,
         include: {
-          book: { include: { owner: true, genre: true } },
+          book: { include: { owner: true, genre: true, author: true } },
           requester: true,
           owner: true,
         },
@@ -7981,7 +9028,7 @@ export class WorkflowService {
       prisma.bookTransaction.findMany({
         where,
         include: {
-          book: { include: { owner: true, genre: true } },
+          book: { include: { owner: true, genre: true, author: true } },
           requester: true,
           owner: true,
         },
@@ -8005,7 +9052,7 @@ export class WorkflowService {
       prisma.bookTransaction.findMany({
         where,
         include: {
-          book: { include: { owner: true, genre: true } },
+          book: { include: { owner: true, genre: true, author: true } },
           requester: true,
           owner: true,
         },
@@ -8053,7 +9100,7 @@ export class WorkflowService {
           requestedAt: new Date(),
         },
         include: {
-          book: { include: { owner: true, genre: true } },
+          book: { include: { owner: true, genre: true, author: true } },
           requester: true,
           owner: true,
         },
@@ -8082,7 +9129,7 @@ export class WorkflowService {
       const transaction = await tx.bookTransaction.findUnique({
         where: { id: transactionId },
         include: {
-          book: { include: { owner: true, genre: true } },
+          book: { include: { owner: true, genre: true, author: true } },
           requester: true,
           owner: true,
         },
@@ -8106,7 +9153,7 @@ export class WorkflowService {
           dueAt,
         },
         include: {
-          book: { include: { owner: true, genre: true } },
+          book: { include: { owner: true, genre: true, author: true } },
           requester: true,
           owner: true,
         },
@@ -8158,7 +9205,7 @@ export class WorkflowService {
       const transaction = await tx.bookTransaction.findUnique({
         where: { id: transactionId },
         include: {
-          book: { include: { owner: true, genre: true } },
+          book: { include: { owner: true, genre: true, author: true } },
           requester: true,
           owner: true,
         },
@@ -8177,7 +9224,7 @@ export class WorkflowService {
           respondedAt: now,
         },
         include: {
-          book: { include: { owner: true, genre: true } },
+          book: { include: { owner: true, genre: true, author: true } },
           requester: true,
           owner: true,
         },
@@ -8226,7 +9273,7 @@ export class WorkflowService {
       const transaction = await tx.bookTransaction.findUnique({
         where: { id: transactionId },
         include: {
-          book: { include: { owner: true, genre: true } },
+          book: { include: { owner: true, genre: true, author: true } },
           requester: true,
           owner: true,
         },
@@ -8249,7 +9296,7 @@ export class WorkflowService {
           returnedAt: new Date(),
         },
         include: {
-          book: { include: { owner: true, genre: true } },
+          book: { include: { owner: true, genre: true, author: true } },
           requester: true,
           owner: true,
         },
@@ -8290,17 +9337,12 @@ export class WorkflowService {
       respondedAt: transaction.respondedAt,
       book: transaction.book
         ? {
-          id: transaction.book.id,
-          title: transaction.book.title,
-          author: transaction.book.author,
-          coverUrl: transaction.book.coverUrl,
-          coverColor: transaction.book.coverColor,
-          owner: transaction.book.owner
-            ? {
-              id: transaction.book.owner.id,
-              fullName: transaction.book.owner.fullName,
-            }
-            : transaction.owner
+            id: transaction.book.id,
+            title: transaction.book.title,
+            author: transaction.book.author?.name ?? null,
+            coverUrl: transaction.book.coverUrl,
+            coverColor: transaction.book.coverColor,
+            owner: transaction.book.owner
               ? {
                 id: transaction.owner.id,
                 fullName: transaction.owner.fullName,
@@ -8331,11 +9373,53 @@ export class WorkflowService {
 
 <file path="src/utils/app-error.ts">
 import { Prisma } from "@prisma/client";
+const friendlyServerMessage =
+  "The library desk is a bit overloaded right now. Please try again in a moment.";
+function errorText(error: any): string {
+  return [
+    error?.name,
+    error?.code,
+    error?.message,
+    error?.stack,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+export function isDatabaseError(error: any): boolean {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError ||
+    error instanceof Prisma.PrismaClientInitializationError ||
+    error instanceof Prisma.PrismaClientUnknownRequestError ||
+    error instanceof Prisma.PrismaClientRustPanicError
+  ) {
+    return true;
+  }
+  const text = errorText(error).toLowerCase();
+  return [
+    "prisma.",
+    "prismaclient",
+    "error querying the database",
+    "database",
+    "emaxconnsession",
+    "max clients reached",
+    "pool_size",
+    "connection pool",
+    "too many connections",
+  ].some((needle) => text.includes(needle));
+}
 export function getSafeErrorMessage(error: any): string {
+  if (
+    error instanceof TypeError ||
+    error instanceof ReferenceError ||
+    error instanceof SyntaxError ||
+    String(error?.message || "").includes("\n    at ")
+  ) {
+    return "Something wobbled on our side. Please try again in a moment.";
+  }
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     switch (error.code) {
       case "P1001":
-        return "Database connection failed. Please try again later.";
+        return friendlyServerMessage;
       case "P2025":
         return "Requested record was not found.";
       case "P2002":
@@ -8346,8 +9430,8 @@ export function getSafeErrorMessage(error: any): string {
         return "Database operation failed. Please try again.";
     }
   }
-  if (error instanceof Prisma.PrismaClientInitializationError) {
-    return "Database is temporarily unavailable. Please try again later.";
+  if (isDatabaseError(error)) {
+    return friendlyServerMessage;
   }
   if (error?.message) {
     return error.message;
@@ -8370,6 +9454,9 @@ export function getStatusCode(error: any): number {
     }
   }
   if (error instanceof Prisma.PrismaClientInitializationError) {
+    return 503;
+  }
+  if (isDatabaseError(error)) {
     return 503;
   }
   return 400;
@@ -8460,6 +9547,54 @@ export async function callWorkatoSignupWebhook(user: any) {
 }
 </file>
 
+<file path="package.json">
+{
+  "name": "booknook-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "dotenv": "^17.4.2",
+    "lucide-react": "^1.21.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.185.0",
+    "xlsx": "^0.18.5",
+    "vite": "^5.4.11"
+  }
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "booknook-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "dotenv": "^17.4.2",
+    "lucide-react": "^1.21.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.185.0",
+    "xlsx": "^0.18.5",
+    "vite": "^5.4.11"
+  }
+}
+</file>
+
 <file path=".gitignore">
 node_modules
 # Keep environment variables out of version control
@@ -8470,52 +9605,6 @@ node_modules
 /scripts/
 /Docker/
 *.txt
-</file>
-
-<file path="package.json">
-{
-  "name": "booknook-frontend",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
-    "dotenv": "^17.4.2",
-    "lucide-react": "^1.21.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "three": "^0.185.0",
-    "vite": "^5.4.11"
-  }
-}
-</file>
-
-<file path="package.json">
-{
-  "name": "booknook-frontend",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
-    "dotenv": "^17.4.2",
-    "lucide-react": "^1.21.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "three": "^0.185.0",
-    "vite": "^5.4.11"
-  }
-}
 </file>
 
 <file path="package.json">

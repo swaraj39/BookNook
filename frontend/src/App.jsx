@@ -36,14 +36,17 @@ import { Borrowed } from "./pages/Borrowed";
 import { LoanHistory } from "./pages/LoanHistory";
 import { Details } from "./pages/Details";
 import { BookAddedDialog } from "./components/common/BookAddedDialog";
-import { initials, parseDelimitedText, normalizeImportRow } from "./utils/helpers";
+import { initials, parseDelimitedText, normalizeImportRow, toBookForm } from "./utils/helpers";
 import { ConfirmDialog } from "./components/common/ConfirmDialog";
 import logo from "./styles/blue_altair_logo-removebg-preview.png";
+
 const VALID_VIEWS = new Set(["dashboard", "home", "catalog", "requests", "myBooks", "borrowed", "history", "detail"]);
+
 function getStoredView() {
   const storedView = localStorage.getItem("bn_view") || "dashboard";
   return VALID_VIEWS.has(storedView) ? storedView : "dashboard";
 }
+
 function getStoredNavStack(currentView) {
   try {
     const parsed = JSON.parse(localStorage.getItem("bn_navStack") || "[]");
@@ -54,6 +57,7 @@ function getStoredNavStack(currentView) {
     return currentView === "home" ? ["home"] : ["home", currentView];
   }
 }
+
 const blankBook = {
   title: "",
   author: "",
@@ -63,6 +67,7 @@ const blankBook = {
   description: "",
   coverUrl: ""
 };
+
 function DashboardLoader() {
   const messages = [
     { text: "Welcome back", icon: "👋" },
@@ -78,7 +83,6 @@ function DashboardLoader() {
     { text: "Thanks for your patience", icon: "🙏" },
     { text: "Just a few seconds more", icon: "⏱️" }
   ];
-  const [bookAdded, setBookAdded] = useState(false);
   const [index, setIndex] = useState(0);
   useEffect(() => {
     const id = setInterval(() => {
@@ -86,8 +90,9 @@ function DashboardLoader() {
     }, 2000);
     return () => clearInterval(id);
   }, []);
+
   return (
-    <div className="dashboard-loader">
+    <div className="dashboard-loader" style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--bg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
       <div className="dashboard-loader-spinner-wrap">
         <div className="dashboard-loader-spinner" />
         <span className="dashboard-loader-emoji">{messages[index].icon}</span>
@@ -95,11 +100,10 @@ function DashboardLoader() {
       <p key={index} className="dashboard-loader-text">
         {messages[index].text}
       </p>
-      {
-      }
     </div>
   );
 }
+
 function NavLoader() {
   return (
     <div className="nav-loader-overlay">
@@ -113,54 +117,7 @@ function NavLoader() {
     </div>
   );
 }
-function HomePage({ stats, dailyThought, navigateTo, setFilters, setBookModal }) {
-  return (
-    <section className="home-page">
-      <div className="new-hero">
-        <div className="new-hero-badge">
-          <span>✦</span>
-          <span>A Reading Community</span>
-        </div>
-        <h1 className="new-hero-title">
-          Borrow a book. <span>Pass it on.</span>
-        </h1>
-        <p className="new-hero-desc">
-          Book Nook is a shared shelf for our team. List a book you'd lend,
-          borrow one you've been meaning to read, and swap stories along the way.
-        </p>
-        <div className="new-hero-actions">
-          <button className="new-btn-primary" onClick={() => navigateTo("catalog")}>Browse the shelf</button>
-          <button className="new-btn-outline" onClick={() => setBookModal({ ...blankBook })}>Add Book</button>
-        </div>
-        {dailyThought && (
-          <div className="new-hero-quote">
-            <span className="new-hero-quote-icon">📖</span>
-            <blockquote>"{dailyThought.quote || dailyThought.text || dailyThought.content || dailyThought.q}"</blockquote>
-            — {dailyThought.author || dailyThought.by || dailyThought.a}
-          </div>
-        )}
-        <div className="new-hero-stats">
-          <div className="new-stat-card">
-            <label>Books on the shelf</label>
-            <strong>{stats?.totalBooks || 0}</strong>
-          </div>
-          <div className="new-stat-card">
-            <label>Available to borrow</label>
-            <strong>{stats?.availableBooks || 0}</strong>
-          </div>
-        </div>
-      </div>
-      <section className="how-it-works panel">
-        <div className="panel-head"><h3>How it works</h3></div>
-        <div className="steps-grid">
-          <article><span>1</span><h4>Browse</h4><p>Search the shared shelf and filter books by genre, status, or due date.</p></article>
-          <article><span>2</span><h4>Request</h4><p>Send a borrow request with your preferred number of reading days.</p></article>
-          <article><span>3</span><h4>Read & return</h4><p>Track active loans and mark books returned when you are done.</p></article>
-        </div>
-      </section>
-    </section>
-  );
-}
+
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
@@ -168,6 +125,39 @@ export default function App() {
   const [view, setView] = useState(initialView);
   const [navStack, setNavStack] = useState(() => getStoredNavStack(initialView));
   const [selectedBookId, setSelectedBookId] = useState(localStorage.getItem("bn_selectedBookId") || null);
+
+  const [darkMode, setDarkMode] = useState(localStorage.getItem("bn_theme") === "dark");
+  const [me, setMe] = useState(null);
+  const [stats, setStats] = useState(null);
+  const [genres, setGenres] = useState([]);
+  
+  const [booksPage, setBooksPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+  const [requestsPage, setRequestsPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+  const [myBooksPage, setMyBooksPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+  const [borrowedPage, setBorrowedPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+  const [historyPage, setHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+  const [bookHistoryPage, setBookHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+  const [selectedBook, setSelectedBook] = useState(null);
+  
+  const [filters, setFilters] = useState({ search: "", genreId: "", availability: "all", sort: "title", page: 0 });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [bookModal, setBookModal] = useState(null);
+  const [requestModal, setRequestModal] = useState(null);
+  const [toasts, setToasts] = useState([]);
+  
+  // High-priority page view loader
+  const [pageLoading, setPageLoading] = useState(false);
+  const [navLoading, setNavLoading] = useState(null);
+  const [dailyThought, setDailyThought] = useState(null);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const profileDropdownRef = useRef(null);
+  const navRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const [bookAddedMessage, setBookAddedMessage] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+
   useEffect(() => {
     localStorage.setItem("bn_view", view);
     localStorage.setItem("bn_navStack", JSON.stringify(navStack));
@@ -177,25 +167,15 @@ export default function App() {
       localStorage.removeItem("bn_selectedBookId");
     }
   }, [view, navStack, selectedBookId]);
+
   useEffect(() => {
     const safeStack = navStack.length ? navStack : [view];
-    window.history.replaceState(
-      { view: safeStack[0], selectedBookId: null, navStack: [safeStack[0]] },
-      "",
-      window.location.href
-    );
+    window.history.replaceState({ view: safeStack[0], selectedBookId: null, navStack: [safeStack[0]] }, "", window.location.href);
     safeStack.slice(1).forEach((stackView, index) => {
       const stackUntilHere = safeStack.slice(0, index + 2);
-      window.history.pushState(
-        {
-          view: stackView,
-          selectedBookId: stackView === "detail" ? selectedBookId : null,
-          navStack: stackUntilHere
-        },
-        "",
-        window.location.href
-      );
+      window.history.pushState({ view: stackView, selectedBookId: stackView === "detail" ? selectedBookId : null, navStack: stackUntilHere }, "", window.location.href);
     });
+
     function handleBrowserBack(event) {
       const state = event.state;
       if (!state?.view || !VALID_VIEWS.has(state.view)) return;
@@ -206,29 +186,26 @@ export default function App() {
     window.addEventListener("popstate", handleBrowserBack);
     return () => window.removeEventListener("popstate", handleBrowserBack);
   }, []);
+
   function navigateTo(newView, options = {}) {
     if (!VALID_VIEWS.has(newView)) return;
     setShowProfileDropdown(false);
-    if (newView !== view && !isDataReady(newView)) {
-      setNavLoading(newView);
-    }
+
     const nextBookId = newView === "detail" ? (options.bookId || selectedBookId) : null;
     const nextStack = options.replace
       ? [...navStack.slice(0, -1), newView]
       : navStack[navStack.length - 1] === newView
         ? navStack
         : [...navStack, newView];
+        
     setView(newView);
     setSelectedBookId(nextBookId);
     setNavStack(nextStack);
     if (!options.skipHistory) {
-      window.history.pushState(
-        { view: newView, selectedBookId: nextBookId, navStack: nextStack },
-        "",
-        window.location.href
-      );
+      window.history.pushState({ view: newView, selectedBookId: nextBookId, navStack: nextStack }, "", window.location.href);
     }
   }
+
   function navigateBack(options = {}) {
     if (navStack.length <= 1) return;
     const newStack = navStack.slice(0, -1);
@@ -241,45 +218,7 @@ export default function App() {
       window.history.back();
     }
   }
-  const [darkMode, setDarkMode] = useState(localStorage.getItem("bn_theme") === "dark");
-  const [me, setMe] = useState(null);
-  const [stats, setStats] = useState(null);
-  const [genres, setGenres] = useState([]);
-  const [booksPage, setBooksPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-  const [requestsPage, setRequestsPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-  const [myBooksPage, setMyBooksPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-  const [borrowedPage, setBorrowedPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-  const [historyPage, setHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-  const [bookHistoryPage, setBookHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-  const [selectedBook, setSelectedBook] = useState(null);
-  const [filters, setFilters] = useState({ search: "", genreId: "", availability: "all", sort: "title", page: 0 });
-  const [searchTerm, setSearchTerm] = useState("");
-  const [bookModal, setBookModal] = useState(null);
-  const [requestModal, setRequestModal] = useState(null);
-  const [toasts, setToasts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [navLoading, setNavLoading] = useState(null);
-  const [dailyThought, setDailyThought] = useState(null);
-  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
-  const profileDropdownRef = useRef(null);
-  const navRef = useRef(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-  const [bookAddedMessage, setBookAddedMessage] = useState(null);
-  function isDataReady(v) {
-    switch (v) {
-      case "dashboard": return stats !== null;
-      case "catalog":
-      case "requests":
-      case "myBooks":
-      case "borrowed":
-      case "history":
-        return true;
-      case "detail": return selectedBook !== null;
-      case "home": return stats !== null;
-      default: return true;
-    }
-  }
+
   const checkNavScroll = useCallback(() => {
     const el = navRef.current;
     if (el) {
@@ -287,10 +226,12 @@ export default function App() {
       setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4);
     }
   }, []);
+
   const scrollNav = useCallback((dir) => {
     const el = navRef.current;
     if (el) el.scrollBy({ left: dir * 200, behavior: "smooth" });
   }, []);
+
   useEffect(() => {
     checkNavScroll();
     const el = navRef.current;
@@ -299,54 +240,91 @@ export default function App() {
       return () => el.removeEventListener("scroll", checkNavScroll);
     }
   }, [view, stats, checkNavScroll]);
-  const [confirm, setConfirm] = useState(null);
-  const [detailsLoading, setDetailsLoading] = useState(false);
-  const API_URL = import.meta.env.VITE_API_URL;
+
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
+
   useEffect(() => {
-    // fetch("https://booknook-gfb8.onrender.com/api/quote/today")
     fetch(`http://localhost:8080/api/quote/today`)
       .then((response) => response.ok ? response.json() : null)
-      .then((quote) => {
-        if (quote) setDailyThought(quote);
-      })
-      .catch((error) => {
-        console.error("Failed to fetch daily quote:", error);
-      });
+      .then((quote) => { if (quote) setDailyThought(quote); })
+      .catch((error) => console.error("Failed to fetch daily quote:", error));
   }, []);
+
   useEffect(() => {
     function handleClickOutside(event) {
-      if (
-        profileDropdownRef.current &&
-        !profileDropdownRef.current.contains(event.target)
-      ) {
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target)) {
         setShowProfileDropdown(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // ─── CENTRALIZED AUTOMATIC ON-DEMAND LAZY TAB HYDRATION ROUTINES ───
   useEffect(() => {
-    if (isAuthenticated) {
-      loadBootstrap();
+    if (!isAuthenticated) return;
+
+    async function loadActiveViewData() {
+      // Don't re-fetch data if the state cache is already filled
+      if (view === "dashboard" && stats) return;
+      if (view === "catalog" && booksPage.content.length > 0) return;
+      if (view === "requests" && requestsPage.content.length > 0) return;
+      if (view === "myBooks" && myBooksPage.content.length > 0) return;
+      if (view === "borrowed" && borrowedPage.content.length > 0) return;
+      if (view === "history" && historyPage.content.length > 0) return;
+
+      setPageLoading(true);
+      try {
+        switch (view) {
+          case "dashboard":
+            const dashboardData = await api.dashboard();
+            setStats(dashboardData);
+            break;
+          case "catalog":
+            await loadCatalog();
+            break;
+          case "requests":
+            await loadRequests(requestsPage.page);
+            break;
+          case "myBooks":
+            await loadMyBooks(myBooksPage.page);
+            break;
+          case "borrowed":
+            await loadBorrowed(borrowedPage.page);
+            break;
+          case "history":
+            await loadHistory(historyPage.page);
+            break;
+          default:
+            break;
+        }
+      } catch (err) {
+        notify(err.message, "error");
+      } finally {
+        setPageLoading(false);
+      }
     }
-  }, [isAuthenticated]);
+
+    loadActiveViewData();
+  }, [view, isAuthenticated]);
+
+  // Handle live updates when search terms or filter configurations dynamically adapt
   useEffect(() => {
     const timer = setTimeout(() => {
       setFilters(prev => ({ ...prev, search: searchTerm, page: 0 }));
     }, 400);
     return () => clearTimeout(timer);
   }, [searchTerm]);
+
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && view === "catalog") {
       loadCatalog();
     }
   }, [filters, isAuthenticated]);
+
   useEffect(() => {
     async function restoreDetailPage() {
       if (!isAuthenticated || view !== "detail" || !selectedBookId || selectedBook) return;
@@ -367,11 +345,14 @@ export default function App() {
     }
     restoreDetailPage();
   }, [isAuthenticated, view, selectedBookId, selectedBook]);
+
   useEffect(() => {
     async function checkAuth() {
       try {
         const user = await api.me();
+        const genreList = await api.genres();
         setMe(user);
+        setGenres(genreList);
         setIsAuthenticated(true);
       } catch (error) {
         setMe(null);
@@ -382,44 +363,54 @@ export default function App() {
     }
     checkAuth();
   }, []);
+
   useEffect(() => {
     const handler = () => {
       setMe(null);
       setIsAuthenticated(false);
     };
     window.addEventListener("auth-expired", handler);
-    return () => {
-      window.removeEventListener("auth-expired", handler);
-    };
+    return () => window.removeEventListener("auth-expired", handler);
   }, []);
-  useEffect(() => {
-    if (!navLoading || navLoading !== view) return;
-    if (isDataReady(view)) setNavLoading(null);
-  }, [view, navLoading, stats, booksPage, requestsPage, myBooksPage, borrowedPage, historyPage, selectedBook, loading]);
+
   async function handleLogin(token, user) {
+    setPageLoading(true);
     localStorage.setItem("bn_token", token);
     setMe(user);
-    setIsAuthenticated(true);
-    notify("Welcome, " + user.fullName + "!");
-    setSelectedBook(null);
-    setSelectedBookId(null);
-    setNavStack(["dashboard"]);
-    setView("dashboard");
-    window.history.replaceState({ view: "dashboard", selectedBookId: null, navStack: ["dashboard"] }, "", window.location.href);
+    try {
+      const genreList = await api.genres();
+      const dashboardData = await api.dashboard();
+      setGenres(genreList);
+      setStats(dashboardData);
+      setIsAuthenticated(true);
+      notify("Welcome, " + user.fullName + "!");
+      setSelectedBook(null);
+      setSelectedBookId(null);
+      setNavStack(["dashboard"]);
+      setView("dashboard");
+      window.history.replaceState({ view: "dashboard", selectedBookId: null, navStack: ["dashboard"] }, "", window.location.href);
+    } catch (e) {
+      notify(e.message, "error");
+    } finally {
+      setPageLoading(false);
+    }
   }
+
   async function handleLogout() {
     setShowProfileDropdown(false);
     try {
-      // await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
-      await fetch("http://localhost:8080/api/auth/logout", {
-        method: "POST",
-        credentials: "include",
-      });
+      await fetch("http://localhost:8080/api/auth/logout", { method: "POST", credentials: "include" });
     } catch (error) {
       console.error("Logout failed:", error);
     }
     setIsAuthenticated(false);
     setMe(null);
+    setStats(null);
+    setBooksPage({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+    setRequestsPage({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+    setMyBooksPage({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+    setBorrowedPage({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+    setHistoryPage({ content: [], totalPages: 0, totalElements: 0, page: 0 });
     setSelectedBook(null);
     setSelectedBookId(null);
     setNavStack(["dashboard"]);
@@ -429,70 +420,72 @@ export default function App() {
     localStorage.removeItem("bn_selectedBookId");
     notify("Logged out successfully.");
   }
-  async function loadBootstrap() {
-    try {
-      setLoading(true);
-      const [user, genreList] = await Promise.all([api.me(), api.genres()]);
-      setMe(user);
-      setGenres(genreList);
-      await refresh();
-    } catch (error) {
-      notify(error.message, "error");
-    } finally {
-      setLoading(false);
-    }
-  }
-  async function refresh() {
-    const dashboard = await api.dashboard();
-    setStats(dashboard);
-    await Promise.all([
-      loadCatalog(),
-      loadRequests(requestsPage.page),
-      loadMyBooks(myBooksPage.page),
-      loadBorrowed(borrowedPage.page),
-      loadHistory(historyPage.page)
-    ]);
-  }
+
+  // ─── TARGETED BACKEND SYNC OPERATIONS (EXPLICIT MANIPULATION OR COOLDOWN REFRESH) ───
   async function loadCatalog() {
+    const params = {
+      search: filters.search,
+      availability: filters.availability,
+      sort: filters.sort,
+      page: filters.page,
+      size: 20
+    };
+    if (filters.genreId) params.genreId = filters.genreId;
+    const result = await api.books(params);
+    setBooksPage(result);
+  }
+
+  async function loadRequests(page) {
+    const result = await api.requests(page);
+    setRequestsPage(result);
+  }
+
+  async function loadMyBooks(page) {
+    const result = await api.myBooks(page);
+    setMyBooksPage(result);
+  }
+
+  async function loadBorrowed(page) {
+    const result = await api.borrowed(page);
+    setBorrowedPage(result);
+  }
+
+  async function loadHistory(page) {
+    const result = await api.loanHistory(page);
+    setHistoryPage(result);
+  }
+
+  async function loadBookHistory(id, page) {
+    try { setBookHistoryPage(await api.bookHistory(id, page)); } catch (e) { notify(e.message, "error"); }
+  }
+
+  // Manual explicit refresh button triggers inside pages
+  async function handleManualRefresh() {
+    setPageLoading(true);
     try {
-      setLoading(true);
-      const params = {
-        search: filters.search,
-        availability: filters.availability,
-        sort: filters.sort,
-        page: filters.page,
-        size: 20
-      };
-      if (filters.genreId) params.genreId = filters.genreId;
-      setBooksPage(await api.books(params));
-    } catch (error) {
-      notify(error.message, "error");
+      if (view === "dashboard") setStats(await api.dashboard());
+      if (view === "catalog") await loadCatalog();
+      if (view === "requests") await loadRequests(requestsPage.page);
+      if (view === "myBooks") await loadMyBooks(myBooksPage.page);
+      if (view === "borrowed") await loadBorrowed(borrowedPage.page);
+      if (view === "history") await loadHistory(historyPage.page);
+      notify("Data synchronized.");
+    } catch (e) {
+      notify(e.message, "error");
     } finally {
-      setLoading(false);
+      setPageLoading(false);
     }
   }
+
   function askConfirm(message, onConfirm) {
     setConfirm({ message, onConfirm });
   }
+
   async function resolveConfirm(confirmed) {
     if (confirmed && confirm?.onConfirm) await confirm.onConfirm();
     setConfirm(null);
   }
-  async function loadRequests(page) {
-    try { setRequestsPage(await api.requests(page)); } catch (e) { notify(e.message, "error"); }
-  }
-  async function loadMyBooks(page) {
-    try { setMyBooksPage(await api.myBooks(page)); } catch (e) { notify(e.message, "error"); }
-  }
-  async function loadBorrowed(page) {
-    try { setBorrowedPage(await api.borrowed(page)); } catch (e) { notify(e.message, "error"); }
-  }
-  async function loadHistory(page) {
-    try { setHistoryPage(await api.loanHistory(page)); } catch (e) { notify(e.message, "error"); }
-  }
-  async function loadBookHistory(id, page) {
-    try { setBookHistoryPage(await api.bookHistory(id, page)); } catch (e) { notify(e.message, "error"); }
-  }
+
   async function openDetails(book) {
     setDetailsLoading(true);
     try {
@@ -505,22 +498,28 @@ export default function App() {
       setDetailsLoading(false);
     }
   }
+
   async function saveBook(payload) {
+    setPageLoading(true);
     try {
       if (bookModal?.id) await api.updateBook(bookModal.id, payload);
       else await api.createBook(payload);
       setBookModal(null);
       notify(bookModal?.id ? "Book updated." : "Book added.");
       await loadMyBooks(bookModal?.id ? myBooksPage.page : 0);
+      setStats(await api.dashboard()); // sync aggregate parameters metrics
     } catch (error) {
       notify(error.message, "error");
+    } finally {
+      setPageLoading(false);
     }
   }
+
   async function importBooks(file) {
+    setPageLoading(true);
     try {
       const extension = file.name.split(".").pop().toLowerCase();
       let rawRows = [];
-
       if (extension === "xlsx" || extension === "xls") {
         const buffer = await file.arrayBuffer();
         const workbook = XLSX.read(buffer, { type: "array" });
@@ -534,19 +533,13 @@ export default function App() {
         notify("Unsupported file type.", "error");
         return;
       }
-
-      const rows = rawRows
-        .map(normalizeImportRow)
-        .filter((row) => row.Title || row.Author || row.Genre);
-
+      const rows = rawRows.map(normalizeImportRow).filter((row) => row.Title || row.Author || row.Genre);
       if (rows.length === 0) {
         window.alert("No valid rows were found in that file. Make sure it has Title, Author, and Genre columns.");
         notify("No valid rows found in the file.", "error");
         return;
       }
-
       const result = await api.importBooks(rows);
-
       if (result.imported > 0 || result.skipped > 0) {
         setBookAddedMessage(
           `${result.imported} book(s) added successfully.` +
@@ -557,78 +550,104 @@ export default function App() {
       } else {
         notify("No books were imported. Please check the file and try again.", "error");
       }
-
-      if (result.errors?.length) {
-        console.error("Import errors:", result.errors);
-      }
-
+      if (result.errors?.length) console.error("Import errors:", result.errors);
       await loadMyBooks(0);
+      setStats(await api.dashboard());
     } catch (error) {
       window.alert(error.message || "Import failed.");
       notify(error.message, "error");
+    } finally {
+      setPageLoading(false);
     }
   }
+
   async function deleteBook(id) {
     askConfirm("Are you sure you want to remove this book from the library? This cannot be undone.", async () => {
+      setPageLoading(true);
       try {
         await api.deleteBook(id);
         notify("Book deleted.");
         await loadMyBooks(myBooksPage.page);
+        setStats(await api.dashboard());
       } catch (error) {
         notify(error.message, "error");
+      } finally {
+        setPageLoading(false);
       }
     });
-    return;
   }
+
   async function sendRequest(payload) {
+    setPageLoading(true);
     try {
       await api.requestBook(payload);
       setRequestModal(null);
       notify("Borrow request sent.");
       await loadRequests(requestsPage.page);
+      setStats(await api.dashboard());
     } catch (error) {
       notify(error.message, "error");
+    } finally {
+      setPageLoading(false);
     }
   }
+
   async function approve(id) {
+    setPageLoading(true);
     try {
       await api.approve(id);
       notify("Request approved and loan started.");
       await loadRequests(requestsPage.page);
+      setStats(await api.dashboard());
     } catch (error) {
       notify(error.message, "error");
+    } finally {
+      setPageLoading(false);
     }
   }
+
   async function reject(id) {
     askConfirm("Are you sure you want to reject this request?", async () => {
+      setPageLoading(true);
       try {
         await api.reject(id);
         notify("Request rejected.");
         await loadRequests(requestsPage.page);
+        setStats(await api.dashboard());
       } catch (error) {
         notify(error.message, "error");
+      } finally {
+        setPageLoading(false);
       }
     });
-    return;
   }
+
   async function returnBook(id, bookTitle) {
     askConfirm(`Return "${bookTitle}"? This will mark the book as returned.`, async () => {
+      setPageLoading(true);
       try {
         await api.returnBook(id);
         notify("Book marked as returned.");
-        await loadBorrowed(borrowedPage.page);
+        if (view === "borrowed") await loadBorrowed(borrowedPage.page);
+        if (view === "catalog") await loadCatalog();
+        setStats(await api.dashboard());
       } catch (error) {
         notify(error.message, "error");
+      } finally {
+        setPageLoading(false);
       }
     });
   }
+
   function notify(message, type = "success") {
     const id = Math.random().toString(36).substring(2, 9);
     setToasts((prev) => [...prev, { id, message, type }]);
   }
+
   function removeToast(id) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }
+
   const navSections = [
     {
       label: "Analytics & Shelf",
@@ -647,9 +666,11 @@ export default function App() {
       ]
     }
   ];
+
   if (authChecking) {
-    return <div>Loading...</div>;
+    return <DashboardLoader />;
   }
+
   if (!isAuthenticated) {
     return (
       <>
@@ -658,8 +679,11 @@ export default function App() {
       </>
     );
   }
+
   return (
     <div className="app-shell">
+      {pageLoading && <DashboardLoader />}
+      
       <aside className="sidebar">
         <button className="brand" onClick={() => navigateTo("dashboard")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
           <img className="brand-mark" src={logo} alt="Book Nook Logo" />
@@ -697,15 +721,9 @@ export default function App() {
             {darkMode ? <Sun size={18} /> : <Moon size={18} />}
           </button>
           {me && (
-            <div
-              ref={profileDropdownRef}
-              className="profile-dropdown-container"
-              style={{ position: "relative" }}
-            >
+            <div ref={profileDropdownRef} className="profile-dropdown-container" style={{ position: "relative" }}>
               <button className="user-profile-trigger" onClick={() => setShowProfileDropdown(!showProfileDropdown)}>
-                <div className="user-avatar-small">
-                  {me.avatarInitials || initials(me.fullName)}
-                </div>
+                <div className="user-avatar-small">{me.avatarInitials || initials(me.fullName)}</div>
                 <ChevronDown size={14} color="var(--muted)" />
               </button>
               {showProfileDropdown && (
@@ -717,21 +735,15 @@ export default function App() {
           )}
         </div>
       </aside>
+
       <main className="main">
         {navLoading && <NavLoader />}
         {view === "dashboard" && stats && (
-          <Dashboard
-            stats={stats}
-            me={me}
-            dailyThought={dailyThought}
-            openDetails={openDetails}
-          />
+          <Dashboard stats={stats} me={me} dailyThought={dailyThought} openDetails={openDetails} />
         )}
-        {view === "dashboard" && !stats && <DashboardLoader />}
         {view !== "home" && view !== "catalog" && view !== "dashboard" && (
           <section className="topbar">
             <div className="page-title">
-              { }
               <h2>BA Reading Community Tracker</h2>
               <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
             </div>
@@ -740,17 +752,7 @@ export default function App() {
             </div>
           </section>
         )}
-        {
-        }
-        {view === "home" && (
-          <HomePage
-            stats={stats}
-            dailyThought={dailyThought}
-            navigateTo={navigateTo}
-            setFilters={setFilters}
-            setBookModal={setBookModal}
-          />
-        )}
+        
         {view === "catalog" && (
           <Catalog
             page={booksPage}
@@ -759,7 +761,7 @@ export default function App() {
             setFilters={setFilters}
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
-            loading={loading}
+            loading={pageLoading}
             me={me}
             openDetails={openDetails}
             setRequestModal={setRequestModal}
@@ -768,11 +770,21 @@ export default function App() {
             importBooks={importBooks}
           />
         )}
-        {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} onRefresh={() => loadRequests(requestsPage.page)} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} />}
-        {view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} onRefresh={() => loadMyBooks(myBooksPage.page)} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} />}
-        {view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} onRefresh={() => loadBorrowed(borrowedPage.page)} returnBook={returnBook} openDetails={openDetails} />}
-        {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={() => loadHistory(historyPage.page)} />}
-        {!loading && view === "detail" && selectedBook && (
+        
+        {view === "requests" && (
+          <Requests page={requestsPage} onPageChange={loadRequests} onRefresh={handleManualRefresh} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} />
+        )}
+        {view === "myBooks" && (
+          <MyBooks page={myBooksPage} onPageChange={loadMyBooks} onRefresh={handleManualRefresh} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} />
+        )}
+        {view === "borrowed" && (
+          <Borrowed page={borrowedPage} onPageChange={loadBorrowed} onRefresh={handleManualRefresh} returnBook={returnBook} openDetails={openDetails} />
+        )}
+        {view === "history" && (
+          <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={handleManualRefresh} />
+        )}
+        
+        {view === "detail" && selectedBook && (
           <Details
             book={selectedBook}
             historyPage={bookHistoryPage}
@@ -786,17 +798,13 @@ export default function App() {
           />
         )}
       </main>
+
       {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
       {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
-      <ConfirmDialog
-        message={confirm?.message}
-        onConfirm={() => resolveConfirm(true)}
-        onCancel={() => resolveConfirm(false)}
-      />
-      <BookAddedDialog
-        message={bookAddedMessage}
-        onClose={() => setBookAddedMessage(null)}
-      />
+      
+      <ConfirmDialog message={confirm?.message} onConfirm={() => resolveConfirm(true)} onCancel={() => resolveConfirm(false)} />
+      <BookAddedDialog message={bookAddedMessage} onClose={() => setBookAddedMessage(null)} />
+      
       {detailsLoading && (
         <div className="details-loader-overlay">
           <div className="details-loader-box">
