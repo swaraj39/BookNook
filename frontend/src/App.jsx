@@ -247,7 +247,8 @@ export default function App() {
   }, [darkMode]);
 
   useEffect(() => {
-    fetch(`http://localhost:8080/api/quote/today`)
+    fetch(`https://booknook-gfb8.onrender.com/api/quote/today`)
+    // fetch(`http://localhost:8080/api/quote/today`)
       .then((response) => response.ok ? response.json() : null)
       .then((quote) => { if (quote) setDailyThought(quote); })
       .catch((error) => console.error("Failed to fetch daily quote:", error));
@@ -399,7 +400,8 @@ export default function App() {
   async function handleLogout() {
     setShowProfileDropdown(false);
     try {
-      await fetch("http://localhost:8080/api/auth/logout", { method: "POST", credentials: "include" });
+      await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", { method: "POST", credentials: "include" });
+      // await fetch("http://localhost:8080/api/auth/logout", { method: "POST", credentials: "include" });
     } catch (error) {
       console.error("Logout failed:", error);
     }
