@@ -11,24 +11,16 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 8080;
 const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-const allowedOrigins = [
-  frontendUrl,
-  "http://127.0.0.1:5173",
-  "https://booknook-74lk.onrender.com",
-  /\.onrender\.com$/,
-];
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      const match = allowedOrigins.some(a =>
-        typeof a === "string" ? origin.startsWith(a) : a.test(origin)
-      );
-      callback(null, match);
-    },
-    credentials: true,
-  })
-);
+const corsOptions = {
+  origin: [
+    frontendUrl,
+    "http://127.0.0.1:5173",
+    "https://booknook-74lk.onrender.com",
+  ],
+  credentials: true,
+};
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(cookieParser());
 app.use(express.json());
 app.post("/api/auth/register", AuthController.register);

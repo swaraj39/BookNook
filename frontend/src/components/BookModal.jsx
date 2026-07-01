@@ -28,26 +28,17 @@ export function BookModal({ book, genres, onClose, onSave }) {
   );
   async function submit() {
     const nextErrors = validateBookForm({ ...form, author: authorSearch || form.author });
-    if (Object.keys(nextErrors).length > 0) {
-      setErrors(nextErrors);
-      alert(Object.values(nextErrors).join("\n"));
-      return;
-    }
-    try {
-      const authorName = (authorSearch.trim() || form.author?.trim() || "").trim();
-      const matchedAuthor = authors.find((a) => a.name.toLowerCase() === authorName.toLowerCase());
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length === 0) {
       const payload = {
         ...form,
         defaultLoanDays: Math.floor(Number(form.defaultLoanDays)),
         title: form.title.trim(),
-        author: authorName,
-        authorId: matchedAuthor ? matchedAuthor.id : undefined,
+        author: authorSearch.trim() || form.author.trim(),
         description: form.description?.trim() || "",
         coverUrl: form.coverUrl?.trim() || ""
       };
       await onSave(payload);
-    } catch (error) {
-      alert(error.message || "Something went wrong while saving.");
     }
   }
   return (

@@ -169,16 +169,10 @@ function RequestRow({ row, me, approve, reject, openDetails }) {
 
 export function Requests({ page, onPageChange, onRefresh, me, approve, reject, openDetails }) {
   const [filter, setFilter] = useState("all");
-  const [refreshing, setRefreshing] = useState(false);
-
-  async function handleRefresh() {
-    setRefreshing(true);
-    try { await onRefresh(); } finally { setRefreshing(false); }
-  }
 
   const refreshBtn = (
-    <button className="btn icon-only" onClick={handleRefresh} title="Refresh" disabled={refreshing} style={{ width: "32px", height: "32px", minHeight: "32px", padding: 0, border: "none", background: "transparent", color: "var(--muted)", opacity: refreshing ? 0.6 : 1 }}>
-      {refreshing ? <SpinnerInline /> : <RotateCcw size={15} />}
+    <button className="btn icon-only" onClick={onRefresh} title="Refresh" style={{ width: "32px", height: "32px", minHeight: "32px", padding: 0, border: "none", background: "transparent", color: "var(--muted)" }}>
+      <RotateCcw size={15} />
     </button>
   );
 

@@ -27,7 +27,6 @@ import { Stats } from "./components/Stats";
 import { BookModal } from "./components/BookModal";
 import { RequestModal } from "./components/RequestModal";
 import { ToastContainer } from "./components/common/Toast";
-import { PageLoader } from "./components/common/PageLoader";
 import { Login } from "./pages/Login";
 import { Catalog } from "./pages/Catalog";
 import { Dashboard } from "./pages/Dashboard";
@@ -243,8 +242,6 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-    // fetch("https://booknook-gfb8.onrender.com/api/quote/today")
-    // fetch(`http://localhost:8080/api/quote/today`)
     fetch("https://booknook-74lk.onrender.com/api/quote/today")
       .then((response) => response.ok ? response.json() : null)
       .then((quote) => {
@@ -332,8 +329,6 @@ export default function App() {
   async function handleLogout() {
     setShowProfileDropdown(false);
     try {
-      // await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
-      // await fetch("http://localhost:8080/api/auth/logout",
       await fetch("https://booknook-74lk.onrender.com/api/auth/logout", {
         method: "POST",
         credentials: "include",
