@@ -104,20 +104,6 @@ function DashboardLoader() {
   );
 }
 
-function NavLoader() {
-  return (
-    <div className="nav-loader-overlay">
-      <div className="nav-loader-card">
-        <div className="nav-loader-icon-wrap">
-          <BookOpen size={38} className="nav-loader-icon" />
-          <div className="nav-loader-ring" />
-        </div>
-        <p className="nav-loader-message">Loading your bookshelf</p>
-      </div>
-    </div>
-  );
-}
-
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
@@ -145,9 +131,7 @@ export default function App() {
   const [requestModal, setRequestModal] = useState(null);
   const [toasts, setToasts] = useState([]);
   
-  // High-priority page view loader
   const [pageLoading, setPageLoading] = useState(false);
-  const [navLoading, setNavLoading] = useState(null);
   const [dailyThought, setDailyThought] = useState(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
@@ -264,12 +248,12 @@ export default function App() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ─── CENTRALIZED AUTOMATIC ON-DEMAND LAZY TAB HYDRATION ROUTINES ───
+  // ─── OPTIMIZED ON-DEMAND TARGETED VIEW FETCH ───
   useEffect(() => {
     if (!isAuthenticated) return;
 
     async function loadActiveViewData() {
-      // Don't re-fetch data if the state cache is already filled
+      // Free Tier Protection: Stop execution if cache holds current data parameters
       if (view === "dashboard" && stats) return;
       if (view === "catalog" && booksPage.content.length > 0) return;
       if (view === "requests" && requestsPage.content.length > 0) return;
@@ -312,7 +296,6 @@ export default function App() {
     loadActiveViewData();
   }, [view, isAuthenticated]);
 
-  // Handle live updates when search terms or filter configurations dynamically adapt
   useEffect(() => {
     const timer = setTimeout(() => {
       setFilters(prev => ({ ...prev, search: searchTerm, page: 0 }));
@@ -320,6 +303,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  // Optimize Filter Dependencies: Only trigger catalog searches when catalog view is active
   useEffect(() => {
     if (isAuthenticated && view === "catalog") {
       loadCatalog();
@@ -347,6 +331,7 @@ export default function App() {
     restoreDetailPage();
   }, [isAuthenticated, view, selectedBookId, selectedBook]);
 
+  // Root bootstrap checking sequence
   useEffect(() => {
     async function checkAuth() {
       try {
@@ -374,8 +359,9 @@ export default function App() {
     return () => window.removeEventListener("auth-expired", handler);
   }, []);
 
+  // ─── SIGN IN ROUTINE WITH FULL BLOCKING SCREEN COVERAGE ───
   async function handleLogin(token, user) {
-    setPageLoading(true);
+    setPageLoading(true); // Engages immediate full-screen cover animation layout
     localStorage.setItem("bn_token", token);
     setMe(user);
     try {
@@ -423,7 +409,6 @@ export default function App() {
     notify("Logged out successfully.");
   }
 
-  // ─── TARGETED BACKEND SYNC OPERATIONS (EXPLICIT MANIPULATION OR COOLDOWN REFRESH) ───
   async function loadCatalog() {
     const params = {
       search: filters.search,
@@ -461,7 +446,6 @@ export default function App() {
     try { setBookHistoryPage(await api.bookHistory(id, page)); } catch (e) { notify(e.message, "error"); }
   }
 
-  // Manual explicit refresh button triggers inside pages
   async function handleManualRefresh() {
     setPageLoading(true);
     try {
@@ -509,7 +493,7 @@ export default function App() {
       setBookModal(null);
       notify(bookModal?.id ? "Book updated." : "Book added.");
       await loadMyBooks(bookModal?.id ? myBooksPage.page : 0);
-      setStats(await api.dashboard()); // sync aggregate parameters metrics
+      setStats(await api.dashboard());
     } catch (error) {
       notify(error.message, "error");
     } finally {
@@ -552,7 +536,6 @@ export default function App() {
       } else {
         notify("No books were imported. Please check the file and try again.", "error");
       }
-      if (result.errors?.length) console.error("Import errors:", result.errors);
       await loadMyBooks(0);
       setStats(await api.dashboard());
     } catch (error) {
@@ -684,6 +667,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {/* Page Loading state is now a true full-screen blocking element */}
       {pageLoading && <DashboardLoader />}
       
       <aside className="sidebar">
@@ -739,7 +723,6 @@ export default function App() {
       </aside>
 
       <main className="main">
-        {navLoading && <NavLoader />}
         {view === "dashboard" && stats && (
           <Dashboard stats={stats} me={me} dailyThought={dailyThought} openDetails={openDetails} />
         )}
