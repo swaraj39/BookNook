@@ -27,6 +27,7 @@ import { Stats } from "./components/Stats";
 import { BookModal } from "./components/BookModal";
 import { RequestModal } from "./components/RequestModal";
 import { ToastContainer } from "./components/common/Toast";
+import { PageLoader } from "./components/common/PageLoader";
 import { Login } from "./pages/Login";
 import { Catalog } from "./pages/Catalog";
 import { Dashboard } from "./pages/Dashboard";
@@ -63,57 +64,7 @@ const blankBook = {
   description: "",
   coverUrl: ""
 };
-function DashboardLoader() {
-  const messages = [
-    { text: "Welcome back", icon: "👋" },
-    { text: "Preparing your dashboard", icon: "⚙️" },
-    { text: "Gathering your reading stats", icon: "📊" },
-    { text: "Loading your latest activity", icon: "📚" },
-    { text: "Syncing your bookshelf", icon: "🗂️" },
-    { text: "Calculating your reading progress", icon: "📈" },
-    { text: "Curating today's picks", icon: "✨" },
-    { text: "Almost ready", icon: "⏳" },
-    { text: "Putting the final touches", icon: "🧩" },
-    { text: "Good things take a moment", icon: "🌱" },
-    { text: "Thanks for your patience", icon: "🙏" },
-    { text: "Just a few seconds more", icon: "⏱️" }
-  ];
-  const [bookAdded, setBookAdded] = useState(false);
-  const [index, setIndex] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => {
-      setIndex((i) => (i + 1) % messages.length);
-    }, 2000);
-    return () => clearInterval(id);
-  }, []);
-  return (
-    <div className="dashboard-loader">
-      <div className="dashboard-loader-spinner-wrap">
-        <div className="dashboard-loader-spinner" />
-        <span className="dashboard-loader-emoji">{messages[index].icon}</span>
-      </div>
-      <p key={index} className="dashboard-loader-text">
-        {messages[index].text}
-      </p>
-      {
-      }
-    </div>
-  );
-}
-function NavLoader() {
-  return (
-    <div className="nav-loader-overlay">
-      <div className="nav-loader-card">
-        <div className="nav-loader-icon-wrap">
-          <BookOpen size={38} className="nav-loader-icon" />
-          <div className="nav-loader-ring" />
-        </div>
-        <p className="nav-loader-message">Loading your bookshelf</p>
-      </div>
-    </div>
-  );
-}
-function HomePage({ stats, dailyThought, navigateTo, setFilters, setBookModal }) {
+function HomePage({ stats, dailyThought, navigateTo, setBookModal }) {
   return (
     <section className="home-page">
       <div className="new-hero">
@@ -209,9 +160,6 @@ export default function App() {
   function navigateTo(newView, options = {}) {
     if (!VALID_VIEWS.has(newView)) return;
     setShowProfileDropdown(false);
-    if (newView !== view && !isDataReady(newView)) {
-      setNavLoading(newView);
-    }
     const nextBookId = newView === "detail" ? (options.bookId || selectedBookId) : null;
     const nextStack = options.replace
       ? [...navStack.slice(0, -1), newView]
@@ -245,20 +193,22 @@ export default function App() {
   const [me, setMe] = useState(null);
   const [stats, setStats] = useState(null);
   const [genres, setGenres] = useState([]);
-  const [booksPage, setBooksPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-  const [requestsPage, setRequestsPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-  const [myBooksPage, setMyBooksPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-  const [borrowedPage, setBorrowedPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-  const [historyPage, setHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+  const [catalogData, setCatalogData] = useState(null);
+  const [requestsPage, setRequestsPage] = useState(null);
+  const [myBooksPage, setMyBooksPage] = useState(null);
+  const [borrowedPage, setBorrowedPage] = useState(null);
+  const [historyPage, setHistoryPage] = useState(null);
   const [bookHistoryPage, setBookHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
   const [selectedBook, setSelectedBook] = useState(null);
-  const [filters, setFilters] = useState({ search: "", genreId: "", availability: "all", sort: "title", page: 0 });
-  const [searchTerm, setSearchTerm] = useState("");
   const [bookModal, setBookModal] = useState(null);
   const [requestModal, setRequestModal] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [navLoading, setNavLoading] = useState(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [requestsLoading, setRequestsLoading] = useState(false);
+  const [myBooksLoading, setMyBooksLoading] = useState(false);
+  const [borrowedLoading, setBorrowedLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [dailyThought, setDailyThought] = useState(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
@@ -266,20 +216,6 @@ export default function App() {
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const [bookAddedMessage, setBookAddedMessage] = useState(null);
-  function isDataReady(v) {
-    switch (v) {
-      case "dashboard": return stats !== null;
-      case "catalog":
-      case "requests":
-      case "myBooks":
-      case "borrowed":
-      case "history":
-        return true;
-      case "detail": return selectedBook !== null;
-      case "home": return stats !== null;
-      default: return true;
-    }
-  }
   const checkNavScroll = useCallback(() => {
     const el = navRef.current;
     if (el) {
@@ -307,8 +243,8 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-    fetch("https://booknook-gfb8.onrender.com/api/quote/today")
-    // fetch(`http://localhost:8080/api/quote/today`)
+    // fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+    fetch(`http://localhost:8080/api/quote/today`)
       .then((response) => response.ok ? response.json() : null)
       .then((quote) => {
         if (quote) setDailyThought(quote);
@@ -336,17 +272,6 @@ export default function App() {
       loadBootstrap();
     }
   }, [isAuthenticated]);
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setFilters(prev => ({ ...prev, search: searchTerm, page: 0 }));
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadCatalog();
-    }
-  }, [filters, isAuthenticated]);
   useEffect(() => {
     async function restoreDetailPage() {
       if (!isAuthenticated || view !== "detail" || !selectedBookId || selectedBook) return;
@@ -392,10 +317,6 @@ export default function App() {
       window.removeEventListener("auth-expired", handler);
     };
   }, []);
-  useEffect(() => {
-    if (!navLoading || navLoading !== view) return;
-    if (isDataReady(view)) setNavLoading(null);
-  }, [view, navLoading, stats, booksPage, requestsPage, myBooksPage, borrowedPage, historyPage, selectedBook, loading]);
   async function handleLogin(token, user) {
     localStorage.setItem("bn_token", token);
     setMe(user);
@@ -410,8 +331,8 @@ export default function App() {
   async function handleLogout() {
     setShowProfileDropdown(false);
     try {
-      await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
-      // await fetch("http://localhost:8080/api/auth/logout", {
+      // await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
+      await fetch("http://localhost:8080/api/auth/logout", {
         method: "POST",
         credentials: "include",
       });
@@ -435,40 +356,43 @@ export default function App() {
       const [user, genreList] = await Promise.all([api.me(), api.genres()]);
       setMe(user);
       setGenres(genreList);
-      await refresh();
+      const dashboard = await api.dashboard();
+      setStats(dashboard);
     } catch (error) {
       notify(error.message, "error");
     } finally {
       setLoading(false);
     }
   }
-  async function refresh() {
-    const dashboard = await api.dashboard();
-    setStats(dashboard);
-    await Promise.all([
-      loadCatalog(),
-      loadRequests(requestsPage.page),
-      loadMyBooks(myBooksPage.page),
-      loadBorrowed(borrowedPage.page),
-      loadHistory(historyPage.page)
-    ]);
-  }
-  async function loadCatalog() {
+  useEffect(() => {
+    if (!isAuthenticated || view === "detail") return;
+    switch (view) {
+      case "catalog":
+        if (!catalogData && !catalogLoading) loadAllBooks();
+        break;
+      case "requests":
+        if (!requestsLoading) loadRequests(0);
+        break;
+      case "myBooks":
+        if (!myBooksLoading) loadMyBooks(0);
+        break;
+      case "borrowed":
+        if (!borrowedLoading) loadBorrowed(0);
+        break;
+      case "history":
+        if (!historyLoading) loadHistory(0);
+        break;
+    }
+  }, [view, isAuthenticated]);
+  async function loadAllBooks() {
+    setCatalogLoading(true);
     try {
-      setLoading(true);
-      const params = {
-        search: filters.search,
-        availability: filters.availability,
-        sort: filters.sort,
-        page: filters.page,
-        size: 20
-      };
-      if (filters.genreId) params.genreId = filters.genreId;
-      setBooksPage(await api.books(params));
-    } catch (error) {
-      notify(error.message, "error");
+      const data = await api.books({ size: 500 });
+      setCatalogData(data.content || []);
+    } catch (e) {
+      notify(e.message, "error");
     } finally {
-      setLoading(false);
+      setCatalogLoading(false);
     }
   }
   function askConfirm(message, onConfirm) {
@@ -479,16 +403,24 @@ export default function App() {
     setConfirm(null);
   }
   async function loadRequests(page) {
+    setRequestsLoading(true);
     try { setRequestsPage(await api.requests(page)); } catch (e) { notify(e.message, "error"); }
+    finally { setRequestsLoading(false); }
   }
   async function loadMyBooks(page) {
+    setMyBooksLoading(true);
     try { setMyBooksPage(await api.myBooks(page)); } catch (e) { notify(e.message, "error"); }
+    finally { setMyBooksLoading(false); }
   }
   async function loadBorrowed(page) {
+    setBorrowedLoading(true);
     try { setBorrowedPage(await api.borrowed(page)); } catch (e) { notify(e.message, "error"); }
+    finally { setBorrowedLoading(false); }
   }
   async function loadHistory(page) {
+    setHistoryLoading(true);
     try { setHistoryPage(await api.loanHistory(page)); } catch (e) { notify(e.message, "error"); }
+    finally { setHistoryLoading(false); }
   }
   async function loadBookHistory(id, page) {
     try { setBookHistoryPage(await api.bookHistory(id, page)); } catch (e) { notify(e.message, "error"); }
@@ -510,8 +442,9 @@ export default function App() {
       if (bookModal?.id) await api.updateBook(bookModal.id, payload);
       else await api.createBook(payload);
       setBookModal(null);
+      setCatalogData(null);
       notify(bookModal?.id ? "Book updated." : "Book added.");
-      await loadMyBooks(bookModal?.id ? myBooksPage.page : 0);
+      await loadMyBooks(myBooksPage?.page || 0);
     } catch (error) {
       notify(error.message, "error");
     }
@@ -563,6 +496,7 @@ export default function App() {
       }
 
       await loadMyBooks(0);
+      setCatalogData(null);
     } catch (error) {
       window.alert(error.message || "Import failed.");
       notify(error.message, "error");
@@ -573,7 +507,8 @@ export default function App() {
       try {
         await api.deleteBook(id);
         notify("Book deleted.");
-        await loadMyBooks(myBooksPage.page);
+        setCatalogData(null);
+        await loadMyBooks(myBooksPage?.page || 0);
       } catch (error) {
         notify(error.message, "error");
       }
@@ -585,7 +520,8 @@ export default function App() {
       await api.requestBook(payload);
       setRequestModal(null);
       notify("Borrow request sent.");
-      await loadRequests(requestsPage.page);
+      setCatalogData(null);
+      await loadRequests(requestsPage?.page || 0);
     } catch (error) {
       notify(error.message, "error");
     }
@@ -594,7 +530,8 @@ export default function App() {
     try {
       await api.approve(id);
       notify("Request approved and loan started.");
-      await loadRequests(requestsPage.page);
+      setCatalogData(null);
+      await loadRequests(requestsPage?.page || 0);
     } catch (error) {
       notify(error.message, "error");
     }
@@ -604,7 +541,8 @@ export default function App() {
       try {
         await api.reject(id);
         notify("Request rejected.");
-        await loadRequests(requestsPage.page);
+        setCatalogData(null);
+        await loadRequests(requestsPage?.page || 0);
       } catch (error) {
         notify(error.message, "error");
       }
@@ -616,7 +554,8 @@ export default function App() {
       try {
         await api.returnBook(id);
         notify("Book marked as returned.");
-        await loadBorrowed(borrowedPage.page);
+        setCatalogData(null);
+        await loadBorrowed(borrowedPage?.page || 0);
       } catch (error) {
         notify(error.message, "error");
       }
@@ -718,7 +657,6 @@ export default function App() {
         </div>
       </aside>
       <main className="main">
-        {navLoading && <NavLoader />}
         {view === "dashboard" && stats && (
           <Dashboard
             stats={stats}
@@ -727,7 +665,7 @@ export default function App() {
             openDetails={openDetails}
           />
         )}
-        {view === "dashboard" && !stats && <DashboardLoader />}
+        {view === "dashboard" && !stats && <PageLoader />}
         {view !== "home" && view !== "catalog" && view !== "dashboard" && (
           <section className="topbar">
             <div className="page-title">
@@ -740,26 +678,19 @@ export default function App() {
             </div>
           </section>
         )}
-        {
-        }
         {view === "home" && (
           <HomePage
             stats={stats}
             dailyThought={dailyThought}
             navigateTo={navigateTo}
-            setFilters={setFilters}
             setBookModal={setBookModal}
           />
         )}
-        {view === "catalog" && (
+        {view === "catalog" && !catalogData && <PageLoader />}
+        {view === "catalog" && catalogData && (
           <Catalog
-            page={booksPage}
+            allBooks={catalogData}
             genres={genres}
-            filters={filters}
-            setFilters={setFilters}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-            loading={loading}
             me={me}
             openDetails={openDetails}
             setRequestModal={setRequestModal}
@@ -768,10 +699,14 @@ export default function App() {
             importBooks={importBooks}
           />
         )}
-        {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} onRefresh={() => loadRequests(requestsPage.page)} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} />}
-        {view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} onRefresh={() => loadMyBooks(myBooksPage.page)} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} />}
-        {view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} onRefresh={() => loadBorrowed(borrowedPage.page)} returnBook={returnBook} openDetails={openDetails} />}
-        {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={() => loadHistory(historyPage.page)} />}
+        {view === "requests" && !requestsPage && <PageLoader />}
+        {view === "requests" && requestsPage && <Requests page={requestsPage} onPageChange={loadRequests} onRefresh={() => loadRequests(requestsPage.page)} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} />}
+        {view === "myBooks" && !myBooksPage && <PageLoader />}
+        {view === "myBooks" && myBooksPage && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} onRefresh={() => loadMyBooks(myBooksPage.page)} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} />}
+        {view === "borrowed" && !borrowedPage && <PageLoader />}
+        {view === "borrowed" && borrowedPage && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} onRefresh={() => loadBorrowed(borrowedPage.page)} returnBook={returnBook} openDetails={openDetails} />}
+        {view === "history" && !historyPage && <PageLoader />}
+        {view === "history" && historyPage && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={() => loadHistory(historyPage.page)} />}
         {!loading && view === "detail" && selectedBook && (
           <Details
             book={selectedBook}
