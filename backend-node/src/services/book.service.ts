@@ -260,10 +260,16 @@ static async importCsv(actorId: string, rows: any[]) {
             if (!genre) {
               genre = await tx.genre.create({ data: { name: genreName } });
             }
+            let authorRecord = await tx.author.findUnique({
+              where: { name: author },
+            });
+            if (!authorRecord) {
+              authorRecord = await tx.author.create({ data: { name: author } });
+            }
             const createdBook = await tx.book.create({
               data: {
                 title,
-                author,
+                authorId: authorRecord.id,
                 genreId: genre.id,
                 isbn,
                 description,
