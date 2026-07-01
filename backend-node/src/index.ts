@@ -1,5 +1,6 @@
 import express from "express";
 import cookieParser from "cookie-parser";
+import cors from "cors";
 import dotenv from "dotenv";
 import { AuthController } from "./controllers/auth.controller";
 import { AppController } from "./controllers/app.controller";
@@ -9,26 +10,15 @@ import { getSafeErrorMessage, getStatusCode } from "./utils/app-error";
 dotenv.config();
 const app = express();
 const port = process.env.PORT || 8080;
-const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
 const allowedOrigins = [
-  frontendUrl,
+  "http://localhost:5173",
   "http://127.0.0.1:5173",
   "https://booknook-74lk.onrender.com",
 ];
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-  }
-  if (req.method === "OPTIONS") {
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
-    res.setHeader("Access-Control-Max-Age", "86400");
-    return res.sendStatus(204);
-  }
-  next();
-});
+if (process.env.FRONTEND_URL && !allowedOrigins.includes(process.env.FRONTEND_URL)) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(cookieParser());
 app.use(express.json());
 app.post("/api/auth/register", AuthController.register);
