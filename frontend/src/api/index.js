@@ -1,6 +1,9 @@
 // const API_URL = import.meta.env.VITE_API_URL || "https://booknook-74lk.onrender.com/api";
 // Hello
 const API_URL = "https://booknook-74lk.onrender.com/api";
+// const API_URL = "https://booknook-gfb8.onrender.com/api";
+// const API_URL = "http://localhost:8080/api";
+// const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 function friendlyErrorMessage(message) {
   const text = String(message || "").toLowerCase();
   const looksLikeDatabaseError = [
