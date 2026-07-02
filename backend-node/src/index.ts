@@ -56,17 +56,22 @@ app.get("/api/health", (req, res) => {
 });
 app.get("/api/quote/today", async (req, res) => {
   try {
-    const response = await fetch("https://dummyjson.com/quotes/random");
+    const response = await fetch("https://zenquotes.io/api/today");
+
     if (!response.ok) {
       return res.status(response.status).json({
         message: "ZenQuotes API failed",
-        status: response.status,
       });
     }
-    const data = await response.json();
-    res.json(data);
-  } catch (error: any) {
+
+    const data: any = await response.json();
+
+    // Return only the first quote
+    res.json(data[0]);
+
+  } catch (error) {
     logError(error, req);
+
     res.status(getStatusCode(error)).json({
       message: getSafeErrorMessage(error),
     });
