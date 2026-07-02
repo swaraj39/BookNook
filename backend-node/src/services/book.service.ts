@@ -60,7 +60,7 @@ export class BookService {
     if (search) {
       where.OR = [
         { title: { contains: search, mode: "insensitive" } },
-        { author: { name: { contains: search, mode: "insensitive" } } },
+        { author: { contains: search, mode: "insensitive" } },
         { description: { contains: search, mode: "insensitive" } },
         { owner: { fullName: { contains: search, mode: "insensitive" } } },
       ];
@@ -74,7 +74,6 @@ export class BookService {
         include: {
           owner: true,
           genre: true,
-          author: true,
         },
         orderBy,
         skip: currentPage * pageSize,
@@ -114,7 +113,6 @@ export class BookService {
         include: {
           owner: true,
           genre: true,
-          author: true,
         },
         orderBy: { createdAt: "desc" },
         skip: currentPage * pageSize,
@@ -136,7 +134,6 @@ export class BookService {
       include: {
         owner: true,
         genre: true,
-        author: true,
       },
     });
     if (!book) throw new Error("Book not found");
@@ -147,20 +144,10 @@ export class BookService {
     const coverColor = this.pickCoverColor(payload.title);
     const book = await prisma.$transaction(
       async (tx) => {
-        const author = payload.authorId
-          ? await tx.author.findUnique({ where: { id: payload.authorId } })
-          : await tx.author.upsert({
-              where: { name: payload.author.trim() },
-              update: {},
-              create: { name: payload.author.trim() },
-            });
-
-        if (!author) throw new Error("Author not found.");
-
         const createdBook = await tx.book.create({
           data: {
             title: payload.title.trim(),
-            authorId: author.id,
+            author: payload.author.trim(),
             genreId: payload.genreId,
             condition: payload.condition || "good",
             defaultLoanDays: Number(payload.defaultLoanDays) || 14,
@@ -174,7 +161,6 @@ export class BookService {
           include: {
             owner: true,
             genre: true,
-            author: true,
           },
         });
         await tx.bookHistory.create({
@@ -260,16 +246,10 @@ static async importCsv(actorId: string, rows: any[]) {
             if (!genre) {
               genre = await tx.genre.create({ data: { name: genreName } });
             }
-            const authorRecord = await tx.author.upsert({
-              where: { name: author },
-              update: {},
-              create: { name: author },
-            });
-
             const createdBook = await tx.book.create({
               data: {
                 title,
-                authorId: authorRecord.id,
+                author,
                 genreId: genre.id,
                 isbn,
                 description,
@@ -331,21 +311,11 @@ static async importCsv(actorId: string, rows: any[]) {
           throw new Error("Unauthorized");
         }
 
-        const author = payload.authorId
-          ? await tx.author.findUnique({ where: { id: payload.authorId } })
-          : await tx.author.upsert({
-              where: { name: payload.author.trim() },
-              update: {},
-              create: { name: payload.author.trim() },
-            });
-
-        if (!author) throw new Error("Author not found.");
-
         const result = await tx.book.update({
           where: { id },
           data: {
             title: payload.title.trim(),
-            authorId: author.id,
+            author: payload.author.trim(),
             genreId: payload.genreId,
             condition: payload.condition,
             defaultLoanDays: Number(payload.defaultLoanDays),
@@ -355,7 +325,6 @@ static async importCsv(actorId: string, rows: any[]) {
           include: {
             owner: true,
             genre: true,
-            author: true,
           },
         });
         await tx.bookHistory.create({
@@ -439,7 +408,7 @@ static async importCsv(actorId: string, rows: any[]) {
   }
   private static validateBookPayload(payload: any) {
     if (!payload.title?.trim()) throw new Error("Title is required.");
-    if (!payload.author?.trim() && !payload.authorId) throw new Error("Author is required.");
+    if (!payload.author?.trim()) throw new Error("Author is required.");
     if (!payload.genreId) throw new Error("Genre is required.");
     const loanDays = Number(payload.defaultLoanDays);
     if (!Number.isInteger(loanDays) || loanDays < 3 || loanDays > 60) {
@@ -457,8 +426,7 @@ static async importCsv(actorId: string, rows: any[]) {
     return {
       id: book.id,
       title: book.title,
-      author: book.author?.name || book.author,
-      authorId: book.author?.id || book.authorId,
+      author: book.author,
       isbn: book.isbn,
       description: book.description,
       condition: book.condition,

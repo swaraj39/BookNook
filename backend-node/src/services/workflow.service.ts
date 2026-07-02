@@ -19,7 +19,7 @@ export class WorkflowService {
       prisma.bookTransaction.findMany({
         where,
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -49,7 +49,7 @@ export class WorkflowService {
       prisma.bookTransaction.findMany({
         where,
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -76,7 +76,7 @@ export class WorkflowService {
       prisma.bookTransaction.findMany({
         where,
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -130,7 +130,7 @@ export class WorkflowService {
           requestedAt: new Date(),
         },
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -165,7 +165,7 @@ export class WorkflowService {
       const transaction = await tx.bookTransaction.findUnique({
         where: { id: transactionId },
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -194,7 +194,7 @@ export class WorkflowService {
           dueAt,
         },
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -255,7 +255,7 @@ export class WorkflowService {
       const transaction = await tx.bookTransaction.findUnique({
         where: { id: transactionId },
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -278,7 +278,7 @@ export class WorkflowService {
           respondedAt: now,
         },
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -338,7 +338,7 @@ export class WorkflowService {
       const transaction = await tx.bookTransaction.findUnique({
         where: { id: transactionId },
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -365,7 +365,7 @@ export class WorkflowService {
           returnedAt: new Date(),
         },
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -416,7 +416,7 @@ export class WorkflowService {
         ? {
             id: transaction.book.id,
             title: transaction.book.title,
-            author: transaction.book.author?.name ?? null,
+            author: transaction.book.author ?? null,
             coverUrl: transaction.book.coverUrl,
             coverColor: transaction.book.coverColor,
             owner: transaction.book.owner

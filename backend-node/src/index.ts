@@ -42,10 +42,6 @@ app.post("/api/books/import", authenticate, AppController.importBooks);
 app.patch("/api/books/:id", authenticate, AppController.updateBook);
 app.delete("/api/books/:id", authenticate, AppController.deleteBook);
 
-// Author routes
-app.get("/api/authors", authenticate, AppController.authors);
-app.post("/api/authors", authenticate, AppController.createAuthor);
-
 // Workflow routes
 app.get("/api/borrow-requests", authenticate, AppController.myRequests);
 app.post("/api/borrow-requests", authenticate, AppController.requestBook);
