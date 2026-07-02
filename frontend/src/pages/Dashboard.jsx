@@ -33,7 +33,7 @@ export function Dashboard({ stats, me, dailyThought, openDetails }) {
               <Sparkles size={14} />
               <span>Thought of the Day</span>
             </div>
-            <blockquote>"{dailyThought.quote || dailyThought.text || dailyThought.content || dailyThought.q}"</blockquote>
+            <blockquote>"{dailyThought.q}"</blockquote>
             <cite>— {dailyThought.author || dailyThought.by || dailyThought.a}</cite>
           </div>
         )}

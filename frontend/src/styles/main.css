@@ -3679,8 +3679,12 @@ th:last-child {
 .welcome-message-node h1,
 .new-hero-title {
   color: var(--ink);
+ 
 }
-
+.catalog-header-left h3{
+  color: var(--ink);
+  font-size: 50px;
+}
 .nav-item,
 .btn,
 .new-btn-primary,
