@@ -246,7 +246,6 @@ export class BookService {
             if (!genre) {
               genre = await tx.genre.create({ data: { name: genreName } });
             }
-
             const createdBook = await tx.book.create({
               data: {
                 title,
@@ -409,7 +408,7 @@ export class BookService {
   }
   private static validateBookPayload(payload: any) {
     if (!payload.title?.trim()) throw new Error("Title is required.");
-    if (!payload.author?.trim() && !payload.authorId) throw new Error("Author is required.");
+    if (!payload.author?.trim()) throw new Error("Author is required.");
     if (!payload.genreId) throw new Error("Genre is required.");
     const loanDays = Number(payload.defaultLoanDays);
     if (!Number.isInteger(loanDays) || loanDays < 3 || loanDays > 60) {
@@ -419,6 +418,11 @@ export class BookService {
     }
   }
   private static mapBook(book: any) {
+    const myTransactions = Array.isArray(book.transactions) ? book.transactions : [];
+    const isBorrowedByMe = myTransactions.some(
+      (t: any) => t.status === "active" || t.status === "overdue"
+    );
+    const isPendingByMe = myTransactions.some((t: any) => t.status === "pending");
     return {
       id: book.id,
       title: book.title,
@@ -433,6 +437,8 @@ export class BookService {
       coverUrl: book.coverUrl,
       createdAt: book.createdAt,
       updatedAt: book.updatedAt,
+      isBorrowedByMe,
+      isPendingByMe,
       owner: book.owner
         ? {
           id: book.owner.id,

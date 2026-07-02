@@ -1,18 +1,12 @@
 import React from "react";
-import { RotateCcw } from "lucide-react";
 import { Panel } from "../components/common/Panel";
 import { Table } from "../components/common/Table";
 import { Pagination } from "../components/common/Pagination";
+import { RefreshButton } from "../components/common/RefreshButton";
 import { label, dateText } from "../utils/helpers";
-
 export function LoanHistory({ page, onPageChange, onRefresh }) {
-  const refreshBtn = (
-    <button className="btn icon-only" onClick={onRefresh} title="Refresh" style={{ width: "32px", height: "32px", minHeight: "32px", padding: 0, border: "none", background: "transparent", color: "var(--muted)" }}>
-      <RotateCcw size={15} />
-    </button>
-  );
   return (
-    <Panel title="Borrowing History" actions={refreshBtn}>
+    <Panel title="Borrowing History" actions={onRefresh && <RefreshButton onRefresh={onRefresh} title="Refresh history" />}>
       <Table headers={["Book", "Borrower", "Owner", "Status", "Opened", "Closed"]}>
         {page.content.map((row) => (
           <tr key={row.id}>
@@ -33,7 +27,6 @@ export function LoanHistory({ page, onPageChange, onRefresh }) {
           </tr>
         ))}
       </Table>
-
       {(page.totalPages || 0) > 1 && (
         <Pagination
           page={page.page || page.pageNumber || 0}

@@ -68,7 +68,7 @@ export class LookupService {
 
     const rawLatestReadings = await prisma.bookTransaction.findMany({
       where: { requesterId: userId },
-      include: { book: { include: { genre: true } } }, // Removed relation author: true
+      include: { book: { include: { genre: true } } },
       orderBy: { requestedAt: "desc" },
       take: 15,
     });
@@ -83,7 +83,7 @@ export class LookupService {
       book: {
         id: t.book.id,
         title: t.book.title,
-        author: t.book.author, // Reads directly from text string field
+        author: t.book.author ?? null,
         coverColor: t.book.coverColor,
         coverUrl: t.book.coverUrl,
         genreName: t.book.genre?.name ?? "N/A"
@@ -103,7 +103,7 @@ export class LookupService {
 
     const activeBooks = await prisma.book.findMany({
       where: { visibilityStatus: "visible" },
-      include: { owner: true, genre: true } // Removed relation author: true
+      include: { owner: true, genre: true }
     });
 
     let bookOfTheDay = null;
@@ -114,7 +114,7 @@ export class LookupService {
       bookOfTheDay = {
         id: chosen.id,
         title: chosen.title,
-        author: chosen.author, // Reads directly from text string field
+        author: chosen.author ?? null,
         coverColor: chosen.coverColor,
         coverUrl: chosen.coverUrl,
         description: chosen.description,

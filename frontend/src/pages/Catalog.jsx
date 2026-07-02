@@ -5,6 +5,7 @@ import { BookCard } from "../components/BookCard";
 import { Pagination } from "../components/common/Pagination";
 import { BookCardSkeleton } from "../components/common/Skeleton";
 import { EmptyState } from "../components/common/EmptyState";
+import { RefreshButton } from "../components/common/RefreshButton";
 const handleExportBooks = async () => {
   try {
     await api.exportBooks();
@@ -14,7 +15,7 @@ const handleExportBooks = async () => {
 };
 export function Catalog({
   page, genres, filters, setFilters, searchTerm, setSearchTerm,
-  loading, me, openDetails, setRequestModal, setBookModal, returnBook, importBooks
+  loading, me, openDetails, setRequestModal, setBookModal, returnBook, importBooks, onRefresh
 }) {
   const fileInputRef = useRef(null);
   const isAdmin = me?.role === "ADMIN";
@@ -26,6 +27,8 @@ export function Catalog({
     { label: "Unavailable", value: "unavailable" },
   ];
   function setCapsule(value) {
+    // Only updates local state - the already-fetched book list is what
+    // gets re-filtered, no API call happens here.
     setFilters({ ...filters, availability: value, page: 0 });
   }
   function handleFileChange(e) {
@@ -40,6 +43,7 @@ export function Catalog({
         <h3>Books on the shelf</h3>
       </div>
       <div className="catalog-header-right">
+        {onRefresh && <RefreshButton onRefresh={onRefresh} title="Refresh catalog" />}
         {isAdmin && (
           <>
             <input

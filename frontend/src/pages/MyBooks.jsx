@@ -1,36 +1,14 @@
-import React, { useState } from "react";
-import { RotateCcw } from "lucide-react";
+import React from "react";
 import { Panel } from "../components/common/Panel";
 import { Table } from "../components/common/Table";
 import { Pagination } from "../components/common/Pagination";
 import { EmptyState } from "../components/common/EmptyState";
+import { RefreshButton } from "../components/common/RefreshButton";
 import { label, toBookForm } from "../utils/helpers";
-
-function SpinnerInline() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-      style={{ animation: "btn-spin 0.7s linear infinite", flexShrink: 0 }}>
-      <path d="M12 2a10 10 0 0 1 10 10" />
-    </svg>
-  );
-}
-
-export function MyBooks({ page, onPageChange, onRefresh, setBookModal, deleteBook, openDetails }) {
-  const [refreshing, setRefreshing] = useState(false);
-
-  async function handleRefresh() {
-    setRefreshing(true);
-    try { await onRefresh(); } finally { setRefreshing(false); }
-  }
-
-  const refreshBtn = (
-    <button className="btn icon-only" onClick={handleRefresh} title="Refresh" disabled={refreshing} style={{ width: "32px", height: "32px", minHeight: "32px", padding: 0, border: "none", background: "transparent", color: "var(--muted)", opacity: refreshing ? 0.6 : 1 }}>
-      {refreshing ? <SpinnerInline /> : <RotateCcw size={15} />}
-    </button>
-  );
+export function MyBooks({ page, onPageChange, setBookModal, deleteBook, openDetails, onRefresh }) {
   if (page.content.length === 0) {
     return (
-      <Panel title="My Shelf" actions={refreshBtn}>
+      <Panel title="My Shelf" actions={onRefresh && <RefreshButton onRefresh={onRefresh} title="Refresh my shelf" />}>
         <EmptyState
           icon="BookPlus"
           title="Your library is empty"
@@ -42,7 +20,7 @@ export function MyBooks({ page, onPageChange, onRefresh, setBookModal, deleteBoo
     );
   }
   return (
-    <Panel title="My Shelf" actions={refreshBtn} >
+    <Panel title="My Shelf" actions={onRefresh && <RefreshButton onRefresh={onRefresh} title="Refresh my shelf" />}>
       <Table headers={["Book", "Genre", "Status", "Actions"]}>
         {page.content.map((book) => (
           <tr key={book.id}>
