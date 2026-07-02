@@ -49,29 +49,31 @@ export class LookupService {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Point lookup from single-row aggregate statistics table
     const cachedStats = await StatsCacheService.getStats();
+    const safe = <T>(fn: () => Promise<T>, fallback: T): Promise<T> =>
+      fn().catch(() => fallback);
 
-    // Fast lookups on single user indexes (low footprint)
     const [pendingRequests, activeBorrowed, booksReadThisMonth, totalBooksRead] = await Promise.all([
-      prisma.bookTransaction.count({ where: { ownerId: userId, status: "pending" } }),
-      prisma.bookTransaction.count({
+      safe(() => prisma.bookTransaction.count({ where: { ownerId: userId, status: "pending" } }), 0),
+      safe(() => prisma.bookTransaction.count({
         where: { requesterId: userId, status: { in: ["active", "overdue"] } },
-      }),
-      prisma.bookTransaction.count({
+      }), 0),
+      safe(() => prisma.bookTransaction.count({
         where: { requesterId: userId, status: "returned", returnedAt: { gte: startOfMonth } },
-      }),
-      prisma.bookTransaction.count({
+      }), 0),
+      safe(() => prisma.bookTransaction.count({
         where: { requesterId: userId, status: "returned" },
-      }),
+      }), 0),
     ]);
 
-    const rawLatestReadings = await prisma.bookTransaction.findMany({
-      where: { requesterId: userId },
-      include: { book: { include: { genre: true, author: true } } },
-      orderBy: { requestedAt: "desc" },
-      take: 15,
-    });
+    const rawLatestReadings = await safe(() =>
+      prisma.bookTransaction.findMany({
+        where: { requesterId: userId },
+        include: { book: { include: { genre: true, author: true } } },
+        orderBy: { requestedAt: "desc" },
+        take: 15,
+      }), []
+    );
 
     const latestReadings = rawLatestReadings.map(t => ({
       id: t.id,
@@ -90,7 +92,6 @@ export class LookupService {
       }
     }));
 
-    // Math computation processed safely inside memory to bypass connection limits
     const communityAverageRead = cachedStats.totalUsers > 0
       ? parseFloat((cachedStats.totalBooksReadGlobal / cachedStats.totalUsers).toFixed(1))
       : 0;
@@ -101,10 +102,12 @@ export class LookupService {
       globalAvg: communityAverageRead
     }];
 
-    const activeBooks = await prisma.book.findMany({
-      where: { visibilityStatus: "visible" },
-      include: { owner: true, genre: true, author: true }
-    });
+    const activeBooks = await safe(() =>
+      prisma.book.findMany({
+        where: { visibilityStatus: "visible" },
+        include: { owner: true, genre: true, author: true }
+      }), []
+    );
 
     let bookOfTheDay = null;
     if (activeBooks.length > 0) {

@@ -351,11 +351,19 @@ export default function App() {
   async function loadBootstrap() {
     try {
       setLoading(true);
-      const [user, genreList] = await Promise.all([api.me(), api.genres()]);
-      setMe(user);
-      setGenres(genreList);
-      const dashboard = await api.dashboard();
-      setStats(dashboard);
+      const user = await api.me().catch(() => null);
+      if (user) setMe(user);
+      api.genres().then(setGenres).catch(() => {});
+      api.dashboard().then(setStats).catch(() => {
+        setStats({
+          totalBooks: 0, availableBooks: 0, totalUsers: 0,
+          communityAverageRead: 0, pendingRequests: 0, activeBorrowed: 0,
+          booksReadThisMonth: 0, totalBooksRead: 0,
+          chartData: [{ month: new Date().toLocaleString("default", { month: "short" }), userCount: 0, globalAvg: 0 }],
+          latestReadings: [],
+          bookOfTheDay: null,
+        });
+      });
     } catch (error) {
       notify(error.message, "error");
     } finally {

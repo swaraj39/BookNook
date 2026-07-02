@@ -9,14 +9,18 @@ export class StatsCacheService {
    * self-healing complete recalculation so the app never crashes.
    */
   static async getStats() {
-    const stats = await prisma.systemStats.findUnique({
-      where: { id: this.STATS_ID },
-    });
+    try {
+      const stats = await prisma.systemStats.findUnique({
+        where: { id: this.STATS_ID },
+      });
 
-    if (!stats) {
+      if (!stats) {
+        return await this.recalculateAndCacheAll();
+      }
+      return stats;
+    } catch {
       return await this.recalculateAndCacheAll();
     }
-    return stats;
   }
 
   /**
@@ -57,28 +61,39 @@ export class StatsCacheService {
    * then locks it into the single cache row.
    */
   static async recalculateAndCacheAll() {
-    const [booksCount, availableBooksCount, usersCount, completedLoansCount] = await Promise.all([
-      prisma.book.count({ where: { visibilityStatus: "visible" } }),
-      prisma.book.count({ where: { visibilityStatus: "visible", availabilityStatus: "available" } }),
-      prisma.user.count({ where: { status: "active" } }),
-      prisma.bookTransaction.count({ where: { status: "returned" } }),
-    ]);
+    try {
+      const [booksCount, availableBooksCount, usersCount, completedLoansCount] = await Promise.all([
+        prisma.book.count({ where: { visibilityStatus: "visible" } }),
+        prisma.book.count({ where: { visibilityStatus: "visible", availabilityStatus: "available" } }),
+        prisma.user.count({ where: { status: "active" } }),
+        prisma.bookTransaction.count({ where: { status: "returned" } }),
+      ]);
 
-    return await prisma.systemStats.upsert({
-      where: { id: this.STATS_ID },
-      update: {
-        totalBooks: booksCount,
-        availableBooks: availableBooksCount,
-        totalUsers: usersCount,
-        totalBooksReadGlobal: completedLoansCount,
-      },
-      create: {
+      return await prisma.systemStats.upsert({
+        where: { id: this.STATS_ID },
+        update: {
+          totalBooks: booksCount,
+          availableBooks: availableBooksCount,
+          totalUsers: usersCount,
+          totalBooksReadGlobal: completedLoansCount,
+        },
+        create: {
+          id: this.STATS_ID,
+          totalBooks: booksCount,
+          availableBooks: availableBooksCount,
+          totalUsers: usersCount,
+          totalBooksReadGlobal: completedLoansCount,
+        },
+      });
+    } catch {
+      return {
         id: this.STATS_ID,
-        totalBooks: booksCount,
-        availableBooks: availableBooksCount,
-        totalUsers: usersCount,
-        totalBooksReadGlobal: completedLoansCount,
-      },
-    });
+        totalBooks: 0,
+        availableBooks: 0,
+        totalUsers: 0,
+        totalBooksReadGlobal: 0,
+        updatedAt: new Date(),
+      };
+    }
   }
 }
