@@ -7,6 +7,7 @@ import { AppController } from "./controllers/app.controller";
 import { authenticate } from "./middleware/auth";
 import { errorHandler, logError } from "./middleware/error";
 import { getSafeErrorMessage, getStatusCode } from "./utils/app-error";
+import { ReadCacheService } from "./services/read-cache.service";
 dotenv.config();
 const app = express();
 const port = process.env.PORT || 8080;
@@ -55,14 +56,13 @@ app.get("/api/health", (req, res) => {
 });
 app.get("/api/quote/today", async (req, res) => {
   try {
-    const response = await fetch("https://dummyjson.com/quotes/random");
-    if (!response.ok) {
-      return res.status(response.status).json({
-        message: "ZenQuotes API failed",
-        status: response.status,
-      });
-    }
-    const data = await response.json();
+    const data = await ReadCacheService.getOrSet("quote:today", 6 * 60 * 60 * 1000, async () => {
+      const response = await fetch("https://dummyjson.com/quotes/random");
+      if (!response.ok) {
+        throw new Error(`Quote API failed with status ${response.status}`);
+      }
+      return response.json();
+    });
     res.json(data);
   } catch (error: any) {
     logError(error, req);

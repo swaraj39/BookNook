@@ -88,6 +88,10 @@ model Book {
   notifications     Notification[]
   reviews           Review[]
 
+  @@index([ownerId, visibilityStatus])
+  @@index([genreId])
+  @@index([visibilityStatus, availabilityStatus])
+  @@index([createdAt])
   @@map("books")
 }
 
@@ -119,6 +123,11 @@ model BookTransaction {
   notifications         Notification[]
   reviews               Review[]
 
+  @@index([ownerId, status, requestedAt])
+  @@index([requesterId, status, requestedAt])
+  @@index([requesterId, createdAt])
+  @@index([bookId, status])
+  @@index([dueAt])
   @@map("book_transactions")
 }
 
@@ -136,6 +145,7 @@ model BookHistory {
   actor           User?    @relation("Actor", fields: [actorId], references: [id])
   transaction     BookTransaction? @relation(fields: [transactionId], references: [id])
 
+  @@index([bookId, createdAt])
   @@map("book_history")
 }
 

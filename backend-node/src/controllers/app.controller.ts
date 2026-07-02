@@ -6,6 +6,7 @@ import { LookupService } from "../services/lookup.service";
 import prisma from "../config/prisma";
 import { getSafeErrorMessage, getStatusCode } from "../utils/app-error";
 import { logError } from "../middleware/error";
+import { ReadCacheService } from "../services/read-cache.service";
 function paramString(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
   if (!value) throw new Error("Missing required route parameter");
@@ -74,6 +75,7 @@ export class AppController {
         return res.status(400).json({ message: "Import is limited to 1000 rows at a time." });
       }
       const result = await BookService.importCsv(req.user.id, rows);
+      ReadCacheService.invalidate();
       return res.status(200).json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -90,16 +92,18 @@ export class AppController {
   static async catalog(req: AuthRequest, res: Response) {
     try {
       const { search, genreId, availability, sort, page, size } = req.query;
-      const result = await BookService.catalog(
-        {
-          search: queryString(search),
-          genreId: queryString(genreId),
-          availability: queryString(availability),
-          sort: queryString(sort),
-          page: queryNumber(page, 0),
-          size: queryNumber(size, 20),
-        },
-        req.user.id
+      const params = {
+        search: queryString(search),
+        genreId: queryString(genreId),
+        availability: queryString(availability),
+        sort: queryString(sort),
+        page: queryNumber(page, 0),
+        size: queryNumber(size, 20),
+      };
+      const result = await ReadCacheService.getOrSet(
+        `catalog:${req.user.id}:${JSON.stringify(params)}`,
+        20 * 1000,
+        () => BookService.catalog(params, req.user.id)
       );
       return res.json(result);
     } catch (error: any) {
@@ -109,10 +113,12 @@ export class AppController {
   static async myBooks(req: AuthRequest, res: Response) {
     try {
       const { page, size } = req.query;
-      const result = await BookService.myBooks(
-        req.user.id,
-        queryNumber(page, 0),
-        queryNumber(size, 20)
+      const currentPage = queryNumber(page, 0);
+      const pageSize = queryNumber(size, 20);
+      const result = await ReadCacheService.getOrSet(
+        `my-books:${req.user.id}:${currentPage}:${pageSize}`,
+        20 * 1000,
+        () => BookService.myBooks(req.user.id, currentPage, pageSize)
       );
       return res.json(result);
     } catch (error: any) {
@@ -130,6 +136,7 @@ export class AppController {
   static async createBook(req: AuthRequest, res: Response) {
     try {
       const result = await BookService.create(req.user.id, req.body);
+      ReadCacheService.invalidate();
       return res.status(201).json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -143,6 +150,7 @@ export class AppController {
         req.body,
         req.user.role === "ADMIN"
       );
+      ReadCacheService.invalidate();
       return res.json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -155,6 +163,7 @@ export class AppController {
         paramString(req.params.id),
         req.user.role === "ADMIN"
       );
+      ReadCacheService.invalidate();
       return res.status(204).send();
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -163,11 +172,17 @@ export class AppController {
   static async myRequests(req: AuthRequest, res: Response) {
     try {
       const { page, size } = req.query;
-      const result = await WorkflowService.myRequests(
-        req.user.id,
-        req.user.role === "ADMIN",
-        queryNumber(page, 0),
-        queryNumber(size, 20)
+      const currentPage = queryNumber(page, 0);
+      const pageSize = queryNumber(size, 20);
+      const result = await ReadCacheService.getOrSet(
+        `requests:${req.user.id}:${req.user.role}:${currentPage}:${pageSize}`,
+        10 * 1000,
+        () => WorkflowService.myRequests(
+          req.user.id,
+          req.user.role === "ADMIN",
+          currentPage,
+          pageSize
+        )
       );
       return res.json(result);
     } catch (error: any) {
@@ -177,6 +192,7 @@ export class AppController {
   static async requestBook(req: AuthRequest, res: Response) {
     try {
       const result = await WorkflowService.requestBook(req.user.id, req.body);
+      ReadCacheService.invalidate();
       return res.status(201).json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -189,6 +205,7 @@ export class AppController {
         paramString(req.params.id),
         req.user.role === "ADMIN"
       );
+      ReadCacheService.invalidate();
       return res.json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -201,6 +218,7 @@ export class AppController {
         paramString(req.params.id),
         req.user.role === "ADMIN"
       );
+      ReadCacheService.invalidate();
       return res.json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -209,10 +227,12 @@ export class AppController {
   static async borrowed(req: AuthRequest, res: Response) {
     try {
       const { page, size } = req.query;
-      const result = await WorkflowService.borrowed(
-        req.user.id,
-        queryNumber(page, 0),
-        queryNumber(size, 20)
+      const currentPage = queryNumber(page, 0);
+      const pageSize = queryNumber(size, 20);
+      const result = await ReadCacheService.getOrSet(
+        `borrowed:${req.user.id}:${currentPage}:${pageSize}`,
+        10 * 1000,
+        () => WorkflowService.borrowed(req.user.id, currentPage, pageSize)
       );
       return res.json(result);
     } catch (error: any) {
@@ -222,11 +242,17 @@ export class AppController {
   static async loanHistory(req: AuthRequest, res: Response) {
     try {
       const { page, size } = req.query;
-      const result = await WorkflowService.history(
-        req.user.id,
-        req.user.role === "ADMIN",
-        queryNumber(page, 0),
-        queryNumber(size, 20)
+      const currentPage = queryNumber(page, 0);
+      const pageSize = queryNumber(size, 20);
+      const result = await ReadCacheService.getOrSet(
+        `history:${req.user.id}:${req.user.role}:${currentPage}:${pageSize}`,
+        10 * 1000,
+        () => WorkflowService.history(
+          req.user.id,
+          req.user.role === "ADMIN",
+          currentPage,
+          pageSize
+        )
       );
       return res.json(result);
     } catch (error: any) {
@@ -240,6 +266,7 @@ export class AppController {
         paramString(req.params.id),
         req.user.role === "ADMIN"
       );
+      ReadCacheService.invalidate();
       return res.json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -255,7 +282,11 @@ export class AppController {
   }
   static async dashboard(req: AuthRequest, res: Response) {
     try {
-      const result = await LookupService.dashboard(req.user.id);
+      const result = await ReadCacheService.getOrSet(
+        `dashboard:${req.user.id}`,
+        15 * 1000,
+        () => LookupService.dashboard(req.user.id)
+      );
       return res.json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);

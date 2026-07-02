@@ -365,13 +365,18 @@ export default function App() {
     }
   }
   async function prefetchNavData() {
-    await Promise.allSettled([
-      loadCatalogFromApi({ showLoading: false, silent: true }),
-      loadPageData("requests", 0, { silent: true }),
-      loadPageData("myBooks", 0, { silent: true }),
-      loadPageData("borrowed", 0, { silent: true }),
-      loadPageData("history", 0, { silent: true })
-    ]);
+    const warmups = [
+      () => loadPageData("requests", 0, { silent: true }),
+      () => loadPageData("myBooks", 0, { silent: true }),
+      () => loadPageData("borrowed", 0, { silent: true }),
+      () => loadPageData("history", 0, { silent: true }),
+      () => loadCatalogFromApi({ showLoading: false, silent: true }),
+    ];
+
+    for (const warmup of warmups) {
+      await warmup();
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
   }
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");

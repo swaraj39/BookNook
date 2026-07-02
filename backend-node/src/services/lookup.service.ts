@@ -1,15 +1,18 @@
 // src/services/lookup.service.ts
 import prisma from "../config/prisma";
 import { StatsCacheService } from "./stats-cache.service";
+import { ReadCacheService } from "./read-cache.service";
 
 export class LookupService {
   static async genres() {
-    const genres = await prisma.genre.findMany({
-      orderBy: [
-        { displayOrder: "asc" },
-        { name: "asc" },
-      ],
-    });
+    const genres = await ReadCacheService.getOrSet("genres", 5 * 60 * 1000, () =>
+      prisma.genre.findMany({
+        orderBy: [
+          { displayOrder: "asc" },
+          { name: "asc" },
+        ],
+      })
+    );
     return genres.map((g) => ({ id: g.id, name: g.name }));
   }
 
@@ -53,7 +56,7 @@ export class LookupService {
     const safe = <T>(fn: () => Promise<T>, fallback: T): Promise<T> =>
       fn().catch(() => fallback);
 
-    const [pendingRequests, activeBorrowed, booksReadThisMonth, totalBooksRead] = await Promise.all([
+    const [pendingRequests, activeBorrowed, booksReadThisMonth, totalBooksRead, rawLatestReadings] = await Promise.all([
       safe(() => prisma.bookTransaction.count({ where: { ownerId: userId, status: "pending" } }), 0),
       safe(() => prisma.bookTransaction.count({
         where: { requesterId: userId, status: { in: ["active", "overdue"] } },
@@ -64,14 +67,13 @@ export class LookupService {
       safe(() => prisma.bookTransaction.count({
         where: { requesterId: userId, status: "returned" },
       }), 0),
+      safe<any[]>(() => prisma.bookTransaction.findMany({
+        where: { requesterId: userId },
+        include: { book: { include: { genre: true } } },
+        orderBy: { requestedAt: "desc" },
+        take: 15,
+      }), []),
     ]);
-
-    const rawLatestReadings = await prisma.bookTransaction.findMany({
-      where: { requesterId: userId },
-      include: { book: { include: { genre: true } } },
-      orderBy: { requestedAt: "desc" },
-      take: 15,
-    });
 
     const latestReadings = rawLatestReadings.map(t => ({
       id: t.id,
@@ -99,25 +101,28 @@ export class LookupService {
       globalAvg: communityAverageRead
     }];
 
-    const activeBooks = await prisma.book.findMany({
-      where: { visibilityStatus: "visible" },
-      include: { owner: true, genre: true }
-    });
-
     let bookOfTheDay = null;
-    if (activeBooks.length > 0) {
+    if (cachedStats.totalBooks > 0) {
       const dateSeed = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
-      const index = Math.abs(dateSeed) % activeBooks.length;
-      const chosen = activeBooks[index];
-      bookOfTheDay = {
-        id: chosen.id,
-        title: chosen.title,
-        coverColor: chosen.coverColor,
-        coverUrl: chosen.coverUrl,
-        description: chosen.description,
-        genreName: chosen.genre?.name ?? "N/A",
-        ownerName: chosen.owner.fullName
-      };
+      const index = Math.abs(dateSeed) % cachedStats.totalBooks;
+      const [chosen] = await prisma.book.findMany({
+        where: { visibilityStatus: "visible" },
+        include: { owner: true, genre: true },
+        orderBy: { createdAt: "asc" },
+        skip: index,
+        take: 1,
+      });
+      if (chosen) {
+        bookOfTheDay = {
+          id: chosen.id,
+          title: chosen.title,
+          coverColor: chosen.coverColor,
+          coverUrl: chosen.coverUrl,
+          description: chosen.description,
+          genreName: chosen.genre?.name ?? "N/A",
+          ownerName: chosen.owner.fullName
+        };
+      }
     }
 
     return {
