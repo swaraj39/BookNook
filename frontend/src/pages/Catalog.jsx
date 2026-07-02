@@ -13,9 +13,17 @@ const handleExportBooks = async () => {
     alert(error.message);
   }
 };
+function SpinnerInline() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+      style={{ animation: "btn-spin 0.7s linear infinite", flexShrink: 0 }}>
+      <path d="M12 2a10 10 0 0 1 10 10" />
+    </svg>
+  );
+}
 export function Catalog({
   page, genres, filters, setFilters, searchTerm, setSearchTerm,
-  loading, me, openDetails, setRequestModal, setBookModal, returnBook, importBooks, onRefresh
+  loading, me, openDetails, setRequestModal, setBookModal, returnBook, importBooks, importing, onRefresh
 }) {
   const fileInputRef = useRef(null);
   const isAdmin = me?.role === "ADMIN";
@@ -27,14 +35,16 @@ export function Catalog({
     { label: "Unavailable", value: "unavailable" },
   ];
   function setCapsule(value) {
-    // Only updates local state - the already-fetched book list is what
-    // gets re-filtered, no API call happens here.
     setFilters({ ...filters, availability: value, page: 0 });
   }
   function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (file && importBooks) importBooks(file);
     e.target.value = "";
+  }
+  function handleImportClick() {
+    if (importing) return;
+    fileInputRef.current?.click();
   }
   return (
   <section className="catalog-page">
@@ -52,9 +62,10 @@ export function Catalog({
               ref={fileInputRef}
               onChange={handleFileChange}
               style={{ display: "none" }}
+              disabled={importing}
             />
-            <button className="btn" onClick={() => fileInputRef.current?.click()}>
-              <Upload size={15} /> Import
+            <button className="btn" onClick={handleImportClick} disabled={importing}>
+              {importing ? <><SpinnerInline /> Importing...</> : <><Upload size={15} /> Import</>}
             </button>
           </>
         )}
