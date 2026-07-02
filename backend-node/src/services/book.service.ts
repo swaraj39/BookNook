@@ -60,7 +60,7 @@ export class BookService {
     if (search) {
       where.OR = [
         { title: { contains: search, mode: "insensitive" } },
-        { author: { name: { contains: search, mode: "insensitive" } } },
+        { author: { contains: search, mode: "insensitive" } },
         { description: { contains: search, mode: "insensitive" } },
         { owner: { fullName: { contains: search, mode: "insensitive" } } },
       ];
@@ -74,7 +74,6 @@ export class BookService {
         include: {
           owner: true,
           genre: true,
-          author: true,
         },
         orderBy,
         skip: currentPage * pageSize,
@@ -114,7 +113,6 @@ export class BookService {
         include: {
           owner: true,
           genre: true,
-          author: true,
         },
         orderBy: { createdAt: "desc" },
         skip: currentPage * pageSize,
@@ -147,20 +145,10 @@ export class BookService {
     const coverColor = this.pickCoverColor(payload.title);
     const book = await prisma.$transaction(
       async (tx) => {
-        const author = payload.authorId
-          ? await tx.author.findUnique({ where: { id: payload.authorId } })
-          : await tx.author.upsert({
-              where: { name: payload.author.trim() },
-              update: {},
-              create: { name: payload.author.trim() },
-            });
-
-        if (!author) throw new Error("Author not found.");
-
         const createdBook = await tx.book.create({
           data: {
             title: payload.title.trim(),
-            authorId: author.id,
+            author: payload.author.trim(),
             genreId: payload.genreId,
             condition: payload.condition || "good",
             defaultLoanDays: Number(payload.defaultLoanDays) || 14,
@@ -174,7 +162,6 @@ export class BookService {
           include: {
             owner: true,
             genre: true,
-            author: true,
           },
         });
         await tx.bookHistory.create({
@@ -239,7 +226,6 @@ static async importCsv(actorId: string, rows: any[]) {
               throw new Error(`No user found with email "${ownerEmail}".`);
             }
 
-            // Look for a book with the same title (any owner, not deleted).
             const existingBook = await tx.book.findFirst({
               where: {
                 title: { equals: title, mode: "insensitive" },
@@ -247,29 +233,20 @@ static async importCsv(actorId: string, rows: any[]) {
               },
             });
 
-            // Same title already owned by the same person from the row -> duplicate, skip it.
             if (existingBook && existingBook.ownerId === owner.id) {
               return true;
             }
 
-            // Either no existing book with this title, or it belongs to a
-            // different owner -> safe to add as a new entry for this owner.
             let genre = await tx.genre.findFirst({
               where: { name: { equals: genreName, mode: "insensitive" } },
             });
             if (!genre) {
               genre = await tx.genre.create({ data: { name: genreName } });
             }
-            let authorRecord = await tx.author.findUnique({
-              where: { name: author },
-            });
-            if (!authorRecord) {
-              authorRecord = await tx.author.create({ data: { name: author } });
-            }
             const createdBook = await tx.book.create({
               data: {
                 title,
-                authorId: authorRecord.id,
+                author,
                 genreId: genre.id,
                 isbn,
                 description,
@@ -331,21 +308,11 @@ static async importCsv(actorId: string, rows: any[]) {
           throw new Error("Unauthorized");
         }
 
-        const author = payload.authorId
-          ? await tx.author.findUnique({ where: { id: payload.authorId } })
-          : await tx.author.upsert({
-              where: { name: payload.author.trim() },
-              update: {},
-              create: { name: payload.author.trim() },
-            });
-
-        if (!author) throw new Error("Author not found.");
-
         const result = await tx.book.update({
           where: { id },
           data: {
             title: payload.title.trim(),
-            authorId: author.id,
+            author: payload.author.trim(),
             genreId: payload.genreId,
             condition: payload.condition,
             defaultLoanDays: Number(payload.defaultLoanDays),
@@ -355,7 +322,6 @@ static async importCsv(actorId: string, rows: any[]) {
           include: {
             owner: true,
             genre: true,
-            author: true,
           },
         });
         await tx.bookHistory.create({
@@ -439,7 +405,7 @@ static async importCsv(actorId: string, rows: any[]) {
   }
   private static validateBookPayload(payload: any) {
     if (!payload.title?.trim()) throw new Error("Title is required.");
-    if (!payload.author?.trim() && !payload.authorId) throw new Error("Author is required.");
+    if (!payload.author?.trim()) throw new Error("Author is required.");
     if (!payload.genreId) throw new Error("Genre is required.");
     const loanDays = Number(payload.defaultLoanDays);
     if (!Number.isInteger(loanDays) || loanDays < 3 || loanDays > 60) {
@@ -452,8 +418,7 @@ static async importCsv(actorId: string, rows: any[]) {
     return {
       id: book.id,
       title: book.title,
-      author: book.author?.name || book.author,
-      authorId: book.author?.id || book.authorId,
+      author: book.author,
       isbn: book.isbn,
       description: book.description,
       condition: book.condition,

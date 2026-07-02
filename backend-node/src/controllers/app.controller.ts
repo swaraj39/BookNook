@@ -34,12 +34,11 @@ export class AppController {
         include: {
           genre: true,
           owner: true,
-          author: true,
         },
       });
       const result = books.map((book) => ({
         Title: book.title,
-        Author: book.author?.name ?? "",
+        Author: book.author ?? "",
         Genre: book.genre?.name ?? "",
         Owner: book.owner?.fullName ?? "",
         AvailabilityStatus: book.availabilityStatus,
@@ -277,33 +276,4 @@ export class AppController {
     }
   }
 
-  static async authors(req: AuthRequest, res: Response) {
-    try {
-      const { search } = req.query;
-      const where: any = {};
-      if (search) {
-        where.name = { contains: queryString(search), mode: "insensitive" };
-      }
-      const result = await prisma.author.findMany({
-        where,
-        orderBy: { name: "asc" },
-      });
-      return res.json(result);
-    } catch (error: any) {
-      return AppController.handleError(res, error);
-    }
-  }
-
-  static async createAuthor(req: AuthRequest, res: Response) {
-    try {
-      const { name } = req.body;
-      if (!name?.trim()) throw new Error("Author name is required.");
-      const existing = await prisma.author.findUnique({ where: { name: name.trim() } });
-      if (existing) return res.json(existing);
-      const author = await prisma.author.create({ data: { name: name.trim() } });
-      return res.status(201).json(author);
-    } catch (error: any) {
-      return AppController.handleError(res, error);
-    }
-  }
 }
