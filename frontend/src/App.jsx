@@ -327,6 +327,11 @@ export default function App() {
     setSelectedBookId(null);
     setNavStack(["dashboard"]);
     setView("dashboard");
+    setCatalogData(null);
+    setRequestsPage(null);
+    setMyBooksPage(null);
+    setBorrowedPage(null);
+    setHistoryPage(null);
     window.history.replaceState({ view: "dashboard", selectedBookId: null, navStack: ["dashboard"] }, "", window.location.href);
   }
   async function handleLogout() {
@@ -381,16 +386,16 @@ export default function App() {
         if (!catalogData && !catalogLoading) loadAllBooks();
         break;
       case "requests":
-        if (!requestsLoading) loadRequests(0);
+        if (!requestsPage && !requestsLoading) loadRequests(0);
         break;
       case "myBooks":
-        if (!myBooksLoading) loadMyBooks(0);
+        if (!myBooksPage && !myBooksLoading) loadMyBooks(0);
         break;
       case "borrowed":
-        if (!borrowedLoading) loadBorrowed(0);
+        if (!borrowedPage && !borrowedLoading) loadBorrowed(0);
         break;
       case "history":
-        if (!historyLoading) loadHistory(0);
+        if (!historyPage && !historyLoading) loadHistory(0);
         break;
     }
   }, [view, isAuthenticated]);
