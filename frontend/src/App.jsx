@@ -36,6 +36,7 @@ import { Borrowed } from "./pages/Borrowed";
 import { LoanHistory } from "./pages/LoanHistory";
 import { Details } from "./pages/Details";
 import { BookAddedDialog } from "./components/common/BookAddedDialog";
+import { PageLoader } from "./components/common/PageLoader";
 import { initials, parseDelimitedText, normalizeImportRow } from "./utils/helpers";
 import { ConfirmDialog } from "./components/common/ConfirmDialog";
 import logo from "./styles/blue_altair_logo-removebg-preview.png";
