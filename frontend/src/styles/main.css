@@ -3986,6 +3986,7 @@ tbody tr:hover,
   left: 0;
   z-index: 90;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   background: rgba(250, 246, 235, 0.86);
@@ -3994,7 +3995,6 @@ tbody tr:hover,
   min-height: 0;
   pointer-events: none;
 }
-
 [data-theme='dark'] .nav-loader-overlay {
   background: rgba(20, 16, 11, 0.86);
 }
