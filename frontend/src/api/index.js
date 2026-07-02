@@ -61,7 +61,7 @@ async function request(path, options = {}) {
   if (response.status === 204) return null;
   return text ? JSON.parse(text) : null;
 }
-export const api = {
+  export const api = {
   login: (email, password) =>
     request("/auth/login", {
       method: "POST",
@@ -71,6 +71,10 @@ export const api = {
     request("/auth/register", {
       method: "POST",
       body: JSON.stringify(payload),
+    }),
+  logout: () =>
+    request("/auth/logout", {
+      method: "POST",
     }),
   me: () => request("/me"),
   dashboard: () => request("/dashboard"),

@@ -2607,10 +2607,10 @@ th:last-child {
 }
 .nav-loader-overlay {
   position: fixed !important;
-  top: 0 !important;
+  top: 64px !important;
   left: 0 !important;
   width: 100vw !important;
-  height: 100vh !important;
+  height: calc(100vh - 64px) !important;
   z-index: 99999 !important;
   background: var(--bg) !important;
   display: flex !important;
@@ -3980,7 +3980,7 @@ tbody tr:hover,
   right: 0;
   bottom: 0;
   left: 0;
-  z-index: 90;
+  z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4059,7 +4059,8 @@ tbody tr:hover,
 
 @media (max-width: 768px) {
   .nav-loader-overlay {
-    top: 56px;
+    top: 56px !important;
+    height: calc(100vh - 56px) !important;
   }
 }
 

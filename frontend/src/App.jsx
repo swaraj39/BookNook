@@ -91,42 +91,6 @@ function matchesCapsule(book, capsule) {
       return true;
   }
 }
-function DashboardLoader() {
-  const messages = [
-  { text: "Welcome back", icon: "👋" },
-  { text: "Preparing your dashboard", icon: "⚙️" },
-  { text: "Gathering your reading stats", icon: "📊" },
-  { text: "Loading your latest activity", icon: "📚" },
-  { text: "Syncing your bookshelf", icon: "🗂️" },
-  { text: "Calculating your reading progress", icon: "📈" },
-  { text: "Curating today's picks", icon: "✨" },
-  { text: "Almost ready", icon: "⏳" },
-  { text: "Putting the final touches", icon: "🧩" },
-  { text: "Good things take a moment", icon: "🌱" },
-  { text: "Thanks for your patience", icon: "🙏" },
-  { text: "Just a few seconds more", icon: "⏱️" }
-];
-  const [index, setIndex] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => {
-      setIndex((i) => (i + 1) % messages.length);
-    }, 2000);
-    return () => clearInterval(id);
-  }, []);
-  return (
-    <div className="dashboard-loader">
-      <div className="dashboard-loader-spinner-wrap">
-        <div className="dashboard-loader-spinner" />
-        <span className="dashboard-loader-emoji">{messages[index].icon}</span>
-      </div>
-      <p key={index} className="dashboard-loader-text">
-        {messages[index].text}
-      </p>
-      {
-}
-    </div>
-  );
-}
 function HomePage({ stats, dailyThought, navigateTo, setFilters, setBookModal }) {
   return (
     <section className="home-page">
@@ -269,13 +233,23 @@ export default function App() {
   const [requestModal, setRequestModal] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [pageLoading, setPageLoading] = useState(null);
+  const [initialDashboardLoading, setInitialDashboardLoading] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(false);
+  const [loadedViews, setLoadedViews] = useState({
+    dashboard: false,
+    catalog: false,
+    requests: false,
+    myBooks: false,
+    borrowed: false,
+    history: false
+  });
   const [dailyThought, setDailyThought] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({ search: "", genreId: "", sort: "title", availability: "all", page: 0 });
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
   const navRef = useRef(null);
+  const prefetchUserRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   // Capsule filtering happens entirely in memory against the last fetched
@@ -321,14 +295,90 @@ export default function App() {
   const [confirm, setConfirm] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const API_URL = import.meta.env.VITE_API_URL;
+  function markViewLoaded(viewName) {
+    setLoadedViews((prev) => ({ ...prev, [viewName]: true }));
+  }
+  async function loadDashboard({ showLoader = false } = {}) {
+    try {
+      if (showLoader) setInitialDashboardLoading(true);
+      const data = await api.dashboard();
+      setStats(data);
+      markViewLoaded("dashboard");
+      return data;
+    } finally {
+      if (showLoader) setInitialDashboardLoading(false);
+    }
+  }
+  async function loadCatalogFromApi({ showLoading = true, silent = false } = {}) {
+    try {
+      if (showLoading) setCatalogLoading(true);
+      const params = {
+        search: filters.search,
+        sort: filters.sort,
+        availability: "all",
+        page: 0,
+        size: CATALOG_FETCH_SIZE
+      };
+      if (filters.genreId) params.genreId = filters.genreId;
+      const result = await api.books(params);
+      setCatalogBooks(result.content || []);
+      markViewLoaded("catalog");
+      return result;
+    } catch (error) {
+      if (!silent) notify(error.message, "error");
+      return null;
+    } finally {
+      if (showLoading) setCatalogLoading(false);
+    }
+  }
+  async function loadPageData(viewName, page = 0, { silent = false } = {}) {
+    try {
+      switch (viewName) {
+        case "requests": {
+          const data = await api.requests(page);
+          setRequestsPage(data);
+          break;
+        }
+        case "myBooks": {
+          const data = await api.myBooks(page);
+          setMyBooksPage(data);
+          break;
+        }
+        case "borrowed": {
+          const data = await api.borrowed(page);
+          setBorrowedPage(data);
+          break;
+        }
+        case "history": {
+          const data = await api.loanHistory(page);
+          setHistoryPage(data);
+          break;
+        }
+        default:
+          return null;
+      }
+      markViewLoaded(viewName);
+      return true;
+    } catch (error) {
+      if (!silent) notify(error.message, "error");
+      return null;
+    }
+  }
+  async function prefetchNavData() {
+    await Promise.allSettled([
+      loadCatalogFromApi({ showLoading: false, silent: true }),
+      loadPageData("requests", 0, { silent: true }),
+      loadPageData("myBooks", 0, { silent: true }),
+      loadPageData("borrowed", 0, { silent: true }),
+      loadPageData("history", 0, { silent: true })
+    ]);
+  }
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-      fetch("https://booknook-74lk.onrender.com/api/auth/logout")
-      // fetch("https://booknook-gfb8.onrender.com/api/quote/today")
-      // fetch(`http://localhost:8080/api/quote/today`)
+      fetch(`${API_URL}/quote/today`, { credentials: "include" })
         .then((response) => response.ok ? response.json() : null)
         .then((quote) => {
           if (quote) setDailyThought(quote);
@@ -352,11 +402,6 @@ export default function App() {
     };
   }, []);
   useEffect(() => {
-    if (isAuthenticated) {
-      loadBootstrap();
-    }
-  }, [isAuthenticated]);
-  useEffect(() => {
     const timer = setTimeout(() => {
       setFilters(prev => ({ ...prev, search: searchTerm, page: 0 }));
     }, 400);
@@ -369,50 +414,35 @@ export default function App() {
   // API, it just re-filters/re-slices the already-fetched list above.
   useEffect(() => {
     if (isAuthenticated && view === "catalog") {
-      loadCatalogFromApi();
+      loadCatalogFromApi({ showLoading: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, view, filters.search, filters.genreId, filters.sort]);
   useEffect(() => {
-    if (!isAuthenticated) return;
-    if (view === "catalog" || view === "home" || view === "detail") return;
+    if (!isAuthenticated || !me?.id) return;
     let cancelled = false;
     (async () => {
       try {
-        setPageLoading(view);
-        switch (view) {
-          case "dashboard": {
-            const data = await api.dashboard();
-            if (!cancelled) setStats(data);
-            break;
-          }
-          case "requests": {
-            const data = await api.requests(0);
-            if (!cancelled) setRequestsPage(data);
-            break;
-          }
-          case "myBooks": {
-            const data = await api.myBooks(0);
-            if (!cancelled) setMyBooksPage(data);
-            break;
-          }
-          case "borrowed": {
-            const data = await api.borrowed(0);
-            if (!cancelled) setBorrowedPage(data);
-            break;
-          }
-          case "history": {
-            const data = await api.loanHistory(0);
-            if (!cancelled) setHistoryPage(data);
-            break;
-          }
+        const shouldShowLoader = !loadedViews.dashboard || !stats;
+        await loadDashboard({ showLoader: shouldShowLoader });
+        if (!cancelled && prefetchUserRef.current !== me.id) {
+          prefetchUserRef.current = me.id;
+          prefetchNavData();
         }
-      } finally {
-        if (!cancelled) setPageLoading(null);
+      } catch (error) {
+        if (!cancelled) notify(error.message || "Unable to load dashboard.", "error");
       }
     })();
     return () => { cancelled = true; };
-  }, [view, isAuthenticated]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, me?.id]);
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (view === "catalog" || view === "dashboard" || view === "home" || view === "detail") return;
+    if (loadedViews[view]) return;
+    loadPageData(view, 0, { silent: true }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, isAuthenticated, loadedViews]);
   useEffect(() => {
     async function restoreDetailPage() {
       if (!isAuthenticated || view !== "detail" || !selectedBookId || selectedBook) return;
@@ -436,8 +466,9 @@ export default function App() {
   useEffect(() => {
     async function checkAuth() {
       try {
-        const user = await api.me();
+        const [user, genreList] = await Promise.all([api.me(), api.genres()]);
         setMe(user);
+        setGenres(genreList);
         setIsAuthenticated(true);
       } catch (error) {
         setMe(null);
@@ -452,6 +483,16 @@ export default function App() {
     const handler = () => {
       setMe(null);
       setIsAuthenticated(false);
+      setStats(null);
+      prefetchUserRef.current = null;
+      setLoadedViews({
+        dashboard: false,
+        catalog: false,
+        requests: false,
+        myBooks: false,
+        borrowed: false,
+        history: false
+      });
     };
     window.addEventListener("auth-expired", handler);
     return () => {
@@ -462,12 +503,23 @@ export default function App() {
     localStorage.setItem("bn_token", token);
     setMe(user);
     setIsAuthenticated(true);
+    setStats(null);
     notify("Welcome, " + user.fullName + "!");
     setSelectedBook(null);
     setSelectedBookId(null);
     setNavStack(["dashboard"]);
     setView("dashboard");
+    setInitialDashboardLoading(true);
     setCatalogBooks([]);
+    prefetchUserRef.current = null;
+    setLoadedViews({
+      dashboard: false,
+      catalog: false,
+      requests: false,
+      myBooks: false,
+      borrowed: false,
+      history: false
+    });
     setRequestsPage({ content: [], totalPages: 0, totalElements: 0, page: 0 });
     setMyBooksPage({ content: [], totalPages: 0, totalElements: 0, page: 0 });
     setBorrowedPage({ content: [], totalPages: 0, totalElements: 0, page: 0 });
@@ -488,51 +540,29 @@ export default function App() {
     }
     setIsAuthenticated(false);
     setMe(null);
+    setStats(null);
     setSelectedBook(null);
     setSelectedBookId(null);
     setNavStack(["dashboard"]);
     setView("dashboard");
+    setCatalogBooks([]);
+    prefetchUserRef.current = null;
+    setLoadedViews({
+      dashboard: false,
+      catalog: false,
+      requests: false,
+      myBooks: false,
+      borrowed: false,
+      history: false
+    });
     localStorage.removeItem("bn_view");
     localStorage.removeItem("bn_navStack");
     localStorage.removeItem("bn_selectedBookId");
     notify("Logged out successfully.");
 }
-async function loadBootstrap() {
-  try {
-    const [user, genreList] = await Promise.all([api.me(), api.genres()]);
-    setMe(user);
-    setGenres(genreList);
-  } catch (error) {
-    notify(error.message, "error");
-  }
-}
-// Fetches EVERY book matching the current search/genre/sort (ignoring the
-// availability capsule entirely) and caches it in `catalogBooks`. This is
-// the only place that calls the books API for Browse - it runs when the
-// user navigates to Browse, when search/genre/sort change, or when the
-// user hits the manual refresh button on the catalog header.
-async function loadCatalogFromApi() {
-  try {
-    setCatalogLoading(true);
-    const params = {
-      search: filters.search,
-      sort: filters.sort,
-      availability: "all",
-      page: 0,
-      size: CATALOG_FETCH_SIZE
-    };
-    if (filters.genreId) params.genreId = filters.genreId;
-    const result = await api.books(params);
-    setCatalogBooks(result.content || []);
-  } catch (error) {
-    notify(error.message, "error");
-  } finally {
-    setCatalogLoading(false);
-  }
-}
 async function reloadCurrentView() {
   if (view === "catalog") {
-    await loadCatalogFromApi();
+    await loadCatalogFromApi({ showLoading: true });
     return;
   }
   try {
@@ -576,16 +606,16 @@ async function resolveConfirm(confirmed) {
   setConfirm(null);
 }
 async function loadRequests(page) {
-  try { setRequestsPage(await api.requests(page)); } catch (e) { notify(e.message, "error"); }
+  await loadPageData("requests", page);
 }
 async function loadMyBooks(page) {
-  try { setMyBooksPage(await api.myBooks(page)); } catch (e) { notify(e.message, "error"); }
+  await loadPageData("myBooks", page);
 }
 async function loadBorrowed(page) {
-  try { setBorrowedPage(await api.borrowed(page)); } catch (e) { notify(e.message, "error"); }
+  await loadPageData("borrowed", page);
 }
 async function loadHistory(page) {
-  try { setHistoryPage(await api.loanHistory(page)); } catch (e) { notify(e.message, "error"); }
+  await loadPageData("history", page);
 }
 async function loadBookHistory(id, page) {
   try { setBookHistoryPage(await api.bookHistory(id, page)); } catch (e) { notify(e.message, "error"); }
@@ -593,10 +623,13 @@ async function loadBookHistory(id, page) {
 async function openDetails(book) {
   setDetailsLoading(true);
   try {
-    const freshBook = await api.book(book.id);
+    const [freshBook, history] = await Promise.all([
+      api.book(book.id),
+      api.bookHistory(book.id, 0)
+    ]);
     setSelectedBook(freshBook);
     setSelectedBookId(book.id);
-    await loadBookHistory(book.id, 0);
+    setBookHistoryPage(history);
     navigateTo("detail", { bookId: book.id });
   } finally {
     setDetailsLoading(false);
@@ -692,10 +725,7 @@ const navSections = [
     ]
   }
 ];
-if (authChecking) {
-  return <div>Loading...</div>;
-}
-if (!isAuthenticated) {
+if (!isAuthenticated && !authChecking) {
   return (
     <>
       <Login onLogin={handleLogin} />
@@ -829,7 +859,7 @@ return (
         />
       )}
     </main>
-    {pageLoading && <PageLoader />}
+    {(initialDashboardLoading || authChecking) && <PageLoader />}
     {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
     {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
     <ConfirmDialog
