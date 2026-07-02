@@ -66,14 +66,12 @@ export class LookupService {
       }), 0),
     ]);
 
-    const rawLatestReadings = await safe(() =>
-      prisma.bookTransaction.findMany({
-        where: { requesterId: userId },
-        include: { book: { include: { genre: true } } },
-        orderBy: { requestedAt: "desc" },
-        take: 15,
-      }), []
-    );
+    const rawLatestReadings = await prisma.bookTransaction.findMany({
+      where: { requesterId: userId },
+      include: { book: { include: { genre: true } } },
+      orderBy: { requestedAt: "desc" },
+      take: 15,
+    });
 
     const latestReadings = rawLatestReadings.map(t => ({
       id: t.id,
@@ -85,7 +83,6 @@ export class LookupService {
       book: {
         id: t.book.id,
         title: t.book.title,
-        author: t.book.author ?? null,
         coverColor: t.book.coverColor,
         coverUrl: t.book.coverUrl,
         genreName: t.book.genre?.name ?? "N/A"
@@ -102,12 +99,10 @@ export class LookupService {
       globalAvg: communityAverageRead
     }];
 
-    const activeBooks = await safe(() =>
-      prisma.book.findMany({
-        where: { visibilityStatus: "visible" },
-        include: { owner: true, genre: true }
-      }), []
-    );
+    const activeBooks = await prisma.book.findMany({
+      where: { visibilityStatus: "visible" },
+      include: { owner: true, genre: true }
+    });
 
     let bookOfTheDay = null;
     if (activeBooks.length > 0) {
@@ -117,7 +112,6 @@ export class LookupService {
       bookOfTheDay = {
         id: chosen.id,
         title: chosen.title,
-        author: chosen.author ?? null,
         coverColor: chosen.coverColor,
         coverUrl: chosen.coverUrl,
         description: chosen.description,

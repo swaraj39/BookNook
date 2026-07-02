@@ -134,7 +134,6 @@ export class BookService {
       include: {
         owner: true,
         genre: true,
-        author: true,
       },
     });
     if (!book) throw new Error("Book not found");
@@ -415,6 +414,11 @@ static async importCsv(actorId: string, rows: any[]) {
     }
   }
   private static mapBook(book: any) {
+    const myTransactions = Array.isArray(book.transactions) ? book.transactions : [];
+    const isBorrowedByMe = myTransactions.some(
+      (t: any) => t.status === "active" || t.status === "overdue"
+    );
+    const isPendingByMe = myTransactions.some((t: any) => t.status === "pending");
     return {
       id: book.id,
       title: book.title,
@@ -429,6 +433,8 @@ static async importCsv(actorId: string, rows: any[]) {
       coverUrl: book.coverUrl,
       createdAt: book.createdAt,
       updatedAt: book.updatedAt,
+      isBorrowedByMe,
+      isPendingByMe,
       owner: book.owner
         ? {
           id: book.owner.id,

@@ -4,7 +4,7 @@ import { Search, Download, Plus, Upload } from "lucide-react";
 import { BookCard } from "../components/BookCard";
 import { Pagination } from "../components/common/Pagination";
 import { EmptyState } from "../components/common/EmptyState";
-
+import { RefreshButton } from "../components/common/RefreshButton";
 const handleExportBooks = async () => {
   try {
     await api.exportBooks();
@@ -14,8 +14,8 @@ const handleExportBooks = async () => {
 };
 
 export function Catalog({
-  allBooks, genres, me, openDetails, setRequestModal,
-  setBookModal, returnBook, importBooks
+  page, genres, filters, setFilters, searchTerm, setSearchTerm,
+  loading, me, openDetails, setRequestModal, setBookModal, returnBook, importBooks, onRefresh
 }) {
   const fileInputRef = useRef(null);
   const isAdmin = me?.role === "ADMIN";
@@ -33,60 +33,10 @@ export function Catalog({
     { label: "Borrowed by me", value: "borrowed_by_me" },
     { label: "Unavailable", value: "unavailable" },
   ];
-
-  const filtered = useMemo(() => {
-    let result = [...allBooks];
-
-    if (capsule === "available") {
-      result = result.filter(b => b.availabilityStatus === "available");
-    } else if (capsule === "request_pending") {
-      result = result.filter(b => b.availabilityStatus === "request_pending");
-    } else if (capsule === "borrowed_by_me") {
-      result = result.filter(b => b.activeLoanBorrowerId === me.id);
-    } else if (capsule === "unavailable") {
-      result = result.filter(b => b.availabilityStatus !== "available");
-    }
-
-    if (search) {
-      const s = search.toLowerCase();
-      result = result.filter(b =>
-        b.title.toLowerCase().includes(s) ||
-        b.author.toLowerCase().includes(s) ||
-        (b.owner?.fullName || "").toLowerCase().includes(s) ||
-        (b.description || "").toLowerCase().includes(s)
-      );
-    }
-
-    if (genreFilter) {
-      result = result.filter(b =>
-        b.genreId === genreFilter || b.genre?.id === genreFilter
-      );
-    }
-
-    if (sortBy === "title") {
-      result.sort((a, b) => a.title.localeCompare(b.title));
-    } else if (sortBy === "newest") {
-      result.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-    } else if (sortBy === "due") {
-      result.sort((a, b) => {
-        if (!a.dueAt) return 1;
-        if (!b.dueAt) return -1;
-        return new Date(a.dueAt) - new Date(b.dueAt);
-      });
-    }
-
-    return result;
-  }, [allBooks, capsule, search, genreFilter, sortBy, me.id]);
-
-  const totalPages = Math.ceil(filtered.length / 20) || 1;
-  const paged = filtered.slice(page * 20, (page + 1) * 20);
-
-  function clearAllFilters() {
-    setSearch("");
-    setGenreFilter("");
-    setCapsule("all");
-    setSortBy("title");
-    setPage(0);
+  function setCapsule(value) {
+    // Only updates local state - the already-fetched book list is what
+    // gets re-filtered, no API call happens here.
+    setFilters({ ...filters, availability: value, page: 0 });
   }
 
   function handleFileChange(e) {
@@ -96,10 +46,43 @@ export function Catalog({
   }
 
   return (
-    <section className="catalog-page">
-      <div className="catalog-header">
-        <div className="catalog-header-left">
-          <h3>Books on the shelf</h3>
+  <section className="catalog-page">
+    <div className="catalog-header">
+      <div className="catalog-header-left">
+        <h3>Books on the shelf</h3>
+      </div>
+      <div className="catalog-header-right">
+        {onRefresh && <RefreshButton onRefresh={onRefresh} title="Refresh catalog" />}
+        {isAdmin && (
+          <>
+            <input
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              style={{ display: "none" }}
+            />
+            <button className="btn" onClick={() => fileInputRef.current?.click()}>
+              <Upload size={15} /> Import
+            </button>
+          </>
+        )}
+        <button className="btn" onClick={() => handleExportBooks()}>Export</button>
+        <button className="btn primary" onClick={() => setBookModal({ title: "", author: "", genreId: "", condition: "good", exchangeLocation: "", defaultLoanDays: 14, description: "" })}>
+          <Plus size={15} /> Add book
+        </button>
+      </div>
+    </div>
+    <div className="catalog-content">
+      <div className="toolbar">
+        <div className="search-wrap">
+          <Search size={17} />
+          <input
+            className="input"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search title, author, owner, or description"
+          />
         </div>
         <div className="catalog-header-right">
           {isAdmin && (

@@ -8,8 +8,12 @@ export function BookModal({ book, genres, onClose, onSave }) {
   const [errors, setErrors] = useState({});
   async function submit() {
     const nextErrors = validateBookForm(form);
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length === 0) {
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      alert(Object.values(nextErrors).join("\n"));
+      return;
+    }
+    try {
       const payload = {
         ...form,
         defaultLoanDays: Math.floor(Number(form.defaultLoanDays)),

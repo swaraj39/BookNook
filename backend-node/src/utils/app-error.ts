@@ -59,10 +59,9 @@ export function getSafeErrorMessage(error: any): string {
       case "P2003":
         return "This action cannot be completed because related data exists.";
       default:
-        return "Database operation failed. Please try again.";
+        return "Server is down. Please try again.";
     }
   }
-
   if (isDatabaseError(error)) {
     return friendlyServerMessage;
   }

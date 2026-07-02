@@ -38,7 +38,6 @@ export class AppController {
       });
       const result = books.map((book) => ({
         Title: book.title,
-        Author: book.author ?? "",
         Genre: book.genre?.name ?? "",
         Owner: book.owner?.fullName ?? "",
         AvailabilityStatus: book.availabilityStatus,
@@ -274,6 +273,4 @@ export class AppController {
     } catch (error: any) {
       return AppController.handleError(res, error);
     }
-  }
-
-}
+  }}

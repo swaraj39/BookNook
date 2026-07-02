@@ -1,11 +1,10 @@
 import React, { useState } from "react";
-import { RotateCcw } from "lucide-react";
 import { Panel } from "../components/common/Panel";
 import { Table } from "../components/common/Table";
 import { Pagination } from "../components/common/Pagination";
 import { EmptyState } from "../components/common/EmptyState";
+import { RefreshButton } from "../components/common/RefreshButton";
 import { label, dateText } from "../utils/helpers";
-
 function SpinnerInline() {
   return (
     <svg
@@ -22,22 +21,17 @@ function SpinnerInline() {
     </svg>
   );
 }
-
 function RequestRow({ row, me, approve, reject, openDetails }) {
   const [approvingId, setApprovingId] = useState(null);
   const [rejectingId, setRejectingId] = useState(null);
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
-
   const isMyRequest = row.requester.id === me.id;
   const isReceivedRequest = row.owner.id === me.id;
-
   const isApproving = approvingId === row.id;
   const isRejecting = rejectingId === row.id;
   const busy = isApproving || isRejecting;
-
   async function handleApprove() {
     setApprovingId(row.id);
-
     try {
       await approve(row.id);
     } finally {
@@ -45,17 +39,14 @@ function RequestRow({ row, me, approve, reject, openDetails }) {
       setShowApproveConfirm(false);
     }
   }
-
   async function handleReject(id) {
     setRejectingId(id);
-
     try {
       await reject(id);
     } finally {
       setRejectingId(null);
     }
   }
-
   return (
     <>
       <tr>
@@ -68,24 +59,19 @@ function RequestRow({ row, me, approve, reject, openDetails }) {
             <span className="chip">Other</span>
           )}
         </td>
-
         <td>
           <strong>{row.book.title}</strong>
           <br />
           <span>{row.book.author}</span>
         </td>
-
         <td>{isMyRequest ? "You" : row.requester.fullName}</td>
         <td>{isReceivedRequest ? "You" : row.owner.fullName}</td>
-
         <td>
           <span className={`chip ${row.status}`}>
             {row.status === "converted_to_loan" ? "Reading" : label(row.status)}
           </span>
         </td>
-
         <td>{dateText(row.requestedAt)}</td>
-
         <td>
           <div className="row-actions">
             {isReceivedRequest && row.status === "pending" && (
@@ -103,7 +89,6 @@ function RequestRow({ row, me, approve, reject, openDetails }) {
                     "Approve"
                   )}
                 </button>
-
                 <button
                   className="btn danger"
                   disabled={busy}
@@ -119,24 +104,20 @@ function RequestRow({ row, me, approve, reject, openDetails }) {
                 </button>
               </>
             )}
-
             <button className="btn" onClick={() => openDetails(row.book)}>
               Book
             </button>
           </div>
         </td>
       </tr>
-
       {showApproveConfirm && (
         <div className="custom-confirm-overlay">
           <div className="custom-confirm-modal">
             <h3>Approve Request</h3>
-
             <p>
               Are you sure you want to approve the request for{" "}
               <strong>{row.book.title}</strong>?
             </p>
-
             <div className="custom-confirm-actions">
               <button
                 className="btn"
@@ -145,7 +126,6 @@ function RequestRow({ row, me, approve, reject, openDetails }) {
               >
                 Cancel
               </button>
-
               <button
                 className="btn approve"
                 disabled={isApproving}
@@ -166,9 +146,9 @@ function RequestRow({ row, me, approve, reject, openDetails }) {
     </>
   );
 }
-
-export function Requests({ page, onPageChange, onRefresh, me, approve, reject, openDetails }) {
+export function Requests({ page, onPageChange, me, approve, reject, openDetails, onRefresh }) {
   const [filter, setFilter] = useState("all");
+<<<<<<< HEAD
 
   const refreshBtn = (
     <button className="btn icon-only" onClick={onRefresh} title="Refresh" style={{ width: "32px", height: "32px", minHeight: "32px", padding: 0, border: "none", background: "transparent", color: "var(--muted)" }}>
@@ -176,15 +156,16 @@ export function Requests({ page, onPageChange, onRefresh, me, approve, reject, o
     </button>
   );
 
+=======
+>>>>>>> main
   const filteredContent = page.content.filter((row) => {
     if (filter === "mine") return row.requester.id === me.id;
     if (filter === "owner") return row.owner.id === me.id;
     return true;
   });
-
   if (page.content.length === 0) {
     return (
-      <Panel title="Borrow Requests" actions={refreshBtn}>
+      <Panel title="Borrow Requests" actions={onRefresh && <RefreshButton onRefresh={onRefresh} title="Refresh requests" />}>
         <EmptyState
           icon="ClipboardCheck"
           title="No requests yet"
@@ -193,10 +174,9 @@ export function Requests({ page, onPageChange, onRefresh, me, approve, reject, o
       </Panel>
     );
   }
-
   return (
     <div className="request-container">
-      <Panel title="Borrow Requests" actions={refreshBtn}>
+      <Panel title="Borrow Requests" actions={onRefresh && <RefreshButton onRefresh={onRefresh} title="Refresh requests" />}>
         <div className="request-filters">
           <button
             className={`filter-btn ${filter === "all" ? "active" : ""}`}
@@ -204,14 +184,12 @@ export function Requests({ page, onPageChange, onRefresh, me, approve, reject, o
           >
             All
           </button>
-
           <button
             className={`filter-btn ${filter === "mine" ? "active" : ""}`}
             onClick={() => setFilter("mine")}
           >
             My Requests
           </button>
-
           <button
             className={`filter-btn ${filter === "owner" ? "active" : ""}`}
             onClick={() => setFilter("owner")}
@@ -219,7 +197,6 @@ export function Requests({ page, onPageChange, onRefresh, me, approve, reject, o
             Requests for My Books
           </button>
         </div>
-
         {filteredContent.length === 0 ? (
           <EmptyState
             icon="ClipboardCheck"
@@ -250,7 +227,6 @@ export function Requests({ page, onPageChange, onRefresh, me, approve, reject, o
             ))}
           </Table>
         )}
-
         {page.totalPages > 1 && (
           <Pagination
             page={page.page}
