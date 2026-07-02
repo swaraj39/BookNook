@@ -13,17 +13,15 @@ export function BookModal({ book, genres, onClose, onSave }) {
       alert(Object.values(nextErrors).join("\n"));
       return;
     }
-    try {
-      const payload = {
-        ...form,
-        defaultLoanDays: Math.floor(Number(form.defaultLoanDays)),
-        title: form.title.trim(),
-        author: form.author.trim(),
-        description: form.description?.trim() || "",
-        coverUrl: form.coverUrl?.trim() || ""
-      };
-      await onSave(payload);
-    }
+    const payload = {
+      ...form,
+      defaultLoanDays: Math.floor(Number(form.defaultLoanDays)),
+      title: form.title.trim(),
+      author: form.author.trim(),
+      description: form.description?.trim() || "",
+      coverUrl: form.coverUrl?.trim() || ""
+    };
+    await onSave(payload);
   }
   return (
     <Modal title={book.id ? "Edit book" : "Add book"} onClose={onClose} onSubmit={submit}>

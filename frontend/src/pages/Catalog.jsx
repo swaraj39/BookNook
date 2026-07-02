@@ -1,17 +1,10 @@
-import React, { useRef, useMemo, useState } from "react";
+import React, { useRef } from "react";
 import { api } from "../api";
 import { Search, Download, Plus, Upload } from "lucide-react";
 import { BookCard } from "../components/BookCard";
 import { Pagination } from "../components/common/Pagination";
 import { EmptyState } from "../components/common/EmptyState";
 import { RefreshButton } from "../components/common/RefreshButton";
-const handleExportBooks = async () => {
-  try {
-    await api.exportBooks();
-  } catch (error) {
-    alert(error.message);
-  }
-};
 
 export function Catalog({
   page, genres, filters, setFilters, searchTerm, setSearchTerm,
@@ -20,12 +13,6 @@ export function Catalog({
   const fileInputRef = useRef(null);
   const isAdmin = me?.role === "ADMIN";
 
-  const [search, setSearch] = useState("");
-  const [genreFilter, setGenreFilter] = useState("");
-  const [sortBy, setSortBy] = useState("title");
-  const [capsule, setCapsule] = useState("all");
-  const [page, setPage] = useState(0);
-
   const capsules = [
     { label: "All", value: "all" },
     { label: "Available", value: "available" },
@@ -33,11 +20,6 @@ export function Catalog({
     { label: "Borrowed by me", value: "borrowed_by_me" },
     { label: "Unavailable", value: "unavailable" },
   ];
-  function setCapsule(value) {
-    // Only updates local state - the already-fetched book list is what
-    // gets re-filtered, no API call happens here.
-    setFilters({ ...filters, availability: value, page: 0 });
-  }
 
   function handleFileChange(e) {
     const file = e.target.files?.[0];
@@ -46,128 +28,57 @@ export function Catalog({
   }
 
   return (
-  <section className="catalog-page">
-    <div className="catalog-header">
-      <div className="catalog-header-left">
-        <h3>Books on the shelf</h3>
-      </div>
-      <div className="catalog-header-right">
-        {onRefresh && <RefreshButton onRefresh={onRefresh} title="Refresh catalog" />}
-        {isAdmin && (
-          <>
-            <input
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              style={{ display: "none" }}
-            />
-            <button className="btn" onClick={() => fileInputRef.current?.click()}>
-              <Upload size={15} /> Import
-            </button>
-          </>
-        )}
-        <button className="btn" onClick={() => handleExportBooks()}>Export</button>
-        <button className="btn primary" onClick={() => setBookModal({ title: "", author: "", genreId: "", condition: "good", exchangeLocation: "", defaultLoanDays: 14, description: "" })}>
-          <Plus size={15} /> Add book
-        </button>
-      </div>
-    </div>
-    <div className="catalog-content">
-      <div className="toolbar">
-        <div className="search-wrap">
-          <Search size={17} />
-          <input
-            className="input"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search title, author, owner, or description"
-          />
+    <section className="catalog-page">
+      <div className="catalog-header">
+        <div className="catalog-header-left">
+          <h3>Books on the shelf</h3>
         </div>
         <div className="catalog-header-right">
+          {onRefresh && <RefreshButton onRefresh={onRefresh} title="Refresh catalog" />}
           {isAdmin && (
             <>
-              <input
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                style={{ display: "none" }}
-              />
-              <button className="btn" onClick={() => fileInputRef.current?.click()}>
-                <Upload size={15} /> Import
-              </button>
+              <input type="file" accept=".csv,.xlsx,.xls" ref={fileInputRef} onChange={handleFileChange} style={{ display: "none" }} />
+              <button className="btn" onClick={() => fileInputRef.current?.click()}><Upload size={15} /> Import</button>
             </>
           )}
-          <button className="btn" onClick={() => handleExportBooks()}>Export</button>
-          <button className="btn primary" onClick={() => setBookModal({ title: "", author: "", genreId: "", condition: "good", exchangeLocation: "", defaultLoanDays: 14, description: "" })}>
+          <button className="btn" onClick={() => api.exportBooks().catch((e) => alert(e.message))}><Download size={15} /> Export</button>
+          <button className="btn primary" onClick={() => setBookModal({ title: "", author: "", genreId: "", condition: "good", defaultLoanDays: 14, description: "" })}>
             <Plus size={15} /> Add book
           </button>
         </div>
       </div>
-      <div className="catalog-content">
-        <div className="toolbar">
-          <div className="search-wrap">
-            <Search size={17} />
-            <input
-              className="input"
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-              placeholder="Search title, author, owner, or description"
-            />
-          </div>
-          <select className="select" value={genreFilter} onChange={(e) => { setGenreFilter(e.target.value); setPage(0); }}>
-            <option value="">All genres</option>
-            {genres.map((genre) => <option key={genre.id} value={genre.id}>{genre.name}</option>)}
-          </select>
-          <select className="select" value={sortBy} onChange={(e) => { setSortBy(e.target.value); setPage(0); }}>
-            <option value="title">Sort by title</option>
-            <option value="newest">Newest first</option>
-            <option value="due">Due date</option>
-          </select>
+      <div className="toolbar">
+        <div className="search-wrap">
+          <Search size={17} />
+          <input className="input" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search title, author, owner, or description" />
         </div>
-        <div className="catalog-capsules">
-          {capsules.map((c) => (
-            <button
-              key={c.value}
-              className={`catalog-capsule ${capsule === c.value ? "active" : ""}`}
-              onClick={() => { setCapsule(c.value); setPage(0); }}
-            >
-              {c.label}
-            </button>
-          ))}
-        </div>
-        <div className="catalog">
-          {paged.length === 0 ? (
-            <EmptyState
-              icon="SearchX"
-              title="No books found"
-              message="We couldn't find any books matching your current filters. Try adjusting your search or category."
-              actionLabel="Clear all filters"
-              onAction={clearAllFilters}
-            />
-          ) : (
-            paged.map((book) => (
-              <BookCard
-                key={book.id}
-                book={book}
-                me={me}
-                openDetails={openDetails}
-                setRequestModal={setRequestModal}
-                setBookModal={setBookModal}
-                returnBook={returnBook}
-              />
-            ))
-          )}
-        </div>
+        <select className="select" value={filters.genreId || ""} onChange={(e) => setFilters({ ...filters, genreId: e.target.value, page: 0 })}>
+          <option value="">All genres</option>
+          {genres.map((genre) => <option key={genre.id} value={genre.id}>{genre.name}</option>)}
+        </select>
+        <select className="select" value={filters.sort || "title"} onChange={(e) => setFilters({ ...filters, sort: e.target.value, page: 0 })}>
+          <option value="title">Sort by title</option>
+          <option value="newest">Newest first</option>
+        </select>
       </div>
-      {paged.length > 0 && totalPages > 1 && (
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          totalElements={filtered.length}
-          onPageChange={setPage}
-        />
+      <div className="catalog-capsules">
+        {capsules.map((c) => (
+          <button key={c.value} className={`catalog-capsule ${filters.availability === c.value ? "active" : ""}`} onClick={() => setFilters({ ...filters, availability: c.value, page: 0 })}>
+            {c.label}
+          </button>
+        ))}
+      </div>
+      <div className="catalog">
+        {page.content.length === 0 ? (
+          <EmptyState icon="SearchX" title="No books found" message="We couldn't find any books matching your current filters." actionLabel="Clear all filters" onAction={() => setFilters({ search: "", genreId: "", sort: "title", availability: "all", page: 0 })} />
+        ) : (
+          page.content.map((book) => (
+            <BookCard key={book.id} book={book} me={me} openDetails={openDetails} setRequestModal={setRequestModal} setBookModal={setBookModal} returnBook={returnBook} />
+          ))
+        )}
+      </div>
+      {page.content.length > 0 && page.totalPages > 1 && (
+        <Pagination page={page.page} totalPages={page.totalPages} totalElements={page.totalElements} onPageChange={(p) => setFilters({ ...filters, page: p })} />
       )}
     </section>
   );

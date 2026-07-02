@@ -269,12 +269,13 @@ export default function App() {
   const [toasts, setToasts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dailyThought, setDailyThought] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filters, setFilters] = useState({ search: "", genreId: "", sort: "title", availability: "all", page: 0 });
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
   const navRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
-  const [allBooks, setAllBooks] = useState([]);
   // Capsule filtering happens entirely in memory against the last fetched
   // catalogBooks list - this never triggers a network request.
   const filteredCatalogBooks = useMemo(
@@ -323,7 +324,8 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-      fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+      fetch("https://booknook-74lk.onrender.com/api/auth/logout")
+      // fetch("https://booknook-gfb8.onrender.com/api/quote/today")
       // fetch(`http://localhost:8080/api/quote/today`)
         .then((response) => response.ok ? response.json() : null)
         .then((quote) => {
@@ -423,11 +425,11 @@ export default function App() {
     setSelectedBookId(null);
     setNavStack(["dashboard"]);
     setView("dashboard");
-    setCatalogData(null);
-    setRequestsPage(null);
-    setMyBooksPage(null);
-    setBorrowedPage(null);
-    setHistoryPage(null);
+    setCatalogBooks([]);
+    setRequestsPage({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+    setMyBooksPage({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+    setBorrowedPage({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+    setHistoryPage({ content: [], totalPages: 0, totalElements: 0, page: 0 });
     window.history.replaceState({ view: "dashboard", selectedBookId: null, navStack: ["dashboard"] }, "", window.location.href);
   }
   async function handleLogout() {

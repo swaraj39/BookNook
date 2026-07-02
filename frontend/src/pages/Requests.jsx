@@ -148,16 +148,6 @@ function RequestRow({ row, me, approve, reject, openDetails }) {
 }
 export function Requests({ page, onPageChange, me, approve, reject, openDetails, onRefresh }) {
   const [filter, setFilter] = useState("all");
-<<<<<<< HEAD
-
-  const refreshBtn = (
-    <button className="btn icon-only" onClick={onRefresh} title="Refresh" style={{ width: "32px", height: "32px", minHeight: "32px", padding: 0, border: "none", background: "transparent", color: "var(--muted)" }}>
-      <RotateCcw size={15} />
-    </button>
-  );
-
-=======
->>>>>>> main
   const filteredContent = page.content.filter((row) => {
     if (filter === "mine") return row.requester.id === me.id;
     if (filter === "owner") return row.owner.id === me.id;
