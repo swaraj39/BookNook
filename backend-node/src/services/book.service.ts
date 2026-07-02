@@ -182,7 +182,7 @@ export class BookService {
     await StatsCacheService.adjustFields({ totalBooks: 1, availableBooks: 1 });
     return this.mapBook(book);
   }
-static async importCsv(actorId: string, rows: any[]) {
+  static async importCsv(actorId: string, rows: any[]) {
     const results: {
       imported: number;
       skipped: number;

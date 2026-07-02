@@ -105,7 +105,7 @@ function RequestRow({ row, me, approve, reject, openDetails }) {
               </>
             )}
             <button className="btn" onClick={() => openDetails(row.book)}>
-              Book
+              View Book
             </button>
           </div>
         </td>

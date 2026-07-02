@@ -33,7 +33,7 @@ export function Dashboard({ stats, me, dailyThought, openDetails }) {
               <Sparkles size={14} />
               <span>Thought of the Day</span>
             </div>
-            <blockquote>"{dailyThought.quote || dailyThought.text || dailyThought.content || dailyThought.q}"</blockquote>
+            <blockquote>"{dailyThought.q}"</blockquote>
             <cite>— {dailyThought.author || dailyThought.by || dailyThought.a}</cite>
           </div>
         )}
@@ -96,22 +96,24 @@ export function Dashboard({ stats, me, dailyThought, openDetails }) {
             <h3>Your Latest Reading Logs</h3>
           </div>
           <div className="history-scroll-viewport">
-            {stats.latestReadings && stats.latestReadings.length > 0 ? (
-              stats.latestReadings.map((log) => (
-                <div key={log.id} className="reading-log-item-strip" onClick={() => openDetails(log.book)}>
-                  <div className="log-book-thumbnail" style={{ backgroundColor: log.book.coverColor || "var(--brand)" }}>
-                    {log.book.coverUrl ? <img src={log.book.coverUrl} alt={log.book.title} /> : log.book.title[0]}
-                  </div>
-                  <div className="log-book-details">
-                    <h4>{log.book.title}</h4>
-                    <p className="author-lbl">{log.book.author} · <span className="genre-tag-inline">{log.book.genreName}</span></p>
-                    <div className="timeline-meta-chips">
-                      <span className={`chip-status-lbl ${log.status}`}>{label(log.status)}</span>
-                      <span className="date-marker-lbl">Requested: {dateText(log.requestedAt)}</span>
+            {stats.latestReadings && stats.latestReadings.filter((log) => log.status !== "rejected").length > 0 ? (
+              stats.latestReadings
+                .filter((log) => log.status !== "rejected")
+                .map((log) => (
+                  <div key={log.id} className="reading-log-item-strip" onClick={() => openDetails(log.book)}>
+                    <div className="log-book-thumbnail" style={{ backgroundColor: log.book.coverColor || "var(--brand)" }}>
+                      {log.book.coverUrl ? <img src={log.book.coverUrl} alt={log.book.title} /> : log.book.title[0]}
+                    </div>
+                    <div className="log-book-details">
+                      <h4>{log.book.title}</h4>
+                      <p className="author-lbl">{log.book.author} · <span className="genre-tag-inline">{log.book.genreName}</span></p>
+                      <div className="timeline-meta-chips">
+                        <span className={`chip-status-lbl ${log.status}`}>{label(log.status)}</span>
+                        <span className="date-marker-lbl">Requested: {dateText(log.requestedAt)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                ))
             ) : (
               <div className="empty-logs-placeholder">
                 <Milestone size={32} />

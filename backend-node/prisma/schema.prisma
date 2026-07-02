@@ -69,7 +69,7 @@ model Book {
   ownerId           String   @map("owner_id")
   genreId           String?  @map("genre_id")
   title             String   @db.VarChar(220)
-  author            String   @db.VarChar(180)
+  author            String   @default("Unknown") @db.VarChar(180) // Added back as a clean text column
   isbn              String?  @db.VarChar(30)
   description       String?  @db.Text
   condition         String   @default("good") @db.VarChar(40)

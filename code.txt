@@ -13,8 +13,10 @@
   src/components/common/EmptyState.jsx
   src/components/common/FormInput.jsx
   src/components/common/Modal.jsx
+  src/components/common/PageLoader.jsx
   src/components/common/Pagination.jsx
   src/components/common/Panel.jsx
+  src/components/common/RefreshButton.jsx
   src/components/common/Skeleton.jsx
   src/components/common/Spinner.jsx
   src/components/common/Stat.jsx
@@ -47,7 +49,6 @@
   Dockerfile
   package.json
   prisma/migrations/20260624073730_merge_requests_and_loans/migration.sql
-  prisma/migrations/20260629000000_add_author_model/migration.sql
   prisma/migrations/migration_lock.toml
   prisma/schema.prisma
   src/config/prisma.ts
@@ -114,25 +115,8 @@ EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 </file>
 
-<file path="index.html">
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@500;700&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
-    <title>Book Nook</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
-</file>
-
 <file path="src/api/index.js">
-const API_URL = "http://localhost:8080/api";
+const API_URL = "https://booknook-gfb8.onrender.com/api";
 function friendlyErrorMessage(message) {
   const text = String(message || "").toLowerCase();
   const looksLikeDatabaseError = [
@@ -300,20 +284,11 @@ export const api = {
     a.remove();
     window.URL.revokeObjectURL(url);
   },
-  authors: (search) => {
-    const query = search ? `?search=${encodeURIComponent(search)}` : "";
-    return request(`/authors${query}`);
-  },
-  createAuthor: (name) =>
-    request("/authors", {
-      method: "POST",
-      body: JSON.stringify({ name }),
-    }),
 };
 </file>
 
 <file path="src/App.jsx">
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import {
   BookOpen,
   CheckSquare,
@@ -350,9 +325,9 @@ import { MyBooks } from "./pages/MyBooks";
 import { Borrowed } from "./pages/Borrowed";
 import { LoanHistory } from "./pages/LoanHistory";
 import { Details } from "./pages/Details";
-import { BookAddedDialog } from "./components/common/BookAddedDialog";
-import { initials, parseDelimitedText, normalizeImportRow } from "./utils/helpers";
+import { initials } from "./utils/helpers";
 import { ConfirmDialog } from "./components/common/ConfirmDialog";
+import { PageLoader } from "./components/common/PageLoader";
 import logo from "./styles/blue_altair_logo-removebg-preview.png";
 const VALID_VIEWS = new Set(["dashboard", "home", "catalog", "requests", "myBooks", "borrowed", "history", "detail"]);
 function getStoredView() {
@@ -378,22 +353,45 @@ const blankBook = {
   description: "",
   coverUrl: ""
 };
+// How many books to request from the API in one shot when we load the
+// catalog. We fetch everything that matches search/genre/sort ONCE and then
+// filter/paginate the "All / Available / Request Pending / Borrowed by me /
+const CATALOG_FETCH_SIZE = 1000;
+const CATALOG_PAGE_SIZE = 20;
+function matchesCapsule(book, capsule) {
+  switch (capsule) {
+    case "available":
+      return book.availabilityStatus === "available";
+    case "request_pending":
+      return book.availabilityStatus === "request_pending" && !!book.isPendingByMe;
+    case "borrowed_by_me":
+      return !!book.isBorrowedByMe;
+    case "unavailable":
+      return (
+        (book.availabilityStatus === "borrowed" || book.availabilityStatus === "request_pending") &&
+        !book.isBorrowedByMe &&
+        !book.isPendingByMe
+      );
+    case "all":
+    default:
+      return true;
+  }
+}
 function DashboardLoader() {
   const messages = [
-    { text: "Welcome back", icon: "👋" },
-    { text: "Preparing your dashboard", icon: "⚙️" },
-    { text: "Gathering your reading stats", icon: "📊" },
-    { text: "Loading your latest activity", icon: "📚" },
-    { text: "Syncing your bookshelf", icon: "🗂️" },
-    { text: "Calculating your reading progress", icon: "📈" },
-    { text: "Curating today's picks", icon: "✨" },
-    { text: "Almost ready", icon: "⏳" },
-    { text: "Putting the final touches", icon: "🧩" },
-    { text: "Good things take a moment", icon: "🌱" },
-    { text: "Thanks for your patience", icon: "🙏" },
-    { text: "Just a few seconds more", icon: "⏱️" }
-  ];
-  const [bookAdded, setBookAdded] = useState(false);
+  { text: "Welcome back", icon: "👋" },
+  { text: "Preparing your dashboard", icon: "⚙️" },
+  { text: "Gathering your reading stats", icon: "📊" },
+  { text: "Loading your latest activity", icon: "📚" },
+  { text: "Syncing your bookshelf", icon: "🗂️" },
+  { text: "Calculating your reading progress", icon: "📈" },
+  { text: "Curating today's picks", icon: "✨" },
+  { text: "Almost ready", icon: "⏳" },
+  { text: "Putting the final touches", icon: "🧩" },
+  { text: "Good things take a moment", icon: "🌱" },
+  { text: "Thanks for your patience", icon: "🙏" },
+  { text: "Just a few seconds more", icon: "⏱️" }
+];
   const [index, setIndex] = useState(0);
   useEffect(() => {
     const id = setInterval(() => {
@@ -411,20 +409,7 @@ function DashboardLoader() {
         {messages[index].text}
       </p>
       {
-      }
-    </div>
-  );
 }
-function NavLoader() {
-  return (
-    <div className="nav-loader-overlay">
-      <div className="nav-loader-card">
-        <div className="nav-loader-icon-wrap">
-          <BookOpen size={38} className="nav-loader-icon" />
-          <div className="nav-loader-ring" />
-        </div>
-        <p className="nav-loader-message">Loading your bookshelf</p>
-      </div>
     </div>
   );
 }
@@ -523,10 +508,6 @@ export default function App() {
   }, []);
   function navigateTo(newView, options = {}) {
     if (!VALID_VIEWS.has(newView)) return;
-    setShowProfileDropdown(false);
-    if (newView !== view && !isDataReady(newView)) {
-      setNavLoading(newView);
-    }
     const nextBookId = newView === "detail" ? (options.bookId || selectedBookId) : null;
     const nextStack = options.replace
       ? [...navStack.slice(0, -1), newView]
@@ -560,7 +541,7 @@ export default function App() {
   const [me, setMe] = useState(null);
   const [stats, setStats] = useState(null);
   const [genres, setGenres] = useState([]);
-  const [booksPage, setBooksPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+  const [catalogBooks, setCatalogBooks] = useState([]);
   const [requestsPage, setRequestsPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
   const [myBooksPage, setMyBooksPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
   const [borrowedPage, setBorrowedPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
@@ -572,29 +553,37 @@ export default function App() {
   const [bookModal, setBookModal] = useState(null);
   const [requestModal, setRequestModal] = useState(null);
   const [toasts, setToasts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [navLoading, setNavLoading] = useState(null);
+  const [pageLoading, setPageLoading] = useState(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [dailyThought, setDailyThought] = useState(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
   const navRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
-  const [bookAddedMessage, setBookAddedMessage] = useState(null);
-  function isDataReady(v) {
-    switch (v) {
-      case "dashboard": return stats !== null;
-      case "catalog":
-      case "requests":
-      case "myBooks":
-      case "borrowed":
-      case "history":
-        return true;
-      case "detail": return selectedBook !== null;
-      case "home": return stats !== null;
-      default: return true;
-    }
-  }
+  const [allBooks, setAllBooks] = useState([]);
+  // Capsule filtering happens entirely in memory against the last fetched
+  // catalogBooks list - this never triggers a network request.
+  const filteredCatalogBooks = useMemo(
+    () => catalogBooks.filter((book) => matchesCapsule(book, filters.availability)),
+    [catalogBooks, filters.availability]
+  );
+  // Client-side pagination over the filtered list, shaped the same way the
+  // old server-paginated response used to look so <Catalog/> doesn't need
+  // to change how it reads `page`.
+  const booksPage = useMemo(() => {
+    const totalElements = filteredCatalogBooks.length;
+    const totalPages = Math.max(1, Math.ceil(totalElements / CATALOG_PAGE_SIZE));
+    const safePage = Math.min(Math.max(filters.page, 0), totalPages - 1);
+    const start = safePage * CATALOG_PAGE_SIZE;
+    return {
+      content: filteredCatalogBooks.slice(start, start + CATALOG_PAGE_SIZE),
+      totalElements,
+      totalPages,
+      page: safePage
+    };
+  }, [filteredCatalogBooks, filters.page]);
   const checkNavScroll = useCallback(() => {
     const el = navRef.current;
     if (el) {
@@ -622,15 +611,15 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-    fetch(`http://localhost:8080/api/quote/today`)
-      .then((response) => response.ok ? response.json() : null)
-      .then((quote) => {
-        if (quote) setDailyThought(quote);
-      })
-      .catch((error) => {
-        console.error("Failed to fetch daily quote:", error);
-      });
-  }, []);
+      fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+        .then((response) => response.ok ? response.json() : null)
+        .then((quote) => {
+          if (quote) setDailyThought(quote);
+        })
+        .catch((error) => {
+          console.error("Failed to fetch daily quote:", error);
+        });
+    }, []);
   useEffect(() => {
     function handleClickOutside(event) {
       if (
@@ -657,10 +646,50 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
   useEffect(() => {
-    if (isAuthenticated) {
-      loadCatalog();
+    if (isAuthenticated && view === "catalog") {
+      loadCatalogFromApi();
     }
-  }, [filters, isAuthenticated]);
+  }, [isAuthenticated, view, filters.search, filters.genreId, filters.sort]);
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (view === "catalog" || view === "home" || view === "detail") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setPageLoading(view);
+        switch (view) {
+          case "dashboard": {
+            const data = await api.dashboard();
+            if (!cancelled) setStats(data);
+            break;
+          }
+          case "requests": {
+            const data = await api.requests(0);
+            if (!cancelled) setRequestsPage(data);
+            break;
+          }
+          case "myBooks": {
+            const data = await api.myBooks(0);
+            if (!cancelled) setMyBooksPage(data);
+            break;
+          }
+          case "borrowed": {
+            const data = await api.borrowed(0);
+            if (!cancelled) setBorrowedPage(data);
+            break;
+          }
+          case "history": {
+            const data = await api.loanHistory(0);
+            if (!cancelled) setHistoryPage(data);
+            break;
+          }
+        }
+      } finally {
+        if (!cancelled) setPageLoading(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [view, isAuthenticated]);
   useEffect(() => {
     async function restoreDetailPage() {
       if (!isAuthenticated || view !== "detail" || !selectedBookId || selectedBook) return;
@@ -706,10 +735,6 @@ export default function App() {
       window.removeEventListener("auth-expired", handler);
     };
   }, []);
-  useEffect(() => {
-    if (!navLoading || navLoading !== view) return;
-    if (isDataReady(view)) setNavLoading(null);
-  }, [view, navLoading, stats, booksPage, requestsPage, myBooksPage, borrowedPage, historyPage, selectedBook, loading]);
   async function handleLogin(token, user) {
     localStorage.setItem("bn_token", token);
     setMe(user);
@@ -724,8 +749,7 @@ export default function App() {
   async function handleLogout() {
     setShowProfileDropdown(false);
     try {
-      // await fetch("https:
-      await fetch("http://localhost:8080/api/auth/logout", {
+      await fetch("https:
         method: "POST",
         credentials: "include",
       });
@@ -742,381 +766,382 @@ export default function App() {
     localStorage.removeItem("bn_navStack");
     localStorage.removeItem("bn_selectedBookId");
     notify("Logged out successfully.");
+}
+async function loadBootstrap() {
+  try {
+    const [user, genreList] = await Promise.all([api.me(), api.genres()]);
+    setMe(user);
+    setGenres(genreList);
+  } catch (error) {
+    notify(error.message, "error");
   }
-  async function loadBootstrap() {
-    try {
-      setLoading(true);
-      const [user, genreList] = await Promise.all([api.me(), api.genres()]);
-      setMe(user);
-      setGenres(genreList);
-      await refresh();
-    } catch (error) {
-      notify(error.message, "error");
-    } finally {
-      setLoading(false);
-    }
+}
+async function loadCatalogFromApi() {
+  try {
+    setCatalogLoading(true);
+    const params = {
+      search: filters.search,
+      sort: filters.sort,
+      availability: "all",
+      page: 0,
+      size: CATALOG_FETCH_SIZE
+    };
+    if (filters.genreId) params.genreId = filters.genreId;
+    const result = await api.books(params);
+    setCatalogBooks(result.content || []);
+  } catch (error) {
+    notify(error.message, "error");
+  } finally {
+    setCatalogLoading(false);
   }
-  async function refresh() {
-    const dashboard = await api.dashboard();
-    setStats(dashboard);
-    await Promise.all([
-      loadCatalog(),
-      loadRequests(requestsPage.page),
-      loadMyBooks(myBooksPage.page),
-      loadBorrowed(borrowedPage.page),
-      loadHistory(historyPage.page)
-    ]);
-  }
-  async function loadCatalog() {
-    try {
-      setLoading(true);
-      const params = {
-        search: filters.search,
-        availability: filters.availability,
-        sort: filters.sort,
-        page: filters.page,
-        size: 20
-      };
-      if (filters.genreId) params.genreId = filters.genreId;
-      setBooksPage(await api.books(params));
-    } catch (error) {
-      notify(error.message, "error");
-    } finally {
-      setLoading(false);
-    }
-  }
-  function askConfirm(message, onConfirm) {
-    setConfirm({ message, onConfirm });
-  }
-  async function resolveConfirm(confirmed) {
-    if (confirmed && confirm?.onConfirm) await confirm.onConfirm();
-    setConfirm(null);
-  }
-  async function loadRequests(page) {
-    try { setRequestsPage(await api.requests(page)); } catch (e) { notify(e.message, "error"); }
-  }
-  async function loadMyBooks(page) {
-    try { setMyBooksPage(await api.myBooks(page)); } catch (e) { notify(e.message, "error"); }
-  }
-  async function loadBorrowed(page) {
-    try { setBorrowedPage(await api.borrowed(page)); } catch (e) { notify(e.message, "error"); }
-  }
-  async function loadHistory(page) {
-    try { setHistoryPage(await api.loanHistory(page)); } catch (e) { notify(e.message, "error"); }
-  }
-  async function loadBookHistory(id, page) {
-    try { setBookHistoryPage(await api.bookHistory(id, page)); } catch (e) { notify(e.message, "error"); }
-  }
-  async function openDetails(book) {
-    setDetailsLoading(true);
-    try {
-      const freshBook = await api.book(book.id);
-      setSelectedBook(freshBook);
-      setSelectedBookId(book.id);
-      await loadBookHistory(book.id, 0);
-      navigateTo("detail", { bookId: book.id });
-    } finally {
-      setDetailsLoading(false);
-    }
-  }
-  async function saveBook(payload) {
-    try {
-      if (bookModal?.id) await api.updateBook(bookModal.id, payload);
-      else await api.createBook(payload);
-      setBookModal(null);
-      notify(bookModal?.id ? "Book updated." : "Book added.");
-      await loadMyBooks(bookModal?.id ? myBooksPage.page : 0);
-    } catch (error) {
-      notify(error.message, "error");
-    }
-  }
-  async function importBooks(file) {
-    try {
-      const extension = file.name.split(".").pop().toLowerCase();
-      let rawRows = [];
-      if (extension === "xlsx" || extension === "xls") {
-        const buffer = await file.arrayBuffer();
-        const workbook = XLSX.read(buffer, { type: "array" });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        rawRows = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
-      } else if (extension === "csv" || extension === "txt") {
-        const text = await file.text();
-        rawRows = parseDelimitedText(text);
-      } else {
-        window.alert("Please upload a .csv, .xlsx, or .xls file.");
-        notify("Unsupported file type.", "error");
-        return;
-      }
-      const rows = rawRows
-        .map(normalizeImportRow)
-        .filter((row) => row.Title || row.Author || row.Genre);
-      if (rows.length === 0) {
-        window.alert("No valid rows were found in that file. Make sure it has Title, Author, and Genre columns.");
-        notify("No valid rows found in the file.", "error");
-        return;
-      }
-      const result = await api.importBooks(rows);
-      if (result.imported > 0 || result.skipped > 0) {
-        setBookAddedMessage(
-          `${result.imported} book(s) added successfully.` +
-          (result.skipped ? ` ${result.skipped} row(s) skipped as duplicates.` : "") +
-          (result.failed ? ` ${result.failed} row(s) failed to import — check the console for details.` : "")
-        );
-        notify(`Imported ${result.imported} book(s).${result.skipped ? ` ${result.skipped} skipped.` : ""}`);
-      } else {
-        notify("No books were imported. Please check the file and try again.", "error");
-      }
-      if (result.errors?.length) {
-        console.error("Import errors:", result.errors);
-      }
-      await loadMyBooks(0);
-    } catch (error) {
-      window.alert(error.message || "Import failed.");
-      notify(error.message, "error");
-    }
-  }
-  async function deleteBook(id) {
-    askConfirm("Are you sure you want to remove this book from the library? This cannot be undone.", async () => {
-      try {
-        await api.deleteBook(id);
-        notify("Book deleted.");
-        await loadMyBooks(myBooksPage.page);
-      } catch (error) {
-        notify(error.message, "error");
-      }
-    });
+}
+async function reloadCurrentView() {
+  if (view === "catalog") {
+    await loadCatalogFromApi();
     return;
   }
-  async function sendRequest(payload) {
+  try {
+    setPageLoading(view);
+    switch (view) {
+      case "dashboard": {
+        const data = await api.dashboard();
+        setStats(data);
+        break;
+      }
+      case "requests": {
+        const data = await api.requests(requestsPage.page);
+        setRequestsPage(data);
+        break;
+      }
+      case "myBooks": {
+        const data = await api.myBooks(myBooksPage.page);
+        setMyBooksPage(data);
+        break;
+      }
+      case "borrowed": {
+        const data = await api.borrowed(borrowedPage.page);
+        setBorrowedPage(data);
+        break;
+      }
+      case "history": {
+        const data = await api.loanHistory(historyPage.page);
+        setHistoryPage(data);
+        break;
+      }
+    }
+  } finally {
+    setPageLoading(null);
+  }
+}
+function askConfirm(message, onConfirm) {
+  setConfirm({ message, onConfirm });
+}
+async function resolveConfirm(confirmed) {
+  if (confirmed && confirm?.onConfirm) await confirm.onConfirm();
+  setConfirm(null);
+}
+async function loadRequests(page) {
+  try { setRequestsPage(await api.requests(page)); } catch (e) { notify(e.message, "error"); }
+}
+async function loadMyBooks(page) {
+  try { setMyBooksPage(await api.myBooks(page)); } catch (e) { notify(e.message, "error"); }
+}
+async function loadBorrowed(page) {
+  try { setBorrowedPage(await api.borrowed(page)); } catch (e) { notify(e.message, "error"); }
+}
+async function loadHistory(page) {
+  try { setHistoryPage(await api.loanHistory(page)); } catch (e) { notify(e.message, "error"); }
+}
+async function loadBookHistory(id, page) {
+  try { setBookHistoryPage(await api.bookHistory(id, page)); } catch (e) { notify(e.message, "error"); }
+}
+async function openDetails(book) {
+  setDetailsLoading(true);
+  try {
+    const freshBook = await api.book(book.id);
+    setSelectedBook(freshBook);
+    setSelectedBookId(book.id);
+    await loadBookHistory(book.id, 0);
+    navigateTo("detail", { bookId: book.id });
+  } finally {
+    setDetailsLoading(false);
+  }
+}
+async function saveBook(payload) {
+  try {
+    if (bookModal?.id) await api.updateBook(bookModal.id, payload);
+    else await api.createBook(payload);
+    setBookModal(null);
+    notify(bookModal?.id ? "Book updated." : "Book added.");
+    await reloadCurrentView();
+  } catch (error) {
+    notify(error.message, "error");
+  }
+}
+async function deleteBook(id) {
+  askConfirm("Are you sure you want to remove this book from the library? This cannot be undone.", async () => {
     try {
-      await api.requestBook(payload);
-      setRequestModal(null);
+      await api.deleteBook(id);
+      notify("Book deleted.");
+      await reloadCurrentView();
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  });
+  return;
+}
+async function sendRequest(payload) {
+  try {
+    await api.requestBook(payload);
+    setRequestModal(null);
       notify("Borrow request sent.");
-      await loadRequests(requestsPage.page);
-    } catch (error) {
-      notify(error.message, "error");
-    }
+      await reloadCurrentView();
+  } catch (error) {
+    notify(error.message, "error");
   }
-  async function approve(id) {
-    try {
-      await api.approve(id);
+}
+async function approve(id) {
+  try {
+    await api.approve(id);
       notify("Request approved and loan started.");
-      await loadRequests(requestsPage.page);
+      await reloadCurrentView();
+  } catch (error) {
+    notify(error.message, "error");
+  }
+}
+async function reject(id) {
+  askConfirm("Are you sure you want to reject this request?", async () => {
+    try {
+      await api.reject(id);
+      notify("Request rejected.");
+      await reloadCurrentView();
     } catch (error) {
       notify(error.message, "error");
     }
-  }
-  async function reject(id) {
-    askConfirm("Are you sure you want to reject this request?", async () => {
-      try {
-        await api.reject(id);
-        notify("Request rejected.");
-        await loadRequests(requestsPage.page);
-      } catch (error) {
-        notify(error.message, "error");
-      }
-    });
-    return;
-  }
-  async function returnBook(id, bookTitle) {
-    askConfirm(`Return "${bookTitle}"? This will mark the book as returned.`, async () => {
-      try {
-        await api.returnBook(id);
-        notify("Book marked as returned.");
-        await loadBorrowed(borrowedPage.page);
-      } catch (error) {
-        notify(error.message, "error");
-      }
-    });
-  }
-  function notify(message, type = "success") {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, message, type }]);
-  }
-  function removeToast(id) {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }
-  const navSections = [
-    {
-      label: "Analytics & Shelf",
-      items: [
-        ["dashboard", "Dashboard", CheckSquare],
-        ["catalog", "Browse", Globe]
-      ]
-    },
-    {
-      label: "Your Activity",
-      items: [
-        ["requests", "Requests", CheckSquare, stats?.pendingApprovals],
-        ["myBooks", "My Shelf", LibraryBig],
-        ["borrowed", "Currently Reading", BookOpenText],
-        ["history", "History", History]
-      ]
+  });
+  return;
+}
+async function returnBook(id, bookTitle) {
+  askConfirm(`Return "${bookTitle}"? This will mark the book as returned.`, async () => {
+    try {
+      await api.returnBook(id);
+      notify("Book marked as returned.");
+      await reloadCurrentView();
+    } catch (error) {
+      notify(error.message, "error");
     }
-  ];
-  if (authChecking) {
-    return <div>Loading...</div>;
+  });
+}
+async function importBooks(file) {
+  setImporting(true);
+  try {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const firstSheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[firstSheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+    if (rows.length === 0) {
+      notify("That file doesn't have any rows to import.", "error");
+      return;
+    }
+    const result = await api.importBooks(rows);
+    const { imported = 0, skipped = 0, failed = 0 } = result || {};
+    const parts = [`${imported} book${imported === 1 ? "" : "s"} imported`];
+    if (skipped) parts.push(`${skipped} skipped`);
+    if (failed) parts.push(`${failed} failed`);
+    notify(parts.join(", ") + ".", failed ? "error" : "success");
+    await reloadCurrentView();
+  } catch (error) {
+    notify(error.message, "error");
+  } finally {
+    setImporting(false);
   }
-  if (!isAuthenticated) {
-    return (
-      <>
-        <Login onLogin={handleLogin} />
-        <ToastContainer toasts={toasts} onRemove={removeToast} />
-      </>
-    );
+}
+function notify(message, type = "success") {
+  const id = Math.random().toString(36).substring(2, 9);
+  setToasts((prev) => [...prev, { id, message, type }]);
+}
+function removeToast(id) {
+  setToasts((prev) => prev.filter((t) => t.id !== id));
+}
+const navSections = [
+  {
+    label: "Analytics & Shelf",
+    items: [
+      ["dashboard", "Dashboard", CheckSquare],
+      ["catalog", "Browse", Globe]
+    ]
+  },
+  {
+    label: "Your Activity",
+    items: [
+      ["requests", "Requests", CheckSquare, stats?.pendingApprovals],
+      ["myBooks", "My Shelf", LibraryBig],
+      ["borrowed", "Currently Reading", BookOpenText],
+      ["history", "History", History]
+    ]
   }
+];
+if (authChecking) {
+  return <div>Loading...</div>;
+}
+if (!isAuthenticated) {
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <button className="brand" onClick={() => navigateTo("dashboard")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
-          <img className="brand-mark" src={logo} alt="Book Nook Logo" />
-          <div>
-            <h1>Book Nook</h1>
-            <p>BA Reading Community</p>
-          </div>
-        </button>
-        <div className="nav-scroll-wrap">
-          <button className={`nav-scroll-btn left ${canScrollLeft ? "" : "hidden"}`} onClick={() => scrollNav(-1)} aria-label="Scroll left">
-            <ChevronLeft size={18} />
-          </button>
-          <nav className="nav" ref={navRef} onScroll={checkNavScroll}>
-            {navSections.map((section) => (
-              <div key={section.label} className="nav-section">
-                <div className="nav-label">{section.label}</div>
-                {section.items.map(([id, label, Icon, badge]) => (
-                  <button key={id} className={`nav-item ${view === id ? "active" : ""}`} onClick={() => navigateTo(id)}>
-                    <div className="nav-item-content">
-                      <Icon size={18} />
-                      <span>{label}</span>
-                    </div>
-                    {badge > 0 && <span className="nav-badge">{badge}</span>}
-                  </button>
-                ))}
-              </div>
-            ))}
-          </nav>
-          <button className={`nav-scroll-btn right ${canScrollRight ? "" : "hidden"}`} onClick={() => scrollNav(1)} aria-label="Scroll right">
-            <ChevronRight size={18} />
-          </button>
-        </div>
-        <div className="top-nav-actions">
-          <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
-            {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-          {me && (
-            <div
-              ref={profileDropdownRef}
-              className="profile-dropdown-container"
-              style={{ position: "relative" }}
-            >
-              <button className="user-profile-trigger" onClick={() => setShowProfileDropdown(!showProfileDropdown)}>
-                <div className="user-avatar-small">
-                  {me.avatarInitials || initials(me.fullName)}
-                </div>
-                <ChevronDown size={14} color="var(--muted)" />
-              </button>
-              {showProfileDropdown && (
-                <div className="profile-dropdown-card">
-                  <Profile user={me} onLogout={handleLogout} />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </aside>
-      <main className="main">
-        {navLoading && <NavLoader />}
-        {view === "dashboard" && stats && (
-          <Dashboard
-            stats={stats}
-            me={me}
-            dailyThought={dailyThought}
-            openDetails={openDetails}
-          />
-        )}
-        {view === "dashboard" && !stats && <DashboardLoader />}
-        {view !== "home" && view !== "catalog" && view !== "dashboard" && (
-          <section className="topbar">
-            <div className="page-title">
-              { }
-              <h2>BA Reading Community Tracker</h2>
-              <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
-            </div>
-            <div>
-              <button className="btn primary" onClick={() => setBookModal({ ...blankBook })}><Plus size={17} /> Add book</button>
-            </div>
-          </section>
-        )}
-        {
-        }
-        {view === "home" && (
-          <HomePage
-            stats={stats}
-            dailyThought={dailyThought}
-            navigateTo={navigateTo}
-            setFilters={setFilters}
-            setBookModal={setBookModal}
-          />
-        )}
-        {view === "catalog" && (
-          <Catalog
-            page={booksPage}
-            genres={genres}
-            filters={filters}
-            setFilters={setFilters}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-            loading={loading}
-            me={me}
-            openDetails={openDetails}
-            setRequestModal={setRequestModal}
-            setBookModal={setBookModal}
-            returnBook={returnBook}
-            importBooks={importBooks}
-          />
-        )}
-        {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} onRefresh={() => loadRequests(requestsPage.page)} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} />}
-        {view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} onRefresh={() => loadMyBooks(myBooksPage.page)} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} />}
-        {view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} onRefresh={() => loadBorrowed(borrowedPage.page)} returnBook={returnBook} openDetails={openDetails} />}
-        {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={() => loadHistory(historyPage.page)} />}
-        {!loading && view === "detail" && selectedBook && (
-          <Details
-            book={selectedBook}
-            historyPage={bookHistoryPage}
-            onPageChange={(p) => loadBookHistory(selectedBook.id, p)}
-            me={me}
-            navigateBack={navigateBack}
-            navigateTo={navigateTo}
-            setBookModal={setBookModal}
-            setRequestModal={setRequestModal}
-            returnBook={returnBook}
-          />
-        )}
-      </main>
-      {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
-      {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
-      <ConfirmDialog
-        message={confirm?.message}
-        onConfirm={() => resolveConfirm(true)}
-        onCancel={() => resolveConfirm(false)}
-      />
-      <BookAddedDialog
-        message={bookAddedMessage}
-        onClose={() => setBookAddedMessage(null)}
-      />
-      {detailsLoading && (
-        <div className="details-loader-overlay">
-          <div className="details-loader-box">
-            <svg className="details-loader-spinner" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round">
-              <path d="M12 2a10 10 0 0 1 10 10" />
-            </svg>
-            <span>Loading book details...</span>
-          </div>
-        </div>
-      )}
+    <>
+      <Login onLogin={handleLogin} />
       <ToastContainer toasts={toasts} onRemove={removeToast} />
-    </div>
+    </>
   );
+}
+return (
+  <div className="app-shell">
+    <aside className="sidebar">
+      <button className="brand" onClick={() => navigateTo("dashboard")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
+        <img className="brand-mark" src={logo} alt="Book Nook Logo" />
+        <div>
+          <h1>Book Nook</h1>
+          <p>BA Reading Community</p>
+        </div>
+      </button>
+      <div className="nav-scroll-wrap">
+        <button className={`nav-scroll-btn left ${canScrollLeft ? "" : "hidden"}`} onClick={() => scrollNav(-1)} aria-label="Scroll left">
+          <ChevronLeft size={18} />
+        </button>
+        <nav className="nav" ref={navRef} onScroll={checkNavScroll}>
+          {navSections.map((section) => (
+            <div key={section.label} className="nav-section">
+              <div className="nav-label">{section.label}</div>
+              {section.items.map(([id, label, Icon, badge]) => (
+                <button key={id} className={`nav-item ${view === id ? "active" : ""}`} onClick={() => navigateTo(id)}>
+                  <div className="nav-item-content">
+                    <Icon size={18} />
+                    <span>{label}</span>
+                  </div>
+                  {badge > 0 && <span className="nav-badge">{badge}</span>}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <button className={`nav-scroll-btn right ${canScrollRight ? "" : "hidden"}`} onClick={() => scrollNav(1)} aria-label="Scroll right">
+          <ChevronRight size={18} />
+        </button>
+      </div>
+      <div className="top-nav-actions">
+        <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
+          {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+        {me && (
+          <div
+            ref={profileDropdownRef}
+            className="profile-dropdown-container"
+            style={{ position: "relative" }}
+          >
+            <button className="user-profile-trigger" onClick={() => setShowProfileDropdown(!showProfileDropdown)}>
+              <div className="user-avatar-small">
+                {me.avatarInitials || initials(me.fullName)}
+              </div>
+              <ChevronDown size={14} color="var(--muted)" />
+            </button>
+            {showProfileDropdown && (
+              <div className="profile-dropdown-card">
+                <Profile user={me} onLogout={handleLogout} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </aside>
+    <main className="main">
+      {view === "dashboard" && stats && (
+        <Dashboard
+          stats={stats}
+          me={me}
+          dailyThought={dailyThought}
+          openDetails={openDetails}
+        />
+      )}
+      {view !== "home" && view !== "catalog" && view !== "dashboard" && (
+        <section className="topbar">
+          <div className="page-title">
+            { }
+            <h2>BA Reading Community Tracker</h2>
+            <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
+          </div>
+          <div>
+            <button className="btn primary" onClick={() => setBookModal({ ...blankBook })}><Plus size={17} /> Add book</button>
+          </div>
+        </section>
+      )}
+      {
+      }
+      {view === "home" && (
+        <HomePage
+          stats={stats}
+          dailyThought={dailyThought}
+          navigateTo={navigateTo}
+          setFilters={setFilters}
+          setBookModal={setBookModal}
+        />
+      )}
+      {view === "catalog" && (
+        <Catalog
+          page={booksPage}
+          genres={genres}
+          filters={filters}
+          setFilters={setFilters}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          loading={catalogLoading}
+          me={me}
+          openDetails={openDetails}
+          setRequestModal={setRequestModal}
+          setBookModal={setBookModal}
+          returnBook={returnBook}
+          importBooks={importBooks}
+          importing={importing}
+          onRefresh={loadCatalogFromApi}
+        />
+      )}
+      {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onRefresh={() => loadRequests(requestsPage.page)} />}
+      {view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} onRefresh={() => loadMyBooks(myBooksPage.page)} />}
+      {view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} returnBook={returnBook} openDetails={openDetails} onRefresh={() => loadBorrowed(borrowedPage.page)} />}
+      {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={() => loadHistory(historyPage.page)} />}
+      {view === "detail" && selectedBook && (
+        <Details
+          book={selectedBook}
+          historyPage={bookHistoryPage}
+          onPageChange={(p) => loadBookHistory(selectedBook.id, p)}
+          me={me}
+          navigateBack={navigateBack}
+          navigateTo={navigateTo}
+          setBookModal={setBookModal}
+          setRequestModal={setRequestModal}
+          returnBook={returnBook}
+        />
+      )}
+    </main>
+    {pageLoading && <PageLoader isDashboard={pageLoading === "dashboard"} />}
+    {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
+    {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
+    <ConfirmDialog
+      message={confirm?.message}
+      onConfirm={() => resolveConfirm(true)}
+      onCancel={() => resolveConfirm(false)}
+    />
+    {detailsLoading && (
+      <div className="details-loader-overlay">
+        <div className="details-loader-box">
+          <svg className="details-loader-spinner" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M12 2a10 10 0 0 1 10 10" />
+          </svg>
+          <span>Loading book details...</span>
+        </div>
+      </div>
+    )}
+    <ToastContainer toasts={toasts} onRemove={removeToast} />
+  </div>
+);
 }
 </file>
 
@@ -1189,50 +1214,27 @@ function toBookForm(book) {
 </file>
 
 <file path="src/components/BookModal.jsx">
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import { Modal } from "./common/Modal";
 import { FormInput } from "./common/FormInput";
 import { validateBookForm } from "../utils/helpers";
-import { api } from "../api";
 export function BookModal({ book, genres, onClose, onSave }) {
   if (!book) return null;
   const [form, setForm] = useState({ ...book, genreId: book.genreId || book.genre?.id || genres[0]?.id || "" });
   const [errors, setErrors] = useState({});
-  const [authors, setAuthors] = useState([]);
-  const [authorSearch, setAuthorSearch] = useState(book.author || "");
-  const [showAuthorDropdown, setShowAuthorDropdown] = useState(false);
-  const authorRef = useRef(null);
-  useEffect(() => {
-    api.authors().then(setAuthors).catch(() => {});
-  }, []);
-  useEffect(() => {
-    function handleClick(e) {
-      if (authorRef.current && !authorRef.current.contains(e.target)) {
-        setShowAuthorDropdown(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
-  const filteredAuthors = authors.filter((a) =>
-    a.name.toLowerCase().includes(authorSearch.toLowerCase())
-  );
   async function submit() {
-    const nextErrors = validateBookForm({ ...form, author: authorSearch || form.author });
+    const nextErrors = validateBookForm(form);
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       alert(Object.values(nextErrors).join("\n"));
       return;
     }
     try {
-      const authorName = (authorSearch.trim() || form.author?.trim() || "").trim();
-      const matchedAuthor = authors.find((a) => a.name.toLowerCase() === authorName.toLowerCase());
       const payload = {
         ...form,
         defaultLoanDays: Math.floor(Number(form.defaultLoanDays)),
         title: form.title.trim(),
-        author: authorName,
-        authorId: matchedAuthor ? matchedAuthor.id : undefined,
+        author: form.author.trim(),
         description: form.description?.trim() || "",
         coverUrl: form.coverUrl?.trim() || ""
       };
@@ -1244,33 +1246,7 @@ export function BookModal({ book, genres, onClose, onSave }) {
   return (
     <Modal title={book.id ? "Edit book" : "Add book"} onClose={onClose} onSubmit={submit}>
       <FormInput label="Title" required error={errors.title} value={form.title} onChange={(v) => setForm({ ...form, title: v })} />
-      <div className="field" ref={authorRef}>
-        <span>Author <b>*</b></span>
-        <div className="author-combobox">
-          <input
-            className="input"
-            value={authorSearch}
-            onChange={(e) => { setAuthorSearch(e.target.value); setShowAuthorDropdown(true); }}
-            onFocus={() => setShowAuthorDropdown(true)}
-            placeholder="Search or type author name"
-          />
-          {showAuthorDropdown && filteredAuthors.length > 0 && (
-            <div className="author-dropdown">
-              {filteredAuthors.map((a) => (
-                <button
-                  key={a.id}
-                  type="button"
-                  className="author-dropdown-item"
-                  onClick={() => { setAuthorSearch(a.name); setShowAuthorDropdown(false); }}
-                >
-                  {a.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        {errors.author && <small>{errors.author}</small>}
-      </div>
+      <FormInput label="Author" required error={errors.author} value={form.author} onChange={(v) => setForm({ ...form, author: v })} />
       <label className="field"><span>Genre <b>*</b></span><select className="select" value={form.genreId} onChange={(e) => setForm({ ...form, genreId: e.target.value })}>{genres.map((genre) => <option key={genre.id} value={genre.id}>{genre.name}</option>)}</select>{errors.genreId && <small>{errors.genreId}</small>}</label>
       <label className="field"><span>Condition <b>*</b></span><select className="select" value={form.condition} onChange={(e) => setForm({ ...form, condition: e.target.value })}><option value="like_new">Like new</option><option value="good">Good</option><option value="well_loved">Well loved</option><option value="damaged">Damaged</option></select></label>
       <FormInput
@@ -1422,6 +1398,55 @@ function SpinnerInline() {
 }
 </file>
 
+<file path="src/components/common/PageLoader.jsx">
+import React, { useState, useEffect } from "react";
+const dashboardMessages = [
+  { text: "Welcome back", icon: "👋" },
+  { text: "Preparing your dashboard", icon: "⚙️" },
+  { text: "Gathering your reading stats", icon: "📊" },
+  { text: "Loading your latest activity", icon: "📚" },
+  { text: "Syncing your bookshelf", icon: "🗂️" },
+  { text: "Calculating your reading progress", icon: "📈" },
+  { text: "Curating today's picks", icon: "✨" },
+  { text: "Almost ready", icon: "⏳" },
+  { text: "Putting the final touches", icon: "🧩" },
+  { text: "Good things take a moment", icon: "🌱" },
+  { text: "Thanks for your patience", icon: "🙏" },
+  { text: "Just a few seconds more", icon: "⏱️" },
+];
+export function PageLoader({ isDashboard = false }) {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    if (!isDashboard) return;
+    const id = setInterval(() => {
+      setIndex((i) => (i + 1) % dashboardMessages.length);
+    }, 2000);
+    return () => clearInterval(id);
+  }, [isDashboard]);
+  if (!isDashboard) {
+    return (
+      <div className="nav-loader-overlay">
+        <div className="dashboard-loader-spinner-wrap">
+          <div className="dashboard-loader-spinner" />
+        </div>
+        <p className="dashboard-loader-text">Loading...</p>
+      </div>
+    );
+  }
+  return (
+    <div className="nav-loader-overlay">
+      <div className="dashboard-loader-spinner-wrap">
+        <div className="dashboard-loader-spinner" />
+        <span className="dashboard-loader-emoji">{dashboardMessages[index].icon}</span>
+      </div>
+      <p key={index} className="dashboard-loader-text">
+        {dashboardMessages[index].text}
+      </p>
+    </div>
+  );
+}
+</file>
+
 <file path="src/components/common/Pagination.jsx">
 import React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -1463,7 +1488,50 @@ export function Pagination({ page, totalPages, totalElements, onPageChange }) {
 <file path="src/components/common/Panel.jsx">
 import React from "react";
 export function Panel({ title, badge, actions, children }) {
-  return <div className="panel"><div className="panel-head"><h3>{title}</h3><div style={{ display: "flex", gap: "8px", alignItems: "center" }}>{badge && <span className="chip">{badge}</span>}{actions}</div></div>{children}</div>;
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <h3>{title}</h3>
+        <div className="panel-head-actions" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          {badge && <span className="chip">{badge}</span>}
+          {actions}
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+</file>
+
+<file path="src/components/common/RefreshButton.jsx">
+import React, { useState } from "react";
+import { RotateCcw } from "lucide-react";
+export function RefreshButton({ onRefresh, title = "Refresh" }) {
+  const [refreshing, setRefreshing] = useState(false);
+  async function handleClick() {
+    if (refreshing || !onRefresh) return;
+    setRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+  return (
+    <button
+      type="button"
+      className="btn icon-only"
+      onClick={handleClick}
+      disabled={refreshing}
+      title={title}
+      aria-label={title}
+    >
+      <RotateCcw
+        size={16}
+        style={refreshing ? { animation: "btn-spin 0.7s linear infinite" } : undefined}
+      />
+    </button>
+  );
 }
 </file>
 
@@ -1724,11 +1792,11 @@ createRoot(document.getElementById("root")).render(<App />);
 
 <file path="src/pages/Borrowed.jsx">
 import React from "react";
-import { RotateCcw } from "lucide-react";
 import { Panel } from "../components/common/Panel";
 import { Table } from "../components/common/Table";
 import { Pagination } from "../components/common/Pagination";
 import { EmptyState } from "../components/common/EmptyState";
+import { RefreshButton } from "../components/common/RefreshButton";
 import { label, dateText } from "../utils/helpers";
 import { useState } from "react";
 function SpinnerInline() {
@@ -1751,15 +1819,10 @@ function ReturnButton({ loan, returnBook }) {
     </button>
   );
 }
-export function Borrowed({ page, onPageChange, onRefresh, returnBook, openDetails }) {
-  const refreshBtn = (
-    <button className="btn icon-only" onClick={onRefresh} title="Refresh" style={{ width: "32px", height: "32px", minHeight: "32px", padding: 0, border: "none", background: "transparent", color: "var(--muted)" }}>
-      <RotateCcw size={15} />
-    </button>
-  );
+export function Borrowed({ page, onPageChange, returnBook, openDetails, onRefresh }) {
   if (page.content.length === 0) {
     return (
-      <Panel title="Borrow Status" actions={refreshBtn}>
+      <Panel title="Borrow Status" actions={onRefresh && <RefreshButton onRefresh={onRefresh} title="Refresh borrow status" />}>
         <EmptyState
           icon="LibraryBig"
           title="No active reads"
@@ -1769,7 +1832,7 @@ export function Borrowed({ page, onPageChange, onRefresh, returnBook, openDetail
     );
   }
   return (
-    <Panel title="Borrow Status" actions={refreshBtn} >
+    <Panel title="Borrow Status" actions={onRefresh && <RefreshButton onRefresh={onRefresh} title="Refresh borrow status" />}>
       <Table headers={["Book", "Owner", "Borrowed", "Due", "Status", "Actions"]}>
         {page.content.map((loan) => (
           <tr key={loan.id}>
@@ -1799,6 +1862,7 @@ import { BookCard } from "../components/BookCard";
 import { Pagination } from "../components/common/Pagination";
 import { BookCardSkeleton } from "../components/common/Skeleton";
 import { EmptyState } from "../components/common/EmptyState";
+import { RefreshButton } from "../components/common/RefreshButton";
 const handleExportBooks = async () => {
   try {
     await api.exportBooks();
@@ -1806,9 +1870,17 @@ const handleExportBooks = async () => {
     alert(error.message);
   }
 };
+function SpinnerInline() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+      style={{ animation: "btn-spin 0.7s linear infinite", flexShrink: 0 }}>
+      <path d="M12 2a10 10 0 0 1 10 10" />
+    </svg>
+  );
+}
 export function Catalog({
   page, genres, filters, setFilters, searchTerm, setSearchTerm,
-  loading, me, openDetails, setRequestModal, setBookModal, returnBook, importBooks
+  loading, me, openDetails, setRequestModal, setBookModal, returnBook, importBooks, importing, onRefresh
 }) {
   const fileInputRef = useRef(null);
   const isAdmin = me?.role === "ADMIN";
@@ -1827,6 +1899,10 @@ export function Catalog({
     if (file && importBooks) importBooks(file);
     e.target.value = "";
   }
+  function handleImportClick() {
+    if (importing) return;
+    fileInputRef.current?.click();
+  }
   return (
   <section className="catalog-page">
     <div className="catalog-header">
@@ -1834,6 +1910,7 @@ export function Catalog({
         <h3>Books on the shelf</h3>
       </div>
       <div className="catalog-header-right">
+        {onRefresh && <RefreshButton onRefresh={onRefresh} title="Refresh catalog" />}
         {isAdmin && (
           <>
             <input
@@ -1842,9 +1919,10 @@ export function Catalog({
               ref={fileInputRef}
               onChange={handleFileChange}
               style={{ display: "none" }}
+              disabled={importing}
             />
-            <button className="btn" onClick={() => fileInputRef.current?.click()}>
-              <Upload size={15} /> Import
+            <button className="btn" onClick={handleImportClick} disabled={importing}>
+              {importing ? <><SpinnerInline /> Importing...</> : <><Upload size={15} /> Import</>}
             </button>
           </>
         )}
@@ -1953,7 +2031,7 @@ export function Dashboard({ stats, me, dailyThought, openDetails }) {
               <Sparkles size={14} />
               <span>Thought of the Day</span>
             </div>
-            <blockquote>"{dailyThought.quote || dailyThought.text || dailyThought.content || dailyThought.q}"</blockquote>
+            <blockquote>"{dailyThought.q}"</blockquote>
             <cite>— {dailyThought.author || dailyThought.by || dailyThought.a}</cite>
           </div>
         )}
@@ -2010,22 +2088,24 @@ export function Dashboard({ stats, me, dailyThought, openDetails }) {
             <h3>Your Latest Reading Logs</h3>
           </div>
           <div className="history-scroll-viewport">
-            {stats.latestReadings && stats.latestReadings.length > 0 ? (
-              stats.latestReadings.map((log) => (
-                <div key={log.id} className="reading-log-item-strip" onClick={() => openDetails(log.book)}>
-                  <div className="log-book-thumbnail" style={{ backgroundColor: log.book.coverColor || "var(--brand)" }}>
-                    {log.book.coverUrl ? <img src={log.book.coverUrl} alt={log.book.title} /> : log.book.title[0]}
-                  </div>
-                  <div className="log-book-details">
-                    <h4>{log.book.title}</h4>
-                    <p className="author-lbl">{log.book.author} · <span className="genre-tag-inline">{log.book.genreName}</span></p>
-                    <div className="timeline-meta-chips">
-                      <span className={`chip-status-lbl ${log.status}`}>{label(log.status)}</span>
-                      <span className="date-marker-lbl">Requested: {dateText(log.requestedAt)}</span>
+            {stats.latestReadings && stats.latestReadings.filter((log) => log.status !== "rejected").length > 0 ? (
+              stats.latestReadings
+                .filter((log) => log.status !== "rejected")
+                .map((log) => (
+                  <div key={log.id} className="reading-log-item-strip" onClick={() => openDetails(log.book)}>
+                    <div className="log-book-thumbnail" style={{ backgroundColor: log.book.coverColor || "var(--brand)" }}>
+                      {log.book.coverUrl ? <img src={log.book.coverUrl} alt={log.book.title} /> : log.book.title[0]}
+                    </div>
+                    <div className="log-book-details">
+                      <h4>{log.book.title}</h4>
+                      <p className="author-lbl">{log.book.author} · <span className="genre-tag-inline">{log.book.genreName}</span></p>
+                      <div className="timeline-meta-chips">
+                        <span className={`chip-status-lbl ${log.status}`}>{label(log.status)}</span>
+                        <span className="date-marker-lbl">Requested: {dateText(log.requestedAt)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                ))
             ) : (
               <div className="empty-logs-placeholder">
                 <Milestone size={32} />
@@ -2323,10 +2403,12 @@ export function ForgotPassword({ onBack, darkMode: darkModeProp, setDarkMode: se
                 </button>
                 {step === "email" && (
                     <>
-                        <div className="bn-auth-step-icon">
-                            <Mail size={26} />
+                        <div className="bn-auth-step-header">
+                            <div className="bn-auth-step-icon">
+                                <Mail size={26} />
+                            </div>
+                            <h2>Forgot password?</h2>
                         </div>
-                        <h2>Forgot password?</h2>
                         <p className="bn-auth-sub">Enter the email address associated with your account and we'll send you a one-time code.</p>
                         <form onSubmit={handleEmailSubmit} className="bn-auth-form">
                             <label className="bn-auth-field">
@@ -2351,10 +2433,12 @@ export function ForgotPassword({ onBack, darkMode: darkModeProp, setDarkMode: se
                 )}
                 {step === "otp" && (
                     <>
-                        <div className="bn-auth-step-icon">
-                            <KeyRound size={26} />
+                        <div className="bn-auth-step-header">
+                            <div className="bn-auth-step-icon">
+                                <KeyRound size={26} />
+                            </div>
+                            <h2>Enter OTP</h2>
                         </div>
-                        <h2>Enter OTP</h2>
                         <p className="bn-auth-sub">We sent a 6-digit code to <strong>{email}</strong>. It expires in <strong style={{ color: otpSecondsLeft <= 20 ? "#B6452F" : "var(--auth-gold)" }}>{formatTime(otpSecondsLeft)}</strong>.</p>
                         <form onSubmit={handleOtpSubmit} className="bn-auth-form">
                             <div className="bn-auth-field">
@@ -2431,10 +2515,12 @@ export function ForgotPassword({ onBack, darkMode: darkModeProp, setDarkMode: se
                 )}
                 {step === "reset" && (
                     <>
-                        <div className="bn-auth-step-icon">
-                            <Lock size={26} />
+                        <div className="bn-auth-step-header">
+                            <div className="bn-auth-step-icon">
+                                <Lock size={26} />
+                            </div>
+                            <h2>Set new password</h2>
                         </div>
-                        <h2>Set new password</h2>
                         <p className="bn-auth-sub">Choose a strong new password for your account.</p>
                         <form onSubmit={handleResetSubmit} className="bn-auth-form">
                             <label className="bn-auth-field">
@@ -2587,19 +2673,14 @@ export const Home = ({ stats, setView, setBookModal }) => {
 
 <file path="src/pages/LoanHistory.jsx">
 import React from "react";
-import { RotateCcw } from "lucide-react";
 import { Panel } from "../components/common/Panel";
 import { Table } from "../components/common/Table";
 import { Pagination } from "../components/common/Pagination";
+import { RefreshButton } from "../components/common/RefreshButton";
 import { label, dateText } from "../utils/helpers";
 export function LoanHistory({ page, onPageChange, onRefresh }) {
-  const refreshBtn = (
-    <button className="btn icon-only" onClick={onRefresh} title="Refresh" style={{ width: "32px", height: "32px", minHeight: "32px", padding: 0, border: "none", background: "transparent", color: "var(--muted)" }}>
-      <RotateCcw size={15} />
-    </button>
-  );
   return (
-    <Panel title="Borrowing History" actions={refreshBtn}>
+    <Panel title="Borrowing History" actions={onRefresh && <RefreshButton onRefresh={onRefresh} title="Refresh history" />}>
       <Table headers={["Book", "Borrower", "Owner", "Status", "Opened", "Closed"]}>
         {page.content.map((row) => (
           <tr key={row.id}>
@@ -2966,35 +3047,17 @@ export function Login({ onLogin }) {
 </file>
 
 <file path="src/pages/MyBooks.jsx">
-import React, { useState } from "react";
-import { RotateCcw } from "lucide-react";
+import React from "react";
 import { Panel } from "../components/common/Panel";
 import { Table } from "../components/common/Table";
 import { Pagination } from "../components/common/Pagination";
 import { EmptyState } from "../components/common/EmptyState";
+import { RefreshButton } from "../components/common/RefreshButton";
 import { label, toBookForm } from "../utils/helpers";
-function SpinnerInline() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-      style={{ animation: "btn-spin 0.7s linear infinite", flexShrink: 0 }}>
-      <path d="M12 2a10 10 0 0 1 10 10" />
-    </svg>
-  );
-}
-export function MyBooks({ page, onPageChange, onRefresh, setBookModal, deleteBook, openDetails }) {
-  const [refreshing, setRefreshing] = useState(false);
-  async function handleRefresh() {
-    setRefreshing(true);
-    try { await onRefresh(); } finally { setRefreshing(false); }
-  }
-  const refreshBtn = (
-    <button className="btn icon-only" onClick={handleRefresh} title="Refresh" disabled={refreshing} style={{ width: "32px", height: "32px", minHeight: "32px", padding: 0, border: "none", background: "transparent", color: "var(--muted)", opacity: refreshing ? 0.6 : 1 }}>
-      {refreshing ? <SpinnerInline /> : <RotateCcw size={15} />}
-    </button>
-  );
+export function MyBooks({ page, onPageChange, setBookModal, deleteBook, openDetails, onRefresh }) {
   if (page.content.length === 0) {
     return (
-      <Panel title="My Shelf" actions={refreshBtn}>
+      <Panel title="My Shelf" actions={onRefresh && <RefreshButton onRefresh={onRefresh} title="Refresh my shelf" />}>
         <EmptyState
           icon="BookPlus"
           title="Your library is empty"
@@ -3006,7 +3069,7 @@ export function MyBooks({ page, onPageChange, onRefresh, setBookModal, deleteBoo
     );
   }
   return (
-    <Panel title="My Shelf" actions={refreshBtn} >
+    <Panel title="My Shelf" actions={onRefresh && <RefreshButton onRefresh={onRefresh} title="Refresh my shelf" />}>
       <Table headers={["Book", "Genre", "Status", "Actions"]}>
         {page.content.map((book) => (
           <tr key={book.id}>
@@ -3020,7 +3083,7 @@ export function MyBooks({ page, onPageChange, onRefresh, setBookModal, deleteBoo
                   <button className="btn danger" onClick={() => deleteBook(book.id)}>Delete</button>
                 </>
               )}
-              <button className="btn" onClick={() => openDetails(book)}>View</button>
+              <button className="btn" onClick={() => openDetails(book)}>View Book</button>
             </div></td>
           </tr>
         ))}
@@ -3035,11 +3098,11 @@ export function MyBooks({ page, onPageChange, onRefresh, setBookModal, deleteBoo
 
 <file path="src/pages/Requests.jsx">
 import React, { useState } from "react";
-import { RotateCcw } from "lucide-react";
 import { Panel } from "../components/common/Panel";
 import { Table } from "../components/common/Table";
 import { Pagination } from "../components/common/Pagination";
 import { EmptyState } from "../components/common/EmptyState";
+import { RefreshButton } from "../components/common/RefreshButton";
 import { label, dateText } from "../utils/helpers";
 function SpinnerInline() {
   return (
@@ -3141,7 +3204,7 @@ function RequestRow({ row, me, approve, reject, openDetails }) {
               </>
             )}
             <button className="btn" onClick={() => openDetails(row.book)}>
-              Book
+              View Book
             </button>
           </div>
         </td>
@@ -3182,18 +3245,8 @@ function RequestRow({ row, me, approve, reject, openDetails }) {
     </>
   );
 }
-export function Requests({ page, onPageChange, onRefresh, me, approve, reject, openDetails }) {
+export function Requests({ page, onPageChange, me, approve, reject, openDetails, onRefresh }) {
   const [filter, setFilter] = useState("all");
-  const [refreshing, setRefreshing] = useState(false);
-  async function handleRefresh() {
-    setRefreshing(true);
-    try { await onRefresh(); } finally { setRefreshing(false); }
-  }
-  const refreshBtn = (
-    <button className="btn icon-only" onClick={handleRefresh} title="Refresh" disabled={refreshing} style={{ width: "32px", height: "32px", minHeight: "32px", padding: 0, border: "none", background: "transparent", color: "var(--muted)", opacity: refreshing ? 0.6 : 1 }}>
-      {refreshing ? <SpinnerInline /> : <RotateCcw size={15} />}
-    </button>
-  );
   const filteredContent = page.content.filter((row) => {
     if (filter === "mine") return row.requester.id === me.id;
     if (filter === "owner") return row.owner.id === me.id;
@@ -3201,7 +3254,7 @@ export function Requests({ page, onPageChange, onRefresh, me, approve, reject, o
   });
   if (page.content.length === 0) {
     return (
-      <Panel title="Borrow Requests" actions={refreshBtn}>
+      <Panel title="Borrow Requests" actions={onRefresh && <RefreshButton onRefresh={onRefresh} title="Refresh requests" />}>
         <EmptyState
           icon="ClipboardCheck"
           title="No requests yet"
@@ -3212,7 +3265,7 @@ export function Requests({ page, onPageChange, onRefresh, me, approve, reject, o
   }
   return (
     <div className="request-container">
-      <Panel title="Borrow Requests" actions={refreshBtn}>
+      <Panel title="Borrow Requests" actions={onRefresh && <RefreshButton onRefresh={onRefresh} title="Refresh requests" />}>
         <div className="request-filters">
           <button
             className={`filter-btn ${filter === "all" ? "active" : ""}`}
@@ -4533,40 +4586,6 @@ th:last-child {
     font-size: 16px;
   }
 }
-.author-combobox {
-  position: relative;
-  width: 100%;
-}
-.author-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: 100;
-  max-height: 200px;
-  overflow-y: auto;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
-  margin-top: 4px;
-}
-.author-dropdown-item {
-  display: block;
-  width: 100%;
-  padding: 10px 14px;
-  border: none;
-  background: transparent;
-  color: var(--ink);
-  text-align: left;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.1s;
-}
-.author-dropdown-item:hover {
-  background: var(--brand-soft);
-  color: var(--brand-dark);
-}
 .toast-container {
   position: fixed;
   bottom: 24px;
@@ -5796,12 +5815,17 @@ th:last-child {
   width: 100%;
 }
 .dashboard-loader {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 60vh;
-  gap: 20px;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 99999 !important;
+  background: var(--bg) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 .dashboard-loader-spinner-wrap {
   position: relative;
@@ -5810,6 +5834,7 @@ th:last-child {
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-bottom: 20px;
 }
 .dashboard-loader-spinner {
   position: absolute;
@@ -6649,6 +6674,12 @@ th:last-child {
   margin-bottom: 18px;
   font-size: 13.5px;
 }
+.bn-auth-step-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 6px;
+}
 .bn-auth-step-icon {
   width: 50px;
   height: 50px;
@@ -6656,7 +6687,7 @@ th:last-child {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 14px;
+  flex-shrink: 0;
   color: var(--auth-gold);
   background: rgba(201, 145, 46, 0.12);
 }
@@ -6750,6 +6781,10 @@ th:last-child {
 .welcome-message-node h1,
 .new-hero-title {
   color: var(--ink);
+}
+.catalog-header-left h3{
+  color: var(--ink);
+  font-size: 50px;
 }
 .nav-item,
 .btn,
@@ -7015,6 +7050,7 @@ tbody tr:hover,
   left: 0;
   z-index: 90;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   background: rgba(250, 246, 235, 0.86);
@@ -7371,27 +7407,6 @@ ALTER TABLE `reviews` ADD CONSTRAINT `reviews_reviewer_id_fkey` FOREIGN KEY (`re
 ALTER TABLE `audit_logs` ADD CONSTRAINT `audit_logs_actor_id_fkey` FOREIGN KEY (`actor_id`) REFERENCES `users`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 </file>
 
-<file path="prisma/migrations/20260629000000_add_author_model/migration.sql">
-CREATE TABLE "authors" (
-    "id" TEXT NOT NULL,
-    "name" VARCHAR(180) NOT NULL,
-    "created_at" TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "authors_pkey" PRIMARY KEY ("id")
-);
-CREATE UNIQUE INDEX "authors_name_key" ON "authors"("name");
-INSERT INTO "authors" ("id", "name")
-SELECT gen_random_uuid()::text, "author"
-FROM (SELECT DISTINCT "author" FROM "books") AS distinct_authors;
-ALTER TABLE "books" ADD COLUMN "author_id" TEXT;
-UPDATE "books" b
-SET "author_id" = a."id"
-FROM "authors" a
-WHERE b."author" = a."name";
-ALTER TABLE "books" ALTER COLUMN "author_id" SET NOT NULL;
-ALTER TABLE "books" DROP COLUMN "author";
-ALTER TABLE "books" ADD CONSTRAINT "books_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "authors"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-</file>
-
 <file path="prisma/migrations/migration_lock.toml">
 # Please do not edit this file manually
 # It should be added in your version-control system (e.g., Git)
@@ -7466,21 +7481,12 @@ model Genre {
   @@map("genres")
 }
 
-model Author {
-  id        String   @id @default(uuid())
-  name      String   @unique @db.VarChar(180)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  books     Book[]
-
-  @@map("authors")
-}
-
 model Book {
   id                String   @id @default(uuid())
   ownerId           String   @map("owner_id")
   genreId           String?  @map("genre_id")
-  authorId          String   @map("author_id")
   title             String   @db.VarChar(220)
+  author            String   @default("Unknown") @db.VarChar(180) // Added back as a clean text column
   isbn              String?  @db.VarChar(30)
   description       String?  @db.Text
   condition         String   @default("good") @db.VarChar(40)
@@ -7494,7 +7500,6 @@ model Book {
 
   owner             User     @relation("BookOwner", fields: [ownerId], references: [id])
   genre             Genre?   @relation(fields: [genreId], references: [id])
-  author            Author   @relation(fields: [authorId], references: [id])
   transactions      BookTransaction[]
   history           BookHistory[]
   notifications     Notification[]
@@ -7651,12 +7656,11 @@ export class AppController {
         include: {
           genre: true,
           owner: true,
-          author: true,
         },
       });
       const result = books.map((book) => ({
         Title: book.title,
-        Author: book.author?.name ?? "",
+        Author: book.author ?? "",
         Genre: book.genre?.name ?? "",
         Owner: book.owner?.fullName ?? "",
         AvailabilityStatus: book.availabilityStatus,
@@ -7892,36 +7896,7 @@ export class AppController {
     } catch (error: any) {
       return AppController.handleError(res, error);
     }
-  }
-  static async authors(req: AuthRequest, res: Response) {
-    try {
-      const { search } = req.query;
-      const where: any = {};
-      if (search) {
-        where.name = { contains: queryString(search), mode: "insensitive" };
-      }
-      const result = await prisma.author.findMany({
-        where,
-        orderBy: { name: "asc" },
-      });
-      return res.json(result);
-    } catch (error: any) {
-      return AppController.handleError(res, error);
-    }
-  }
-  static async createAuthor(req: AuthRequest, res: Response) {
-    try {
-      const { name } = req.body;
-      if (!name?.trim()) throw new Error("Author name is required.");
-      const existing = await prisma.author.findUnique({ where: { name: name.trim() } });
-      if (existing) return res.json(existing);
-      const author = await prisma.author.create({ data: { name: name.trim() } });
-      return res.status(201).json(author);
-    } catch (error: any) {
-      return AppController.handleError(res, error);
-    }
-  }
-}
+  }}
 </file>
 
 <file path="src/controllers/auth.controller.ts">
@@ -8086,8 +8061,6 @@ app.post("/api/books", authenticate, AppController.createBook);
 app.post("/api/books/import", authenticate, AppController.importBooks);
 app.patch("/api/books/:id", authenticate, AppController.updateBook);
 app.delete("/api/books/:id", authenticate, AppController.deleteBook);
-app.get("/api/authors", authenticate, AppController.authors);
-app.post("/api/authors", authenticate, AppController.createAuthor);
 app.get("/api/borrow-requests", authenticate, AppController.myRequests);
 app.post("/api/borrow-requests", authenticate, AppController.requestBook);
 app.post("/api/borrow-requests/:id/approve", authenticate, AppController.approveRequest);
@@ -8101,16 +8074,15 @@ app.get("/api/health", (req, res) => {
 });
 app.get("/api/quote/today", async (req, res) => {
   try {
-    const response = await fetch("https://dummyjson.com/quotes/random");
+    const response = await fetch("https://zenquotes.io/api/today");
     if (!response.ok) {
       return res.status(response.status).json({
         message: "ZenQuotes API failed",
-        status: response.status,
       });
     }
-    const data = await response.json();
-    res.json(data);
-  } catch (error: any) {
+    const data: any = await response.json();
+    res.json(data[0]);
+  } catch (error) {
     logError(error, req);
     res.status(getStatusCode(error)).json({
       message: getSafeErrorMessage(error),
@@ -8368,7 +8340,7 @@ export class BookService {
     if (search) {
       where.OR = [
         { title: { contains: search, mode: "insensitive" } },
-        { author: { name: { contains: search, mode: "insensitive" } } },
+        { author: { contains: search, mode: "insensitive" } },
         { description: { contains: search, mode: "insensitive" } },
         { owner: { fullName: { contains: search, mode: "insensitive" } } },
       ];
@@ -8382,7 +8354,6 @@ export class BookService {
         include: {
           owner: true,
           genre: true,
-          author: true,
         },
         orderBy,
         skip: currentPage * pageSize,
@@ -8422,7 +8393,6 @@ export class BookService {
         include: {
           owner: true,
           genre: true,
-          author: true,
         },
         orderBy: { createdAt: "desc" },
         skip: currentPage * pageSize,
@@ -8444,7 +8414,6 @@ export class BookService {
       include: {
         owner: true,
         genre: true,
-        author: true,
       },
     });
     if (!book) throw new Error("Book not found");
@@ -8455,18 +8424,10 @@ export class BookService {
     const coverColor = this.pickCoverColor(payload.title);
     const book = await prisma.$transaction(
       async (tx) => {
-        const author = payload.authorId
-          ? await tx.author.findUnique({ where: { id: payload.authorId } })
-          : await tx.author.upsert({
-              where: { name: payload.author.trim() },
-              update: {},
-              create: { name: payload.author.trim() },
-            });
-        if (!author) throw new Error("Author not found.");
         const createdBook = await tx.book.create({
           data: {
             title: payload.title.trim(),
-            authorId: author.id,
+            author: payload.author.trim(),
             genreId: payload.genreId,
             condition: payload.condition || "good",
             defaultLoanDays: Number(payload.defaultLoanDays) || 14,
@@ -8480,7 +8441,6 @@ export class BookService {
           include: {
             owner: true,
             genre: true,
-            author: true,
           },
         });
         await tx.bookHistory.create({
@@ -8502,7 +8462,7 @@ export class BookService {
     await StatsCacheService.adjustFields({ totalBooks: 1, availableBooks: 1 });
     return this.mapBook(book);
   }
-static async importCsv(actorId: string, rows: any[]) {
+  static async importCsv(actorId: string, rows: any[]) {
     const results: {
       imported: number;
       skipped: number;
@@ -8556,15 +8516,10 @@ static async importCsv(actorId: string, rows: any[]) {
             if (!genre) {
               genre = await tx.genre.create({ data: { name: genreName } });
             }
-            const authorRecord = await tx.author.upsert({
-              where: { name: author },
-              update: {},
-              create: { name: author },
-            });
             const createdBook = await tx.book.create({
               data: {
                 title,
-                authorId: authorRecord.id,
+                author,
                 genreId: genre.id,
                 isbn,
                 description,
@@ -8623,19 +8578,11 @@ static async importCsv(actorId: string, rows: any[]) {
         if (book.ownerId !== userId && !isAdmin) {
           throw new Error("Unauthorized");
         }
-        const author = payload.authorId
-          ? await tx.author.findUnique({ where: { id: payload.authorId } })
-          : await tx.author.upsert({
-              where: { name: payload.author.trim() },
-              update: {},
-              create: { name: payload.author.trim() },
-            });
-        if (!author) throw new Error("Author not found.");
         const result = await tx.book.update({
           where: { id },
           data: {
             title: payload.title.trim(),
-            authorId: author.id,
+            author: payload.author.trim(),
             genreId: payload.genreId,
             condition: payload.condition,
             defaultLoanDays: Number(payload.defaultLoanDays),
@@ -8645,7 +8592,6 @@ static async importCsv(actorId: string, rows: any[]) {
           include: {
             owner: true,
             genre: true,
-            author: true,
           },
         });
         await tx.bookHistory.create({
@@ -8729,7 +8675,7 @@ static async importCsv(actorId: string, rows: any[]) {
   }
   private static validateBookPayload(payload: any) {
     if (!payload.title?.trim()) throw new Error("Title is required.");
-    if (!payload.author?.trim() && !payload.authorId) throw new Error("Author is required.");
+    if (!payload.author?.trim()) throw new Error("Author is required.");
     if (!payload.genreId) throw new Error("Genre is required.");
     const loanDays = Number(payload.defaultLoanDays);
     if (!Number.isInteger(loanDays) || loanDays < 3 || loanDays > 60) {
@@ -8739,11 +8685,15 @@ static async importCsv(actorId: string, rows: any[]) {
     }
   }
   private static mapBook(book: any) {
+    const myTransactions = Array.isArray(book.transactions) ? book.transactions : [];
+    const isBorrowedByMe = myTransactions.some(
+      (t: any) => t.status === "active" || t.status === "overdue"
+    );
+    const isPendingByMe = myTransactions.some((t: any) => t.status === "pending");
     return {
       id: book.id,
       title: book.title,
-      author: book.author?.name || book.author,
-      authorId: book.author?.id || book.authorId,
+      author: book.author,
       isbn: book.isbn,
       description: book.description,
       condition: book.condition,
@@ -8754,6 +8704,8 @@ static async importCsv(actorId: string, rows: any[]) {
       coverUrl: book.coverUrl,
       createdAt: book.createdAt,
       updatedAt: book.updatedAt,
+      isBorrowedByMe,
+      isPendingByMe,
       owner: book.owner
         ? {
           id: book.owner.id,
@@ -8852,7 +8804,7 @@ export class LookupService {
     ]);
     const rawLatestReadings = await prisma.bookTransaction.findMany({
       where: { requesterId: userId },
-      include: { book: { include: { genre: true, author: true } } },
+      include: { book: { include: { genre: true } } },
       orderBy: { requestedAt: "desc" },
       take: 15,
     });
@@ -8866,7 +8818,7 @@ export class LookupService {
       book: {
         id: t.book.id,
         title: t.book.title,
-        author: t.book.author?.name ?? null,
+        author: t.book.author ?? null,
         coverColor: t.book.coverColor,
         coverUrl: t.book.coverUrl,
         genreName: t.book.genre?.name ?? "N/A"
@@ -8882,7 +8834,7 @@ export class LookupService {
     }];
     const activeBooks = await prisma.book.findMany({
       where: { visibilityStatus: "visible" },
-      include: { owner: true, genre: true, author: true }
+      include: { owner: true, genre: true }
     });
     let bookOfTheDay = null;
     if (activeBooks.length > 0) {
@@ -8892,7 +8844,7 @@ export class LookupService {
       bookOfTheDay = {
         id: chosen.id,
         title: chosen.title,
-        author: chosen.author?.name ?? null,
+        author: chosen.author ?? null,
         coverColor: chosen.coverColor,
         coverUrl: chosen.coverUrl,
         description: chosen.description,
@@ -9001,7 +8953,7 @@ export class WorkflowService {
       prisma.bookTransaction.findMany({
         where,
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -9028,7 +8980,7 @@ export class WorkflowService {
       prisma.bookTransaction.findMany({
         where,
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -9052,7 +9004,7 @@ export class WorkflowService {
       prisma.bookTransaction.findMany({
         where,
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -9100,7 +9052,7 @@ export class WorkflowService {
           requestedAt: new Date(),
         },
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -9129,7 +9081,7 @@ export class WorkflowService {
       const transaction = await tx.bookTransaction.findUnique({
         where: { id: transactionId },
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -9153,7 +9105,7 @@ export class WorkflowService {
           dueAt,
         },
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -9205,7 +9157,7 @@ export class WorkflowService {
       const transaction = await tx.bookTransaction.findUnique({
         where: { id: transactionId },
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -9224,7 +9176,7 @@ export class WorkflowService {
           respondedAt: now,
         },
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -9273,7 +9225,7 @@ export class WorkflowService {
       const transaction = await tx.bookTransaction.findUnique({
         where: { id: transactionId },
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -9296,7 +9248,7 @@ export class WorkflowService {
           returnedAt: new Date(),
         },
         include: {
-          book: { include: { owner: true, genre: true, author: true } },
+          book: { include: { owner: true, genre: true } },
           requester: true,
           owner: true,
         },
@@ -9339,7 +9291,7 @@ export class WorkflowService {
         ? {
             id: transaction.book.id,
             title: transaction.book.title,
-            author: transaction.book.author?.name ?? null,
+            author: transaction.book.author ?? null,
             coverUrl: transaction.book.coverUrl,
             coverColor: transaction.book.coverColor,
             owner: transaction.book.owner
@@ -9427,7 +9379,7 @@ export function getSafeErrorMessage(error: any): string {
       case "P2003":
         return "This action cannot be completed because related data exists.";
       default:
-        return "Database operation failed. Please try again.";
+        return "Server is down. Please try again.";
     }
   }
   if (isDatabaseError(error)) {
@@ -9547,6 +9499,23 @@ export async function callWorkatoSignupWebhook(user: any) {
 }
 </file>
 
+<file path="index.html">
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@500;700&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+    <title>Book Nook</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+</file>
+
 <file path="package.json">
 {
   "name": "booknook-frontend",
@@ -9591,6 +9560,88 @@ export async function callWorkatoSignupWebhook(user: any) {
     "three": "^0.185.0",
     "xlsx": "^0.18.5",
     "vite": "^5.4.11"
+  }
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "backend-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "prisma:generate": "prisma generate"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "@types/cookie-parser": "^1.4.8",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "prisma": "^6.2.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.5.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^6.0.3"
+  }
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "backend-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "prisma:generate": "prisma generate"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "@types/cookie-parser": "^1.4.8",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "prisma": "^6.2.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.5.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^6.0.3"
   }
 }
 </file>
@@ -9605,88 +9656,6 @@ node_modules
 /scripts/
 /Docker/
 *.txt
-</file>
-
-<file path="package.json">
-{
-  "name": "backend-node",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "ts-node src/index.ts",
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
-    "prisma:generate": "prisma generate"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "@prisma/client": "^6.2.1",
-    "@types/cookie-parser": "^1.4.8",
-    "bcryptjs": "^3.0.3",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "prisma": "^6.2.1",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^25.9.3",
-    "eslint": "^10.5.0",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^6.0.3"
-  }
-}
-</file>
-
-<file path="package.json">
-{
-  "name": "backend-node",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "ts-node src/index.ts",
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
-    "prisma:generate": "prisma generate"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "@prisma/client": "^6.2.1",
-    "@types/cookie-parser": "^1.4.8",
-    "bcryptjs": "^3.0.3",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "prisma": "^6.2.1",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^25.9.3",
-    "eslint": "^10.5.0",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^6.0.3"
-  }
-}
 </file>
 
 </files>

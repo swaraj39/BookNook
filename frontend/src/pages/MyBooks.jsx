@@ -34,7 +34,7 @@ export function MyBooks({ page, onPageChange, setBookModal, deleteBook, openDeta
                   <button className="btn danger" onClick={() => deleteBook(book.id)}>Delete</button>
                 </>
               )}
-              <button className="btn" onClick={() => openDetails(book)}>View</button>
+              <button className="btn" onClick={() => openDetails(book)}>View Book</button>
             </div></td>
           </tr>
         ))}
