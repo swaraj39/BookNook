@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import {
   BookOpen,
@@ -21,6 +20,7 @@ import {
   ChevronRight,
   Info
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import { api } from "./api";
 import { Profile } from "./components/Profile";
 import { Stats } from "./components/Stats";
@@ -66,12 +66,8 @@ const blankBook = {
 // How many books to request from the API in one shot when we load the
 // catalog. We fetch everything that matches search/genre/sort ONCE and then
 // filter/paginate the "All / Available / Request Pending / Borrowed by me /
-// Unavailable" capsules entirely on the client, so switching capsules never
-// hits the network.
 const CATALOG_FETCH_SIZE = 1000;
 const CATALOG_PAGE_SIZE = 20;
-// Mirrors the availability logic that used to live server-side so that
-// switching capsules client-side produces the exact same results as before.
 function matchesCapsule(book, capsule) {
   switch (capsule) {
     case "available":
@@ -255,9 +251,6 @@ export default function App() {
   const [me, setMe] = useState(null);
   const [stats, setStats] = useState(null);
   const [genres, setGenres] = useState([]);
-  // Raw, unfiltered list of books matching the current search/genre/sort.
-  // Fetched once per "visit" to Browse (or when search/genre/sort change),
-  // never re-fetched when the availability capsule is toggled.
   const [catalogBooks, setCatalogBooks] = useState([]);
   const [requestsPage, setRequestsPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
   const [myBooksPage, setMyBooksPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
@@ -272,6 +265,7 @@ export default function App() {
   const [toasts, setToasts] = useState([]);
   const [pageLoading, setPageLoading] = useState(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [dailyThought, setDailyThought] = useState(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
@@ -327,8 +321,8 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-      fetch("https://booknook-gfb8.onrender.com/api/quote/today")
-      // fetch(`http://localhost:8080/api/quote/today`)
+      // fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+      fetch(`http://localhost:8080/api/quote/today`)
         .then((response) => response.ok ? response.json() : null)
         .then((quote) => {
           if (quote) setDailyThought(quote);
@@ -362,16 +356,10 @@ export default function App() {
     }, 400);
     return () => clearTimeout(timer);
   }, [searchTerm]);
-  // Hits the API when the user lands on Browse, and again whenever the
-  // search text, genre, or sort order change (those need the server's
-  // search/sort). It deliberately does NOT depend on filters.availability
-  // or filters.page - toggling a capsule or flipping pages never calls the
-  // API, it just re-filters/re-slices the already-fetched list above.
   useEffect(() => {
     if (isAuthenticated && view === "catalog") {
       loadCatalogFromApi();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, view, filters.search, filters.genreId, filters.sort]);
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -472,8 +460,8 @@ export default function App() {
   async function handleLogout() {
     setShowProfileDropdown(false);
     try {
-      await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
-      // await fetch("http://localhost:8080/api/auth/logout", {
+      // await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
+      await fetch("http://localhost:8080/api/auth/logout", {
         method: "POST",
         credentials: "include",
       });
@@ -500,11 +488,6 @@ async function loadBootstrap() {
     notify(error.message, "error");
   }
 }
-// Fetches EVERY book matching the current search/genre/sort (ignoring the
-// availability capsule entirely) and caches it in `catalogBooks`. This is
-// the only place that calls the books API for Browse - it runs when the
-// user navigates to Browse, when search/genre/sort change, or when the
-// user hits the manual refresh button on the catalog header.
 async function loadCatalogFromApi() {
   try {
     setCatalogLoading(true);
@@ -661,6 +644,31 @@ async function returnBook(id, bookTitle) {
     }
   });
 }
+async function importBooks(file) {
+  setImporting(true);
+  try {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const firstSheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[firstSheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+    if (rows.length === 0) {
+      notify("That file doesn't have any rows to import.", "error");
+      return;
+    }
+    const result = await api.importBooks(rows);
+    const { imported = 0, skipped = 0, failed = 0 } = result || {};
+    const parts = [`${imported} book${imported === 1 ? "" : "s"} imported`];
+    if (skipped) parts.push(`${skipped} skipped`);
+    if (failed) parts.push(`${failed} failed`);
+    notify(parts.join(", ") + ".", failed ? "error" : "success");
+    await reloadCurrentView();
+  } catch (error) {
+    notify(error.message, "error");
+  } finally {
+    setImporting(false);
+  }
+}
 function notify(message, type = "success") {
   const id = Math.random().toString(36).substring(2, 9);
   setToasts((prev) => [...prev, { id, message, type }]);
@@ -802,6 +810,8 @@ return (
           setRequestModal={setRequestModal}
           setBookModal={setBookModal}
           returnBook={returnBook}
+          importBooks={importBooks}
+          importing={importing}
           onRefresh={loadCatalogFromApi}
         />
       )}
