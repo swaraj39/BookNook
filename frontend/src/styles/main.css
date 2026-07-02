@@ -2598,20 +2598,7 @@ th:last-child {
   width: 100%;
 }
 /* Enforce strict full-screen view-blocking properties */
-.dashboard-loader, .nav-loader-overlay {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  z-index: 99999 !important;
-  background: var(--bg) !important;
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-.nav-loader-overlay {
+.dashboard-loader {
   position: fixed !important;
   top: 0 !important;
   left: 0 !important;
@@ -3573,15 +3560,20 @@ th:last-child {
   margin-bottom: 18px;
   font-size: 13.5px;
 }
+.bn-auth-step-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 6px;
+}
 .bn-auth-step-icon {
   width: 50px;
   height: 50px;
   border-radius: 14px;
   display: flex;
-  /* flex-direction: row; */
   align-items: center;
   justify-content: center;
-  margin-bottom: 14px;
+  flex-shrink: 0;
   color: var(--auth-gold);
   background: rgba(201, 145, 46, 0.12);
 }

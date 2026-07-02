@@ -145,10 +145,12 @@ export function ForgotPassword({ onBack, darkMode: darkModeProp, setDarkMode: se
                 </button>
                 {step === "email" && (
                     <>
-                        <div className="bn-auth-step-icon">
-                            <Mail size={26} />
+                        <div className="bn-auth-step-header">
+                            <div className="bn-auth-step-icon">
+                                <Mail size={26} />
+                            </div>
+                            <h2>Forgot password?</h2>
                         </div>
-                        <h2>Forgot password?</h2>
                         <p className="bn-auth-sub">Enter the email address associated with your account and we'll send you a one-time code.</p>
                         <form onSubmit={handleEmailSubmit} className="bn-auth-form">
                             <label className="bn-auth-field">
@@ -173,10 +175,12 @@ export function ForgotPassword({ onBack, darkMode: darkModeProp, setDarkMode: se
                 )}
                 {step === "otp" && (
                     <>
-                        <div className="bn-auth-step-icon">
-                            <KeyRound size={26} />
+                        <div className="bn-auth-step-header">
+                            <div className="bn-auth-step-icon">
+                                <KeyRound size={26} />
+                            </div>
+                            <h2>Enter OTP</h2>
                         </div>
-                        <h2>Enter OTP</h2>
                         <p className="bn-auth-sub">We sent a 6-digit code to <strong>{email}</strong>. It expires in <strong style={{ color: otpSecondsLeft <= 20 ? "#B6452F" : "var(--auth-gold)" }}>{formatTime(otpSecondsLeft)}</strong>.</p>
                         <form onSubmit={handleOtpSubmit} className="bn-auth-form">
                             <div className="bn-auth-field">
@@ -253,10 +257,12 @@ export function ForgotPassword({ onBack, darkMode: darkModeProp, setDarkMode: se
                 )}
                 {step === "reset" && (
                     <>
-                        <div className="bn-auth-step-icon">
-                            <Lock size={26} />
+                        <div className="bn-auth-step-header">
+                            <div className="bn-auth-step-icon">
+                                <Lock size={26} />
+                            </div>
+                            <h2>Set new password</h2>
                         </div>
-                        <h2>Set new password</h2>
                         <p className="bn-auth-sub">Choose a strong new password for your account.</p>
                         <form onSubmit={handleResetSubmit} className="bn-auth-form">
                             <label className="bn-auth-field">

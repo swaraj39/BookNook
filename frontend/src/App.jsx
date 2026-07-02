@@ -833,7 +833,7 @@ return (
         />
       )}
     </main>
-    {pageLoading && <PageLoader />}
+    {pageLoading && <PageLoader isDashboard={pageLoading === "dashboard"} />}
     {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
     {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
     <ConfirmDialog

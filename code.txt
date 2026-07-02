@@ -310,6 +310,7 @@ import {
   ChevronRight,
   Info
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import { api } from "./api";
 import { Profile } from "./components/Profile";
 import { Stats } from "./components/Stats";
@@ -554,6 +555,7 @@ export default function App() {
   const [toasts, setToasts] = useState([]);
   const [pageLoading, setPageLoading] = useState(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [dailyThought, setDailyThought] = useState(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
@@ -931,6 +933,31 @@ async function returnBook(id, bookTitle) {
     }
   });
 }
+async function importBooks(file) {
+  setImporting(true);
+  try {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const firstSheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[firstSheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+    if (rows.length === 0) {
+      notify("That file doesn't have any rows to import.", "error");
+      return;
+    }
+    const result = await api.importBooks(rows);
+    const { imported = 0, skipped = 0, failed = 0 } = result || {};
+    const parts = [`${imported} book${imported === 1 ? "" : "s"} imported`];
+    if (skipped) parts.push(`${skipped} skipped`);
+    if (failed) parts.push(`${failed} failed`);
+    notify(parts.join(", ") + ".", failed ? "error" : "success");
+    await reloadCurrentView();
+  } catch (error) {
+    notify(error.message, "error");
+  } finally {
+    setImporting(false);
+  }
+}
 function notify(message, type = "success") {
   const id = Math.random().toString(36).substring(2, 9);
   setToasts((prev) => [...prev, { id, message, type }]);
@@ -1072,6 +1099,8 @@ return (
           setRequestModal={setRequestModal}
           setBookModal={setBookModal}
           returnBook={returnBook}
+          importBooks={importBooks}
+          importing={importing}
           onRefresh={loadCatalogFromApi}
         />
       )}
@@ -1831,9 +1860,17 @@ const handleExportBooks = async () => {
     alert(error.message);
   }
 };
+function SpinnerInline() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+      style={{ animation: "btn-spin 0.7s linear infinite", flexShrink: 0 }}>
+      <path d="M12 2a10 10 0 0 1 10 10" />
+    </svg>
+  );
+}
 export function Catalog({
   page, genres, filters, setFilters, searchTerm, setSearchTerm,
-  loading, me, openDetails, setRequestModal, setBookModal, returnBook, importBooks, onRefresh
+  loading, me, openDetails, setRequestModal, setBookModal, returnBook, importBooks, importing, onRefresh
 }) {
   const fileInputRef = useRef(null);
   const isAdmin = me?.role === "ADMIN";
@@ -1852,6 +1889,10 @@ export function Catalog({
     if (file && importBooks) importBooks(file);
     e.target.value = "";
   }
+  function handleImportClick() {
+    if (importing) return;
+    fileInputRef.current?.click();
+  }
   return (
   <section className="catalog-page">
     <div className="catalog-header">
@@ -1868,9 +1909,10 @@ export function Catalog({
               ref={fileInputRef}
               onChange={handleFileChange}
               style={{ display: "none" }}
+              disabled={importing}
             />
-            <button className="btn" onClick={() => fileInputRef.current?.click()}>
-              <Upload size={15} /> Import
+            <button className="btn" onClick={handleImportClick} disabled={importing}>
+              {importing ? <><SpinnerInline /> Importing...</> : <><Upload size={15} /> Import</>}
             </button>
           </>
         )}
@@ -5754,13 +5796,18 @@ th:last-child {
   gap: 28px;
   width: 100%;
 }
-.dashboard-loader {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 60vh;
-  gap: 20px;
+.dashboard-loader, .nav-loader-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 99999 !important;
+  background: var(--bg) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 .nav-loader-overlay {
   position: fixed !important;
@@ -5782,6 +5829,7 @@ th:last-child {
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-bottom: 20px;
 }
 .dashboard-loader-spinner {
   position: absolute;
@@ -7422,7 +7470,7 @@ model Book {
   ownerId           String   @map("owner_id")
   genreId           String?  @map("genre_id")
   title             String   @db.VarChar(220)
-  author            String   @db.VarChar(180)
+  author            String   @default("Unknown") @db.VarChar(180) // Added back as a clean text column
   isbn              String?  @db.VarChar(30)
   description       String?  @db.Text
   condition         String   @default("good") @db.VarChar(40)
@@ -8399,7 +8447,7 @@ export class BookService {
     await StatsCacheService.adjustFields({ totalBooks: 1, availableBooks: 1 });
     return this.mapBook(book);
   }
-static async importCsv(actorId: string, rows: any[]) {
+  static async importCsv(actorId: string, rows: any[]) {
     const results: {
       imported: number;
       skipped: number;
