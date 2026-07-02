@@ -13,7 +13,7 @@ export class LookupService {
         ],
       })
     );
-    return genres.map((g) => ({ id: g.id, name: g.name }));
+    return genres.map((g: { id: string; name: string }) => ({ id: g.id, name: g.name }));
   }
 
   static async bookHistory(bookId: string, page = 0, size = 20) {
