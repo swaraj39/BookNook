@@ -68,6 +68,23 @@ const blankBook = {
 // filter/paginate the "All / Available / Request Pending / Borrowed by me /
 const CATALOG_FETCH_SIZE = 1000;
 const CATALOG_PAGE_SIZE = 20;
+// Same "fetch everything once, paginate on the client" strategy used for the
+// catalog, reused for Requests / My Books / Borrowed / History / Book
+// History so paging through those lists never triggers another API call.
+const LIST_FETCH_SIZE = 1000;
+const LIST_PAGE_SIZE = 20;
+function paginateList(list, pageIndex, pageSize = LIST_PAGE_SIZE) {
+  const totalElements = list.length;
+  const totalPages = Math.max(1, Math.ceil(totalElements / pageSize));
+  const safePage = Math.min(Math.max(pageIndex, 0), totalPages - 1);
+  const start = safePage * pageSize;
+  return {
+    content: list.slice(start, start + pageSize),
+    totalElements,
+    totalPages,
+    page: safePage
+  };
+}
 function matchesCapsule(book, capsule) {
   switch (capsule) {
     case "available":
@@ -252,11 +269,16 @@ export default function App() {
   const [stats, setStats] = useState(null);
   const [genres, setGenres] = useState([]);
   const [catalogBooks, setCatalogBooks] = useState([]);
-  const [requestsPage, setRequestsPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-  const [myBooksPage, setMyBooksPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-  const [borrowedPage, setBorrowedPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-  const [historyPage, setHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-  const [bookHistoryPage, setBookHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+  const [allRequests, setAllRequests] = useState([]);
+  const [requestsPageIndex, setRequestsPageIndex] = useState(0);
+  const [allMyBooks, setAllMyBooks] = useState([]);
+  const [myBooksPageIndex, setMyBooksPageIndex] = useState(0);
+  const [allBorrowed, setAllBorrowed] = useState([]);
+  const [borrowedPageIndex, setBorrowedPageIndex] = useState(0);
+  const [allHistory, setAllHistory] = useState([]);
+  const [historyPageIndex, setHistoryPageIndex] = useState(0);
+  const [allBookHistory, setAllBookHistory] = useState([]);
+  const [bookHistoryPageIndex, setBookHistoryPageIndex] = useState(0);
   const [selectedBook, setSelectedBook] = useState(null);
   const [filters, setFilters] = useState({ search: "", genreId: "", availability: "all", sort: "title", page: 0 });
   const [searchTerm, setSearchTerm] = useState("");
@@ -294,6 +316,28 @@ export default function App() {
       page: safePage
     };
   }, [filteredCatalogBooks, filters.page]);
+  // Same idea as booksPage above: the full list is fetched once per view/
+  // refresh, and paging just re-slices it in memory - no extra API calls.
+  const requestsPage = useMemo(
+    () => paginateList(allRequests, requestsPageIndex),
+    [allRequests, requestsPageIndex]
+  );
+  const myBooksPage = useMemo(
+    () => paginateList(allMyBooks, myBooksPageIndex),
+    [allMyBooks, myBooksPageIndex]
+  );
+  const borrowedPage = useMemo(
+    () => paginateList(allBorrowed, borrowedPageIndex),
+    [allBorrowed, borrowedPageIndex]
+  );
+  const historyPage = useMemo(
+    () => paginateList(allHistory, historyPageIndex),
+    [allHistory, historyPageIndex]
+  );
+  const bookHistoryPage = useMemo(
+    () => paginateList(allBookHistory, bookHistoryPageIndex),
+    [allBookHistory, bookHistoryPageIndex]
+  );
   const checkNavScroll = useCallback(() => {
     const el = navRef.current;
     if (el) {
@@ -375,23 +419,35 @@ export default function App() {
             break;
           }
           case "requests": {
-            const data = await api.requests(0);
-            if (!cancelled) setRequestsPage(data);
+            const data = await api.requests(0, LIST_FETCH_SIZE);
+            if (!cancelled) {
+              setAllRequests(data.content || []);
+              setRequestsPageIndex(0);
+            }
             break;
           }
           case "myBooks": {
-            const data = await api.myBooks(0);
-            if (!cancelled) setMyBooksPage(data);
+            const data = await api.myBooks(0, LIST_FETCH_SIZE);
+            if (!cancelled) {
+              setAllMyBooks(data.content || []);
+              setMyBooksPageIndex(0);
+            }
             break;
           }
           case "borrowed": {
-            const data = await api.borrowed(0);
-            if (!cancelled) setBorrowedPage(data);
+            const data = await api.borrowed(0, LIST_FETCH_SIZE);
+            if (!cancelled) {
+              setAllBorrowed(data.content || []);
+              setBorrowedPageIndex(0);
+            }
             break;
           }
           case "history": {
-            const data = await api.loanHistory(0);
-            if (!cancelled) setHistoryPage(data);
+            const data = await api.loanHistory(0, LIST_FETCH_SIZE);
+            if (!cancelled) {
+              setAllHistory(data.content || []);
+              setHistoryPageIndex(0);
+            }
             break;
           }
         }
@@ -408,10 +464,11 @@ export default function App() {
       try {
         const [freshBook, history] = await Promise.all([
           api.book(selectedBookId),
-          api.bookHistory(selectedBookId, 0)
+          api.bookHistory(selectedBookId, 0, LIST_FETCH_SIZE)
         ]);
         setSelectedBook(freshBook);
-        setBookHistoryPage(history);
+        setAllBookHistory(history.content || []);
+        setBookHistoryPageIndex(0);
       } catch (error) {
         notify(error.message || "Unable to load book details.", "error");
         navigateTo("catalog", { replace: true });
@@ -507,6 +564,50 @@ async function loadCatalogFromApi() {
     setCatalogLoading(false);
   }
 }
+// Fetch the entire list ONCE per refresh; pagination after this is purely
+// client-side (see requestsPage/myBooksPage/etc useMemo above), so paging
+// through these lists never hits the API again.
+async function loadRequestsFromApi() {
+  try {
+    const data = await api.requests(0, LIST_FETCH_SIZE);
+    setAllRequests(data.content || []);
+  } catch (error) {
+    notify(error.message, "error");
+  }
+}
+async function loadMyBooksFromApi() {
+  try {
+    const data = await api.myBooks(0, LIST_FETCH_SIZE);
+    setAllMyBooks(data.content || []);
+  } catch (error) {
+    notify(error.message, "error");
+  }
+}
+async function loadBorrowedFromApi() {
+  try {
+    const data = await api.borrowed(0, LIST_FETCH_SIZE);
+    setAllBorrowed(data.content || []);
+  } catch (error) {
+    notify(error.message, "error");
+  }
+}
+async function loadHistoryFromApi() {
+  try {
+    const data = await api.loanHistory(0, LIST_FETCH_SIZE);
+    setAllHistory(data.content || []);
+  } catch (error) {
+    notify(error.message, "error");
+  }
+}
+async function loadBookHistoryFromApi(id) {
+  try {
+    const data = await api.bookHistory(id, 0, LIST_FETCH_SIZE);
+    setAllBookHistory(data.content || []);
+    setBookHistoryPageIndex(0);
+  } catch (error) {
+    notify(error.message, "error");
+  }
+}
 async function reloadCurrentView() {
   if (view === "catalog") {
     await loadCatalogFromApi();
@@ -521,23 +622,19 @@ async function reloadCurrentView() {
         break;
       }
       case "requests": {
-        const data = await api.requests(requestsPage.page);
-        setRequestsPage(data);
+        await loadRequestsFromApi();
         break;
       }
       case "myBooks": {
-        const data = await api.myBooks(myBooksPage.page);
-        setMyBooksPage(data);
+        await loadMyBooksFromApi();
         break;
       }
       case "borrowed": {
-        const data = await api.borrowed(borrowedPage.page);
-        setBorrowedPage(data);
+        await loadBorrowedFromApi();
         break;
       }
       case "history": {
-        const data = await api.loanHistory(historyPage.page);
-        setHistoryPage(data);
+        await loadHistoryFromApi();
         break;
       }
     }
@@ -552,20 +649,23 @@ async function resolveConfirm(confirmed) {
   if (confirmed && confirm?.onConfirm) await confirm.onConfirm();
   setConfirm(null);
 }
-async function loadRequests(page) {
-  try { setRequestsPage(await api.requests(page)); } catch (e) { notify(e.message, "error"); }
+// These are wired up as onPageChange for their respective lists. Since the
+// full list is already in memory (see loadRequestsFromApi & friends), paging
+// is just moving the local page index - no network request involved.
+function loadRequests(page) {
+  setRequestsPageIndex(page);
 }
-async function loadMyBooks(page) {
-  try { setMyBooksPage(await api.myBooks(page)); } catch (e) { notify(e.message, "error"); }
+function loadMyBooks(page) {
+  setMyBooksPageIndex(page);
 }
-async function loadBorrowed(page) {
-  try { setBorrowedPage(await api.borrowed(page)); } catch (e) { notify(e.message, "error"); }
+function loadBorrowed(page) {
+  setBorrowedPageIndex(page);
 }
-async function loadHistory(page) {
-  try { setHistoryPage(await api.loanHistory(page)); } catch (e) { notify(e.message, "error"); }
+function loadHistory(page) {
+  setHistoryPageIndex(page);
 }
-async function loadBookHistory(id, page) {
-  try { setBookHistoryPage(await api.bookHistory(id, page)); } catch (e) { notify(e.message, "error"); }
+function changeBookHistoryPage(page) {
+  setBookHistoryPageIndex(page);
 }
 async function openDetails(book) {
   setDetailsLoading(true);
@@ -573,7 +673,7 @@ async function openDetails(book) {
     const freshBook = await api.book(book.id);
     setSelectedBook(freshBook);
     setSelectedBookId(book.id);
-    await loadBookHistory(book.id, 0);
+    await loadBookHistoryFromApi(book.id);
     navigateTo("detail", { bookId: book.id });
   } finally {
     setDetailsLoading(false);
@@ -815,15 +915,15 @@ return (
           onRefresh={loadCatalogFromApi}
         />
       )}
-      {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onRefresh={() => loadRequests(requestsPage.page)} />}
-      {view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} onRefresh={() => loadMyBooks(myBooksPage.page)} />}
-      {view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} returnBook={returnBook} openDetails={openDetails} onRefresh={() => loadBorrowed(borrowedPage.page)} />}
-      {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={() => loadHistory(historyPage.page)} />}
+      {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onRefresh={loadRequestsFromApi} />}
+      {view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} onRefresh={loadMyBooksFromApi} />}
+      {view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} returnBook={returnBook} openDetails={openDetails} onRefresh={loadBorrowedFromApi} />}
+      {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={loadHistoryFromApi} />}
       {view === "detail" && selectedBook && (
         <Details
           book={selectedBook}
           historyPage={bookHistoryPage}
-          onPageChange={(p) => loadBookHistory(selectedBook.id, p)}
+          onPageChange={changeBookHistoryPage}
           me={me}
           navigateBack={navigateBack}
           navigateTo={navigateTo}
