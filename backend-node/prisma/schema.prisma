@@ -8,36 +8,37 @@ datasource db {
 }
 
 model SystemStats {
-  id                   String   @id @default("GLOBAL") @db.VarChar(20)
-  totalBooks           Int      @default(0) @map("total_books")
-  availableBooks       Int      @default(0) @map("available_books")
-  totalUsers           Int      @default(0) @map("total_users")
-  totalBooksReadGlobal Int      @default(0) @map("total_books_read_global")
-  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  id                 String   @id @default("GLOBAL") @db.VarChar(20)
+  totalBooks         Int      @default(0) @map("total_books")
+  availableBooks     Int      @default(0) @map("available_books")
+  totalUsers         Int      @default(0) @map("total_users")
+  totalBooksReadGlobal Int    @default(0) @map("total_books_read_global")
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   @@map("system_stats")
 }
 
 model User {
-  id                 String            @id @default(uuid())
-  fullName           String            @map("full_name") @db.VarChar(120)
-  email              String            @unique @db.VarChar(180)
-  team               String?           @db.VarChar(120)
-  role               String            @default("member") @db.VarChar(40)
-  status             String            @default("active") @db.VarChar(40)
-  avatarInitials     String?           @map("avatar_initials") @db.VarChar(8)
-  avatarUrl          String?           @map("avatar_url")
-  password           String?           @db.VarChar(255)
-  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamp(6)
-  auditLogs          AuditLog[]
-  bookHistory        BookHistory[]     @relation("Actor")
-  ownedTransactions  BookTransaction[] @relation("RequestOwner")
-  transactions       BookTransaction[] @relation("Requester")
-  ownedBooks         Book[]            @relation("BookOwner")
-  actedNotifications Notification[]    @relation("NotificationActor")
-  notifications      Notification[]    @relation("Recipient")
-  reviews            Review[]
+  id              String   @id @default(uuid())
+  fullName        String   @map("full_name") @db.VarChar(120)
+  email           String   @unique @db.VarChar(180)
+  team            String?  @db.VarChar(120)
+  role            String   @default("member") @db.VarChar(40)
+  status          String   @default("active") @db.VarChar(40)
+  avatarInitials  String?  @map("avatar_initials") @db.VarChar(8)
+  avatarUrl       String?  @map("avatar_url") @db.Text
+  password        String?  @db.VarChar(255)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  ownedBooks      Book[]          @relation("BookOwner")
+  transactions     BookTransaction[] @relation("Requester")
+  ownedTransactions BookTransaction[] @relation("RequestOwner")
+  bookHistory     BookHistory[]   @relation("Actor")
+  notifications   Notification[]  @relation("Recipient")
+  actedNotifications Notification[] @relation("NotificationActor")
+  reviews         Review[]
+  auditLogs       AuditLog[]
 
   @@map("users")
 }
@@ -64,125 +65,141 @@ model Genre {
   @@map("genres")
 }
 
+model Author {
+  id        String   @id @default(uuid())
+  name      String   @unique @db.VarChar(180)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  books     Book[]
+
+  @@map("authors")
+}
+
 model Book {
-  id                 String            @id @default(uuid())
-  ownerId            String            @map("owner_id")
-  genreId            String?           @map("genre_id")
-  title              String            @db.VarChar(220)
-  author             String            @db.VarChar(180)
-  isbn               String?           @db.VarChar(30)
-  description        String?
-  condition          String            @default("good") @db.VarChar(40)
-  defaultLoanDays    Int               @default(14) @map("default_loan_days")
-  availabilityStatus String            @default("available") @map("availability_status") @db.VarChar(40)
-  visibilityStatus   String            @default("visible") @map("visibility_status") @db.VarChar(40)
-  coverColor         String?           @map("cover_color") @db.VarChar(20)
-  coverUrl           String?           @map("cover_url")
-  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamp(6)
-  history            BookHistory[]
-  transactions       BookTransaction[]
-  genre              Genre?            @relation(fields: [genreId], references: [id])
-  owner              User              @relation("BookOwner", fields: [ownerId], references: [id])
-  notifications      Notification[]
-  reviews            Review[]
+  id                String   @id @default(uuid())
+  ownerId           String   @map("owner_id")
+  genreId           String?  @map("genre_id")
+  authorId          String   @map("author_id")
+  title             String   @db.VarChar(220)
+  isbn              String?  @db.VarChar(30)
+  description       String?  @db.Text
+  condition         String   @default("good") @db.VarChar(40)
+  defaultLoanDays   Int      @default(14) @map("default_loan_days")
+  availabilityStatus String  @default("available") @map("availability_status") @db.VarChar(40)
+  visibilityStatus  String   @default("visible") @map("visibility_status") @db.VarChar(40)
+  coverColor        String?  @map("cover_color") @db.VarChar(20)
+  coverUrl          String?  @map("cover_url") @db.Text
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  owner             User     @relation("BookOwner", fields: [ownerId], references: [id])
+  genre             Genre?   @relation(fields: [genreId], references: [id])
+  author            Author   @relation(fields: [authorId], references: [id])
+  transactions      BookTransaction[]
+  history           BookHistory[]
+  notifications     Notification[]
+  reviews           Review[]
 
   @@map("books")
 }
 
 model BookTransaction {
-  id                     String         @id @default(uuid())
-  bookId                 String         @map("book_id")
-  requesterId            String         @map("requester_id")
-  ownerId                String         @map("owner_id")
-  status                 String         @default("pending") @db.VarChar(40)
-  requestedLoanDays      Int            @default(14) @map("requested_loan_days")
-  borrowerNote           String?        @map("borrower_note")
-  ownerResponseNote      String?        @map("owner_response_note")
-  requestedAt            DateTime       @default(now()) @map("requested_at") @db.Timestamp(6)
-  respondedAt            DateTime?      @map("responded_at") @db.Timestamp(6)
-  expiresAt              DateTime?      @map("expires_at") @db.Timestamp(6)
-  borrowedAt             DateTime?      @map("borrowed_at") @db.Timestamp(6)
-  dueAt                  DateTime?      @map("due_at") @db.Timestamp(6)
-  returnedAt             DateTime?      @map("returned_at") @db.Timestamp(6)
-  borrowerReturnNote     String?        @map("borrower_return_note")
-  ownerReturnNote        String?        @map("owner_return_note")
-  returnConfirmedByOwner Boolean        @default(false) @map("return_confirmed_by_owner")
-  createdAt              DateTime       @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt              DateTime       @updatedAt @map("updated_at") @db.Timestamp(6)
-  bookHistory            BookHistory[]
-  book                   Book           @relation(fields: [bookId], references: [id])
-  owner                  User           @relation("RequestOwner", fields: [ownerId], references: [id])
-  requester              User           @relation("Requester", fields: [requesterId], references: [id])
-  notifications          Notification[]
-  reviews                Review[]
+  id                    String   @id @default(uuid())
+  bookId                String   @map("book_id")
+  requesterId           String   @map("requester_id")
+  ownerId               String   @map("owner_id")
+  status                String   @default("pending") @db.VarChar(40)
+  requestedLoanDays     Int      @default(14) @map("requested_loan_days")
+  borrowerNote          String?  @map("borrower_note") @db.Text
+  ownerResponseNote     String?  @map("owner_response_note") @db.Text
+  requestedAt           DateTime @default(now()) @map("requested_at") @db.Timestamp(6)
+  respondedAt           DateTime? @map("responded_at") @db.Timestamp(6)
+  expiresAt             DateTime? @map("expires_at") @db.Timestamp(6)
+  borrowedAt            DateTime? @map("borrowed_at") @db.Timestamp(6)
+  dueAt                 DateTime? @map("due_at") @db.Timestamp(6)
+  returnedAt            DateTime? @map("returned_at") @db.Timestamp(6)
+  borrowerReturnNote    String?  @map("borrower_return_note") @db.Text
+  ownerReturnNote       String?  @map("owner_return_note") @db.Text
+  returnConfirmedByOwner Boolean @default(false) @map("return_confirmed_by_owner")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  book                  Book     @relation(fields: [bookId], references: [id])
+  requester             User     @relation("Requester", fields: [requesterId], references: [id])
+  owner                 User     @relation("RequestOwner", fields: [ownerId], references: [id])
+  bookHistory           BookHistory[]
+  notifications         Notification[]
+  reviews               Review[]
 
   @@map("book_transactions")
 }
 
 model BookHistory {
-  id            String           @id @default(uuid())
-  bookId        String           @map("book_id")
-  actorId       String?          @map("actor_id")
-  eventType     String           @map("event_type") @db.VarChar(80)
-  eventTitle    String?          @map("event_title") @db.VarChar(180)
-  eventMessage  String?          @map("event_message")
-  transactionId String?          @map("transaction_id")
-  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamp(6)
-  actor         User?            @relation("Actor", fields: [actorId], references: [id])
-  book          Book             @relation(fields: [bookId], references: [id])
-  transaction   BookTransaction? @relation(fields: [transactionId], references: [id])
+  id              String   @id @default(uuid())
+  bookId          String   @map("book_id")
+  actorId         String?  @map("actor_id")
+  eventType       String   @map("event_type") @db.VarChar(80)
+  eventTitle      String?  @map("event_title") @db.VarChar(180)
+  eventMessage    String?  @map("event_message") @db.Text
+  transactionId   String?  @map("transaction_id")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  book            Book     @relation(fields: [bookId], references: [id])
+  actor           User?    @relation("Actor", fields: [actorId], references: [id])
+  transaction     BookTransaction? @relation(fields: [transactionId], references: [id])
 
   @@map("book_history")
 }
 
 model Notification {
-  id            String           @id @default(uuid())
-  recipientId   String           @map("recipient_id")
-  actorId       String?          @map("actor_id")
-  type          String           @db.VarChar(80)
-  title         String           @map("title") @db.VarChar(180)
-  message       String?          @map("message")
-  bookId        String?          @map("book_id")
-  transactionId String?          @map("transaction_id")
-  channel       String?          @default("in_app") @db.VarChar(40)
-  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamp(6)
-  actor         User?            @relation("NotificationActor", fields: [actorId], references: [id])
-  book          Book?            @relation(fields: [bookId], references: [id])
-  recipient     User             @relation("Recipient", fields: [recipientId], references: [id])
-  transaction   BookTransaction? @relation(fields: [transactionId], references: [id])
+  id              String   @id @default(uuid())
+  recipientId     String   @map("recipient_id")
+  actorId         String?  @map("actor_id")
+  type            String   @db.VarChar(80)
+  title           String   @map("title") @db.VarChar(180)
+  message         String?  @map("message") @db.Text
+  bookId          String?  @map("book_id")
+  transactionId   String?  @map("transaction_id")
+  channel         String?  @default("in_app") @db.VarChar(40)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  recipient       User     @relation("Recipient", fields: [recipientId], references: [id])
+  actor           User?    @relation("NotificationActor", fields: [actorId], references: [id])
+  book            Book?    @relation(fields: [bookId], references: [id])
+  transaction     BookTransaction? @relation(fields: [transactionId], references: [id])
 
   @@map("notifications")
 }
 
 model Review {
-  id            String           @id @default(uuid())
-  bookId        String           @map("book_id")
-  transactionId String?          @map("transaction_id")
-  reviewerId    String           @map("reviewer_id")
-  rating        Int?
-  comment       String?
-  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamp(6)
-  book          Book             @relation(fields: [bookId], references: [id])
-  reviewer      User             @relation(fields: [reviewerId], references: [id])
-  transaction   BookTransaction? @relation(fields: [transactionId], references: [id])
+  id              String   @id @default(uuid())
+  bookId          String   @map("book_id")
+  transactionId   String?  @map("transaction_id")
+  reviewerId      String   @map("reviewer_id")
+  rating          Int?
+  comment         String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  book            Book     @relation(fields: [bookId], references: [id])
+  transaction     BookTransaction? @relation(fields: [transactionId], references: [id])
+  reviewer        User     @relation(fields: [reviewerId], references: [id])
 
   @@map("reviews")
 }
 
 model AuditLog {
-  id         String   @id @default(uuid())
-  actorId    String?  @map("actor_id")
-  action     String   @db.VarChar(80)
-  entityType String   @map("entity_type") @db.VarChar(80)
-  entityId   String?  @map("entity_id")
-  oldValue   Json?    @map("old_value")
-  newValue   Json?    @map("new_value")
-  ipAddress  String?  @map("ip_address") @db.VarChar(80)
-  userAgent  String?  @map("user_agent")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  actor      User?    @relation(fields: [actorId], references: [id])
+  id              String   @id @default(uuid())
+  actorId         String?  @map("actor_id")
+  action          String   @db.VarChar(80)
+  entityType      String   @map("entity_type") @db.VarChar(80)
+  entityId        String?  @map("entity_id")
+  oldValue        Json?    @map("old_value")
+  newValue        Json?    @map("new_value")
+  ipAddress       String?  @map("ip_address") @db.VarChar(80)
+  userAgent       String?  @map("user_agent") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  actor           User?    @relation(fields: [actorId], references: [id])
 
   @@map("audit_logs")
 }

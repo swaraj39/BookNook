@@ -74,6 +74,7 @@ export class BookService {
         include: {
           owner: true,
           genre: true,
+          author: true,
         },
         orderBy,
         skip: currentPage * pageSize,
@@ -149,11 +150,13 @@ export class BookService {
         const author = payload.authorId
           ? await tx.author.findUnique({ where: { id: payload.authorId } })
           : await tx.author.upsert({
-            where: { name: payload.author.trim() },
-            update: {},
-            create: { name: payload.author.trim() },
-          });
+              where: { name: payload.author.trim() },
+              update: {},
+              create: { name: payload.author.trim() },
+            });
+
         if (!author) throw new Error("Author not found.");
+
         const createdBook = await tx.book.create({
           data: {
             title: payload.title.trim(),
@@ -193,7 +196,7 @@ export class BookService {
     await StatsCacheService.adjustFields({ totalBooks: 1, availableBooks: 1 });
     return this.mapBook(book);
   }
-  static async importCsv(actorId: string, rows: any[]) {
+static async importCsv(actorId: string, rows: any[]) {
     const results: {
       imported: number;
       skipped: number;
@@ -216,6 +219,7 @@ export class BookService {
         const description = String(raw.Description || raw.description || "").trim() || null;
         const condition = String(raw.Condition || raw.condition || "good").trim().toLowerCase();
         const defaultLoanDays = Number(raw.DefaultLoanDays || raw.defaultLoanDays) || 14;
+
         if (!title) throw new Error("Title is required.");
         if (!author) throw new Error("Author is required.");
         if (!genreName) throw new Error("Genre is required.");
@@ -223,7 +227,9 @@ export class BookService {
         if (!Number.isInteger(defaultLoanDays) || defaultLoanDays < 3 || defaultLoanDays > 60) {
           throw new Error("Default loan days must be a whole number between 3 and 60.");
         }
+
         const coverColor = this.pickCoverColor(title);
+
         const wasSkipped = await prisma.$transaction(
           async (tx) => {
             const owner = await tx.user.findUnique({
@@ -232,15 +238,22 @@ export class BookService {
             if (!owner) {
               throw new Error(`No user found with email "${ownerEmail}".`);
             }
+
+            // Look for a book with the same title (any owner, not deleted).
             const existingBook = await tx.book.findFirst({
               where: {
                 title: { equals: title, mode: "insensitive" },
                 visibilityStatus: { not: "deleted" },
               },
             });
+
+            // Same title already owned by the same person from the row -> duplicate, skip it.
             if (existingBook && existingBook.ownerId === owner.id) {
               return true;
             }
+
+            // Either no existing book with this title, or it belongs to a
+            // different owner -> safe to add as a new entry for this owner.
             let genre = await tx.genre.findFirst({
               where: { name: { equals: genreName, mode: "insensitive" } },
             });
@@ -252,6 +265,7 @@ export class BookService {
               update: {},
               create: { name: author },
             });
+
             const createdBook = await tx.book.create({
               data: {
                 title,
@@ -280,6 +294,7 @@ export class BookService {
           },
           { maxWait: 10000, timeout: 10000 }
         );
+
         if (wasSkipped) {
           results.skipped += 1;
         } else {
@@ -287,6 +302,7 @@ export class BookService {
         }
       } catch (error: any) {
         results.failed += 1;
+        // +2 accounts for the header row and 0-index, so this matches the line number in the CSV/Excel file
         results.errors.push({ row: i + 2, message: error.message || "Unknown error" });
       }
     }
@@ -314,14 +330,17 @@ export class BookService {
         if (book.ownerId !== userId && !isAdmin) {
           throw new Error("Unauthorized");
         }
+
         const author = payload.authorId
           ? await tx.author.findUnique({ where: { id: payload.authorId } })
           : await tx.author.upsert({
-            where: { name: payload.author.trim() },
-            update: {},
-            create: { name: payload.author.trim() },
-          });
+              where: { name: payload.author.trim() },
+              update: {},
+              create: { name: payload.author.trim() },
+            });
+
         if (!author) throw new Error("Author not found.");
+
         const result = await tx.book.update({
           where: { id },
           data: {
@@ -430,9 +449,6 @@ export class BookService {
     }
   }
   private static mapBook(book: any) {
-    // book.transactions (when present) only contains the CURRENT user's own
-    // pending/active/overdue transactions for this book (see the `include`
-    // above), so these two flags are safe to compute directly from it.
     const myTransactions = Array.isArray(book.transactions) ? book.transactions : [];
     const isBorrowedByMe = myTransactions.some(
       (t: any) => t.status === "active" || t.status === "overdue"
