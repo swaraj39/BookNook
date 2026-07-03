@@ -784,7 +784,7 @@ const navSections = [
     label: "Your Activity",
     items: [
       ["requests", "Requests", CheckSquare, stats?.pendingApprovals],
-      ["myLibrary", "My Library", LibraryBig],
+      ["myLibrary", "My Shelf", LibraryBig],
       ["history", "History", History]
     ]
   }

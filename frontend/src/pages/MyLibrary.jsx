@@ -34,7 +34,7 @@ export function MyLibrary({ myBooksPage, onMyBooksPageChange, borrowedPage, onBo
 
   return (
     <Panel
-      title={tab === "shelf" ? "My Shelf" : "Currently Reading"}
+      title={tab === "shelf" ? "My Books" : "Currently Reading"}
       actions={refreshFn && (
         <RefreshButton
           onRefresh={refreshFn}
@@ -48,7 +48,7 @@ export function MyLibrary({ myBooksPage, onMyBooksPageChange, borrowedPage, onBo
             className={`filter-btn ${tab === "shelf" ? "active" : ""}`}
             onClick={() => setTab("shelf")}
           >
-            My Shelf
+            My Books
           </button>
           <button
             className={`filter-btn ${tab === "reading" ? "active" : ""}`}
