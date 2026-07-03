@@ -258,6 +258,7 @@ export default function App() {
   const profileDropdownRef = useRef(null);
   const navRef = useRef(null);
   const prefetchUserRef = useRef(null);
+  const loadedViews = useRef({});
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   // Capsule filtering happens entirely in memory against the last fetched
@@ -502,10 +503,11 @@ export default function App() {
   useEffect(() => {
     if (!isAuthenticated) return;
     if (view === "catalog" || view === "dashboard" || view === "home" || view === "detail") return;
-    if (loadedViews[view]) return;
+    if (loadedViews.current[view]) return;
+    loadedViews.current[view] = true;
     loadPageData(view, 0, { silent: true }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, isAuthenticated, loadedViews]);
+  }, [view, isAuthenticated]);
   useEffect(() => {
     async function restoreDetailPage() {
       if (!isAuthenticated || view !== "detail" || !selectedBookId || selectedBook) return;
