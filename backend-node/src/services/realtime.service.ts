@@ -19,14 +19,30 @@ export function initSocketIO(httpServer: HttpServer, allowedOrigins: string[]): 
     pingTimeout: 20000,
   });
 
+  function extractCookie(cookieHeader: string | undefined, name: string): string | null {
+    if (!cookieHeader) return null;
+    for (const pair of cookieHeader.split(";")) {
+      const idx = pair.indexOf("=");
+      if (idx === -1) continue;
+      const key = pair.substring(0, idx).trim();
+      const val = pair.substring(idx + 1).trim();
+      if (key === name) return val;
+    }
+    return null;
+  }
+
   io.use(async (socket, next) => {
     try {
-      const token = socket.handshake.auth?.token;
+      let token = socket.handshake.auth?.token;
+      if (!token) {
+        token = extractCookie(socket.handshake.headers.cookie, "token");
+      }
       if (!token) {
         return next(new Error("Authentication required"));
       }
       const decoded = verifyToken(token);
       if (!decoded?.email) {
+        console.warn("[Socket] Invalid token from", socket.handshake.headers.cookie ? "cookie" : "auth");
         return next(new Error("Invalid or expired token"));
       }
       const user = await prisma.user.findUnique({

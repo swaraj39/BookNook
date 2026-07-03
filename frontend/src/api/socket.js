@@ -10,6 +10,7 @@ export function connectSocket(token) {
 
   socket = io(SOCKET_URL, {
     auth: { token },
+    withCredentials: true,
     transports: ["websocket", "polling"],
     reconnection: true,
     reconnectionAttempts: Infinity,
