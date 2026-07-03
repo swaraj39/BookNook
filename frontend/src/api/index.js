@@ -2,6 +2,57 @@
 const API_URL = "https://booknook-74lk.onrender.com/api";
 // const API_URL = "http://localhost:8080/api";
 // const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
+
+// --- Frontend cache layer ---
+const CACHE_TTL = {
+  FAST: 10 * 1000,
+  NORMAL: 20 * 1000,
+  SLOW: 60 * 1000,
+  STATIC: 5 * 60 * 1000,
+};
+const cache = new Map();
+const inflight = new Map();
+
+function getCacheKey(method, path) {
+  return `${method}:${path}`;
+}
+
+function cachedRequest(path, options = {}, ttl = CACHE_TTL.NORMAL) {
+  const method = options.method || "GET";
+  if (method !== "GET") return request(path, options);
+
+  const key = getCacheKey(method, path);
+  const entry = cache.get(key);
+  if (entry && entry.expiresAt > Date.now()) return Promise.resolve(entry.value);
+
+  const running = inflight.get(key);
+  if (running) return running;
+
+  const promise = request(path, options).then((data) => {
+    cache.set(key, { value: data, expiresAt: Date.now() + ttl });
+    return data;
+  }).finally(() => {
+    inflight.delete(key);
+  });
+
+  inflight.set(key, promise);
+  return promise;
+}
+
+function invalidateCache(prefix) {
+  if (!prefix) {
+    cache.clear();
+    inflight.clear();
+    return;
+  }
+  for (const key of cache.keys()) {
+    if (key.startsWith(prefix)) cache.delete(key);
+  }
+  for (const key of inflight.keys()) {
+    if (key.startsWith(prefix)) inflight.delete(key);
+  }
+}
+
 function friendlyErrorMessage(message) {
   const text = String(message || "").toLowerCase();
   const looksLikeDatabaseError = [
@@ -10,7 +61,6 @@ function friendlyErrorMessage(message) {
     "error querying the database",
     "emaxconnsession",
     "max clients reached",
-    "pool_size",
     "connection pool",
     "too many connections",
   ].some((needle) => text.includes(needle));
@@ -59,7 +109,8 @@ async function request(path, options = {}) {
   if (response.status === 204) return null;
   return text ? JSON.parse(text) : null;
 }
-  export const api = {
+
+export const api = {
   login: (email, password) =>
     request("/auth/login", {
       method: "POST",
@@ -74,60 +125,76 @@ async function request(path, options = {}) {
     request("/auth/logout", {
       method: "POST",
     }),
-  me: () => request("/me"),
-  dashboard: () => request("/dashboard"),
-  genres: () => request("/genres"),
+  me: () => cachedRequest("/me", {}, CACHE_TTL.SLOW),
+  dashboard: () => cachedRequest("/dashboard", {}, CACHE_TTL.FAST),
+  genres: () => cachedRequest("/genres", {}, CACHE_TTL.STATIC),
   books: (params) => {
     const query = new URLSearchParams({ size: 20, ...params });
-    return request(`/books?${query}`);
+    return cachedRequest(`/books?${query}`, {}, CACHE_TTL.NORMAL);
   },
   myBooks: (page = 0, size = 20) =>
-    request(`/books/mine?page=${page}&size=${size}`),
-  book: (id) => request(`/books/${id}`),
+    cachedRequest(`/books/mine?page=${page}&size=${size}`, {}, CACHE_TTL.NORMAL),
+  book: (id) => cachedRequest(`/books/${id}`, {}, CACHE_TTL.NORMAL),
   bookHistory: (id, page = 0, size = 20) =>
-    request(`/books/${id}/history?page=${page}&size=${size}`),
-  createBook: (payload) =>
-    request("/books", {
+    cachedRequest(`/books/${id}/history?page=${page}&size=${size}`, {}, CACHE_TTL.NORMAL),
+  createBook: (payload) => {
+    invalidateCache("GET:/books");
+    return request("/books", {
       method: "POST",
       body: JSON.stringify(payload),
-    }),
-  importBooks: (rows) =>
-    request("/books/import", {
+    });
+  },
+  importBooks: (rows) => {
+    invalidateCache();
+    return request("/books/import", {
       method: "POST",
       body: JSON.stringify({ rows }),
-    }),
-  updateBook: (id, payload) =>
-    request(`/books/${id}`, {
+    });
+  },
+  updateBook: (id, payload) => {
+    invalidateCache("GET:/books");
+    return request(`/books/${id}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
-    }),
-  deleteBook: (id) =>
-    request(`/books/${id}`, {
+    });
+  },
+  deleteBook: (id) => {
+    invalidateCache("GET:/books");
+    return request(`/books/${id}`, {
       method: "DELETE",
-    }),
+    });
+  },
   requests: (page = 0, size = 20) =>
-    request(`/borrow-requests?page=${page}&size=${size}`),
-  requestBook: (payload) =>
-    request("/borrow-requests", {
+    cachedRequest(`/borrow-requests?page=${page}&size=${size}`, {}, CACHE_TTL.FAST),
+  requestBook: (payload) => {
+    invalidateCache();
+    return request("/borrow-requests", {
       method: "POST",
       body: JSON.stringify(payload),
-    }),
-  approve: (id) =>
-    request(`/borrow-requests/${id}/approve`, {
+    });
+  },
+  approve: (id) => {
+    invalidateCache();
+    return request(`/borrow-requests/${id}/approve`, {
       method: "POST",
-    }),
-  reject: (id) =>
-    request(`/borrow-requests/${id}/reject`, {
+    });
+  },
+  reject: (id) => {
+    invalidateCache();
+    return request(`/borrow-requests/${id}/reject`, {
       method: "POST",
-    }),
+    });
+  },
   borrowed: (page = 0, size = 20) =>
-    request(`/loans/borrowed?page=${page}&size=${size}`),
+    cachedRequest(`/loans/borrowed?page=${page}&size=${size}`, {}, CACHE_TTL.FAST),
   loanHistory: (page = 0, size = 20) =>
-    request(`/loans/history?page=${page}&size=${size}`),
-  returnBook: (id) =>
-    request(`/loans/${id}/return`, {
+    cachedRequest(`/loans/history?page=${page}&size=${size}`, {}, CACHE_TTL.FAST),
+  returnBook: (id) => {
+    invalidateCache();
+    return request(`/loans/${id}/return`, {
       method: "POST",
-    }),
+    });
+  },
 
   forgotPasswordRequest: (email) =>
     request("/auth/forgot-password/request", {

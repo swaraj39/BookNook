@@ -1,38 +1,44 @@
-type CacheEntry<T> = {
-  expiresAt: number;
-  value: T;
-};
+import redis from "../config/redis";
+
+const KEY_PREFIX = "bkc:";
+
+function prefixed(key: string): string {
+  return `${KEY_PREFIX}${key}`;
+}
 
 export class ReadCacheService {
-  private static cache = new Map<string, CacheEntry<unknown>>();
   private static inflight = new Map<string, Promise<unknown>>();
-  private static generation = 0;
 
   static async getOrSet<T>(
     key: string,
     ttlMs: number,
     loader: () => Promise<T>
   ): Promise<T> {
-    const now = Date.now();
-    const cached = this.cache.get(key) as CacheEntry<T> | undefined;
-
-    if (cached && cached.expiresAt > now) {
-      return cached.value;
-    }
-
     const running = this.inflight.get(key) as Promise<T> | undefined;
-    if (running) {
-      return running;
+    if (running) return running;
+
+    if (redis) {
+      try {
+        const cached = await redis.get(prefixed(key));
+        if (cached !== null) {
+          return JSON.parse(cached) as T;
+        }
+      } catch (err) {
+        console.error("[ReadCache] Redis GET failed, falling through:", (err as Error).message);
+      }
     }
 
-    const generation = this.generation;
+    const running2 = this.inflight.get(key) as Promise<T> | undefined;
+    if (running2) return running2;
+
     const promise = loader()
-      .then((value) => {
-        if (generation === this.generation) {
-          this.cache.set(key, {
-            expiresAt: Date.now() + ttlMs,
-            value,
-          });
+      .then(async (value) => {
+        if (redis) {
+          try {
+            await redis.set(prefixed(key), JSON.stringify(value), "PX", ttlMs);
+          } catch (err) {
+            console.error("[ReadCache] Redis SET failed:", (err as Error).message);
+          }
         }
         return value;
       })
@@ -44,20 +50,28 @@ export class ReadCacheService {
     return promise;
   }
 
-  static invalidate(prefix?: string) {
-    this.generation += 1;
+  static async invalidate(prefix?: string): Promise<void> {
+    if (!redis) return;
 
-    if (!prefix) {
-      this.cache.clear();
-      this.inflight.clear();
-      return;
-    }
+    const pattern = prefix ? `${KEY_PREFIX}${prefix}*` : `${KEY_PREFIX}*`;
 
-    for (const key of this.cache.keys()) {
-      if (key.startsWith(prefix)) this.cache.delete(key);
-    }
-    for (const key of this.inflight.keys()) {
-      if (key.startsWith(prefix)) this.inflight.delete(key);
+    try {
+      let cursor = "0";
+      do {
+        const [nextCursor, keys] = await redis.scan(
+          cursor,
+          "MATCH",
+          pattern,
+          "COUNT",
+          100
+        );
+        if (keys.length > 0) {
+          await redis.del(...keys);
+        }
+        cursor = nextCursor;
+      } while (cursor !== "0");
+    } catch (err) {
+      console.error("[ReadCache] Invalidation failed:", (err as Error).message);
     }
   }
 }

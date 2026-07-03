@@ -258,15 +258,35 @@ export default function App() {
   const profileDropdownRef = useRef(null);
   const navRef = useRef(null);
   const prefetchUserRef = useRef(null);
-  const loadedViews = useRef({});
+  const [loadedViews, setLoadedViews] = useState({});
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
-  // Capsule filtering happens entirely in memory against the last fetched
-  // catalogBooks list - this never triggers a network request.
-  const filteredCatalogBooks = useMemo(
-    () => catalogBooks.filter((book) => matchesCapsule(book, filters.availability)),
-    [catalogBooks, filters.availability]
-  );
+  // All catalog filtering (search, genre, availability capsule, sort) happens
+  // entirely in memory against the last fetched catalogBooks list — none of
+  // these trigger a network request.
+  const filteredCatalogBooks = useMemo(() => {
+    const q = (filters.search || "").toLowerCase();
+    let list = catalogBooks;
+    if (q) {
+      list = list.filter(
+        (b) =>
+          (b.title && b.title.toLowerCase().includes(q)) ||
+          (b.author && b.author.toLowerCase().includes(q)) ||
+          (b.owner?.fullName && b.owner.fullName.toLowerCase().includes(q)) ||
+          (b.description && b.description.toLowerCase().includes(q))
+      );
+    }
+    if (filters.genreId) {
+      list = list.filter((b) => b.genre?.id === filters.genreId);
+    }
+    list = list.filter((b) => matchesCapsule(b, filters.availability));
+    if (filters.sort === "newest") {
+      list = [...list].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    } else {
+      list = [...list].sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+    }
+    return list;
+  }, [catalogBooks, filters.search, filters.genreId, filters.availability, filters.sort]);
   // Client-side pagination over the filtered list, shaped the same way the
   // old server-paginated response used to look so <Catalog/> doesn't need
   // to change how it reads `page`.
@@ -344,13 +364,10 @@ export default function App() {
     try {
       if (showLoading) setCatalogLoading(true);
       const params = {
-        search: filters.search,
-        sort: filters.sort,
         availability: "all",
         page: 0,
         size: CATALOG_FETCH_SIZE
       };
-      if (filters.genreId) params.genreId = filters.genreId;
       const result = await api.books(params);
       setCatalogBooks(result.content || []);
       markViewLoaded("catalog");
@@ -362,53 +379,7 @@ export default function App() {
       if (showLoading) setCatalogLoading(false);
     }
   }
-  async function loadPageData(viewName, page = 0, { silent = false } = {}) {
-    try {
-      switch (viewName) {
-        case "requests": {
-          const data = await api.requests(page);
-          setRequestsPage(data);
-          break;
-        }
-        case "myBooks": {
-          const data = await api.myBooks(page);
-          setMyBooksPage(data);
-          break;
-        }
-        case "borrowed": {
-          const data = await api.borrowed(page);
-          setBorrowedPage(data);
-          break;
-        }
-        case "history": {
-          const data = await api.loanHistory(page);
-          setHistoryPage(data);
-          break;
-        }
-        default:
-          return null;
-      }
-      markViewLoaded(viewName);
-      return true;
-    } catch (error) {
-      if (!silent) notify(error.message, "error");
-      return null;
-    }
-  }
-  async function prefetchNavData() {
-    const warmups = [
-      () => loadPageData("requests", 0, { silent: true }),
-      () => loadPageData("myBooks", 0, { silent: true }),
-      () => loadPageData("borrowed", 0, { silent: true }),
-      () => loadPageData("history", 0, { silent: true }),
-      () => loadCatalogFromApi({ showLoading: false, silent: true }),
-    ];
-
-    for (const warmup of warmups) {
-      await warmup();
-      await new Promise((resolve) => setTimeout(resolve, 150));
-    }
-  }
+  // loadPageData was removed — effect 470 handles all views now
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
@@ -449,9 +420,10 @@ export default function App() {
     if (isAuthenticated && view === "catalog") {
       loadCatalogFromApi({ showLoading: true });
     }
-  }, [isAuthenticated, view, filters.search, filters.genreId, filters.sort]);
+  }, [isAuthenticated, view]);
   useEffect(() => {
     if (!isAuthenticated || !me?.id) return;
+    if (loadedViews[view]) return;
     let cancelled = false;
     (async () => {
       try {
@@ -459,7 +431,7 @@ export default function App() {
         switch (view) {
           case "dashboard": {
             const data = await api.dashboard();
-            if (!cancelled) setStats(data);
+            if (!cancelled) { setStats(data); markViewLoaded("dashboard"); }
             break;
           }
           case "requests": {
@@ -467,6 +439,7 @@ export default function App() {
             if (!cancelled) {
               setAllRequests(data.content || []);
               setRequestsPageIndex(0);
+              markViewLoaded("requests");
             }
             break;
           }
@@ -475,6 +448,7 @@ export default function App() {
             if (!cancelled) {
               setAllMyBooks(data.content || []);
               setMyBooksPageIndex(0);
+              markViewLoaded("myBooks");
             }
             break;
           }
@@ -483,6 +457,7 @@ export default function App() {
             if (!cancelled) {
               setAllBorrowed(data.content || []);
               setBorrowedPageIndex(0);
+              markViewLoaded("borrowed");
             }
             break;
           }
@@ -491,25 +466,22 @@ export default function App() {
             if (!cancelled) {
               setAllHistory(data.content || []);
               setHistoryPageIndex(0);
+              markViewLoaded("history");
             }
             break;
           }
         }
+        if (!cancelled) setPageLoading(null);
       } catch (error) {
-        if (!cancelled) notify(error.message || "Unable to load dashboard.", "error");
+        if (!cancelled) {
+          setPageLoading(null);
+          notify(error.message || "Unable to load dashboard.", "error");
+        }
       }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, me?.id]);
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    if (view === "catalog" || view === "dashboard" || view === "home" || view === "detail") return;
-    if (loadedViews.current[view]) return;
-    loadedViews.current[view] = true;
-    loadPageData(view, 0, { silent: true }).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, isAuthenticated]);
+  }, [isAuthenticated, me?.id, view, loadedViews]);
   useEffect(() => {
     async function restoreDetailPage() {
       if (!isAuthenticated || view !== "detail" || !selectedBookId || selectedBook) return;
@@ -588,10 +560,10 @@ export default function App() {
       borrowed: false,
       history: false
     });
-    setRequestsPage({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-    setMyBooksPage({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-    setBorrowedPage({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-    setHistoryPage({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+    setAllRequests([]);
+    setAllMyBooks([]);
+    setAllBorrowed([]);
+    setAllHistory([]);
     window.history.replaceState({ view: "dashboard", selectedBookId: null, navStack: ["dashboard"] }, "", window.location.href);
   }
   async function handleLogout() {
@@ -635,25 +607,6 @@ async function loadBootstrap() {
     setGenres(genreList);
   } catch (error) {
     notify(error.message, "error");
-  }
-}
-async function loadCatalogFromApi() {
-  try {
-    setCatalogLoading(true);
-    const params = {
-      search: filters.search,
-      sort: filters.sort,
-      availability: "all",
-      page: 0,
-      size: CATALOG_FETCH_SIZE
-    };
-    if (filters.genreId) params.genreId = filters.genreId;
-    const result = await api.books(params);
-    setCatalogBooks(result.content || []);
-  } catch (error) {
-    notify(error.message, "error");
-  } finally {
-    setCatalogLoading(false);
   }
 }
 // Fetch the entire list ONCE per refresh; pagination after this is purely

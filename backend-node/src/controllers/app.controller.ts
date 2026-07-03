@@ -75,7 +75,7 @@ export class AppController {
         return res.status(400).json({ message: "Import is limited to 1000 rows at a time." });
       }
       const result = await BookService.importCsv(req.user.id, rows);
-      ReadCacheService.invalidate();
+      await ReadCacheService.invalidate();
       return res.status(200).json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -136,7 +136,7 @@ export class AppController {
   static async createBook(req: AuthRequest, res: Response) {
     try {
       const result = await BookService.create(req.user.id, req.body);
-      ReadCacheService.invalidate();
+      await ReadCacheService.invalidate();
       return res.status(201).json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -150,7 +150,7 @@ export class AppController {
         req.body,
         req.user.role === "ADMIN"
       );
-      ReadCacheService.invalidate();
+      await ReadCacheService.invalidate();
       return res.json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -163,7 +163,7 @@ export class AppController {
         paramString(req.params.id),
         req.user.role === "ADMIN"
       );
-      ReadCacheService.invalidate();
+      await ReadCacheService.invalidate();
       return res.status(204).send();
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -192,7 +192,7 @@ export class AppController {
   static async requestBook(req: AuthRequest, res: Response) {
     try {
       const result = await WorkflowService.requestBook(req.user.id, req.body);
-      ReadCacheService.invalidate();
+      await ReadCacheService.invalidate();
       return res.status(201).json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -205,7 +205,7 @@ export class AppController {
         paramString(req.params.id),
         req.user.role === "ADMIN"
       );
-      ReadCacheService.invalidate();
+      await ReadCacheService.invalidate();
       return res.json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -218,7 +218,7 @@ export class AppController {
         paramString(req.params.id),
         req.user.role === "ADMIN"
       );
-      ReadCacheService.invalidate();
+      await ReadCacheService.invalidate();
       return res.json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -266,7 +266,7 @@ export class AppController {
         paramString(req.params.id),
         req.user.role === "ADMIN"
       );
-      ReadCacheService.invalidate();
+      await ReadCacheService.invalidate();
       return res.json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
