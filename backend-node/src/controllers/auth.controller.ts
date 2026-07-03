@@ -27,6 +27,7 @@ export class AuthController {
       }
 
       res.status(201).json({
+        token: result.token,
         user: result.user,
       });
     } catch (error: any) {
@@ -63,6 +64,7 @@ export class AuthController {
       });
 
       res.json({
+        token: result.token,
         user: result.user,
       });
     } catch (error: any) {

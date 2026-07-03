@@ -21,7 +21,7 @@ import {
   Info
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import { api, initSocket, destroySocket } from "./api";
+import { api, initSocket, destroySocket, onRealtimeUpdate } from "./api";
 import { Profile } from "./components/Profile";
 import { Stats } from "./components/Stats";
 import { BookModal } from "./components/BookModal";
@@ -542,6 +542,27 @@ export default function App() {
       window.removeEventListener("auth-expired", handler);
     };
   }, []);
+  useEffect(() => {
+    return onRealtimeUpdate((payload) => {
+      const { type, ownerId, requesterId } = payload;
+      switch (type) {
+        case "request:created":
+          if (me?.id === ownerId) loadRequestsFromApi();
+          break;
+        case "request:approved":
+          loadRequestsFromApi();
+          if (me?.id === requesterId) loadBorrowedFromApi();
+          break;
+        case "request:rejected":
+          if (me?.id === requesterId) loadRequestsFromApi();
+          break;
+        case "loan:returned":
+          loadBorrowedFromApi();
+          loadHistoryFromApi();
+          break;
+      }
+    });
+  }, [me?.id]);
   async function handleLogin(token, user) {
     localStorage.setItem("bn_token", token);
     setMe(user);

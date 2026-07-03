@@ -61,31 +61,47 @@ export function setCurrentUserId(id) {
   currentUserId = id;
 }
 
+const realtimeSubscribers = new Set();
+
+export function onRealtimeUpdate(callback) {
+  realtimeSubscribers.add(callback);
+  return () => { realtimeSubscribers.delete(callback); };
+}
+
+function notifySubscribers(payload) {
+  for (const cb of realtimeSubscribers) {
+    try { cb(payload); } catch (e) { console.error("[Realtime] subscriber error", e); }
+  }
+}
+
 export function setupSocketListeners() {
   const socket = getSocket();
   if (!socket) return;
 
   function handle(event, handler) {
     socket.off(event);
-    socket.on(event, handler);
+    socket.on(event, (data) => {
+      handler(data);
+      notifySubscribers({ type: event, ...data });
+    });
   }
 
-  handle("book:created", (data) => {
+  handle("book:created", () => {
     invalidateCache("GET:/books");
     invalidateCache("GET:/dashboard");
   });
 
-  handle("book:updated", (data) => {
+  handle("book:updated", () => {
     invalidateCache("GET:/books");
     invalidateCache("GET:/dashboard");
   });
 
-  handle("book:deleted", (data) => {
+  handle("book:deleted", () => {
     invalidateCache("GET:/books");
     invalidateCache("GET:/dashboard");
   });
 
-  handle("book:imported", (data) => {
+  handle("book:imported", () => {
     invalidateCache("GET:/books");
     invalidateCache("GET:/dashboard");
   });
@@ -98,7 +114,7 @@ export function setupSocketListeners() {
     }
   });
 
-  handle("request:approved", (data) => {
+  handle("request:approved", () => {
     invalidateCache("GET:/books");
     invalidateCache("GET:/dashboard");
     if (currentUserId) {
@@ -115,7 +131,7 @@ export function setupSocketListeners() {
     }
   });
 
-  handle("loan:returned", (data) => {
+  handle("loan:returned", () => {
     invalidateCache("GET:/books");
     if (currentUserId) {
       invalidateCache("GET:/loans/borrowed");

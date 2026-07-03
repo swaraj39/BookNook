@@ -135,7 +135,7 @@ export function Login({ onLogin }) {
       } else {
         result = await api.login(form.email.trim(), form.password);
       }
-      onLogin(null, result.user);
+      onLogin(result.token, result.user);
     } catch (err) {
       switch (err.message) {
         case "Incorrect email or password.":
