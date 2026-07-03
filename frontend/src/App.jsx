@@ -21,7 +21,7 @@ import {
   Info
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import { api } from "./api";
+import { api, initSocket, destroySocket } from "./api";
 import { Profile } from "./components/Profile";
 import { Stats } from "./components/Stats";
 import { BookModal } from "./components/BookModal";
@@ -510,6 +510,8 @@ export default function App() {
         setMe(user);
         setGenres(genreList);
         setIsAuthenticated(true);
+        const token = localStorage.getItem("bn_token");
+        if (token) initSocket(token, user.id);
       } catch (error) {
         setMe(null);
         setIsAuthenticated(false);
@@ -523,6 +525,7 @@ export default function App() {
     const handler = () => {
       setMe(null);
       setIsAuthenticated(false);
+      destroySocket();
       setStats(null);
       prefetchUserRef.current = null;
       setLoadedViews({
@@ -565,6 +568,7 @@ export default function App() {
     setAllBorrowed([]);
     setAllHistory([]);
     window.history.replaceState({ view: "dashboard", selectedBookId: null, navStack: ["dashboard"] }, "", window.location.href);
+    initSocket(token, user.id);
   }
   async function handleLogout() {
     setShowProfileDropdown(false);
@@ -579,6 +583,7 @@ export default function App() {
       console.error("Logout failed:", error);
     }
     setIsAuthenticated(false);
+    destroySocket();
     setMe(null);
     setStats(null);
     setSelectedBook(null);

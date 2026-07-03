@@ -2,12 +2,14 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import dotenv from "dotenv";
+import { createServer } from "http";
 import { AuthController } from "./controllers/auth.controller";
 import { AppController } from "./controllers/app.controller";
 import { authenticate } from "./middleware/auth";
 import { errorHandler, logError } from "./middleware/error";
 import { getSafeErrorMessage, getStatusCode } from "./utils/app-error";
 import { ReadCacheService } from "./services/read-cache.service";
+import { initSocketIO } from "./services/realtime.service";
 dotenv.config();
 const app = express();
 const port = process.env.PORT || 8080;
@@ -78,6 +80,10 @@ app.get("/api/quote/today", async (req, res) => {
   }
 });
 app.use(errorHandler);
-app.listen(port, () => {
+
+const httpServer = createServer(app);
+initSocketIO(httpServer, allowedOrigins);
+
+httpServer.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });

@@ -7,6 +7,7 @@ import prisma from "../config/prisma";
 import { getSafeErrorMessage, getStatusCode } from "../utils/app-error";
 import { logError } from "../middleware/error";
 import { ReadCacheService } from "../services/read-cache.service";
+import { emitToAll } from "../services/realtime.service";
 function paramString(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
   if (!value) throw new Error("Missing required route parameter");
@@ -76,6 +77,9 @@ export class AppController {
       }
       const result = await BookService.importCsv(req.user.id, rows);
       await ReadCacheService.invalidate();
+      if (result.imported > 0) {
+        emitToAll("book:imported", { count: result.imported });
+      }
       return res.status(200).json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -137,6 +141,7 @@ export class AppController {
     try {
       const result = await BookService.create(req.user.id, req.body);
       await ReadCacheService.invalidate();
+      emitToAll("book:created", { bookId: result.id, ownerId: result.owner!.id });
       return res.status(201).json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -151,6 +156,7 @@ export class AppController {
         req.user.role === "ADMIN"
       );
       await ReadCacheService.invalidate();
+      emitToAll("book:updated", { bookId: result.id, ownerId: result.owner!.id });
       return res.json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -164,6 +170,7 @@ export class AppController {
         req.user.role === "ADMIN"
       );
       await ReadCacheService.invalidate();
+      emitToAll("book:deleted", { bookId: paramString(req.params.id), ownerId: req.user.id });
       return res.status(204).send();
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -193,6 +200,11 @@ export class AppController {
     try {
       const result = await WorkflowService.requestBook(req.user.id, req.body);
       await ReadCacheService.invalidate();
+      emitToAll("request:created", {
+        bookId: result.book!.id,
+        ownerId: result.owner!.id,
+        requesterId: result.requester!.id,
+      });
       return res.status(201).json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -206,6 +218,11 @@ export class AppController {
         req.user.role === "ADMIN"
       );
       await ReadCacheService.invalidate();
+      emitToAll("request:approved", {
+        bookId: result.book!.id,
+        ownerId: result.owner!.id,
+        requesterId: result.requester!.id,
+      });
       return res.json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -219,6 +236,11 @@ export class AppController {
         req.user.role === "ADMIN"
       );
       await ReadCacheService.invalidate();
+      emitToAll("request:rejected", {
+        bookId: result.book!.id,
+        ownerId: result.owner!.id,
+        requesterId: result.requester!.id,
+      });
       return res.json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -267,6 +289,11 @@ export class AppController {
         req.user.role === "ADMIN"
       );
       await ReadCacheService.invalidate();
+      emitToAll("loan:returned", {
+        bookId: result.book!.id,
+        ownerId: result.owner!.id,
+        requesterId: result.requester!.id,
+      });
       return res.json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);

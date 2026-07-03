@@ -3,6 +3,8 @@ const API_URL = "https://booknook-74lk.onrender.com/api";
 // const API_URL = "http://localhost:8080/api";
 // const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
+import { connectSocket, disconnectSocket, getSocket } from "./socket";
+
 // --- Frontend cache layer ---
 const CACHE_TTL = {
   FAST: 10 * 1000,
@@ -51,6 +53,91 @@ function invalidateCache(prefix) {
   for (const key of inflight.keys()) {
     if (key.startsWith(prefix)) inflight.delete(key);
   }
+}
+
+let currentUserId = null;
+
+export function setCurrentUserId(id) {
+  currentUserId = id;
+}
+
+export function setupSocketListeners() {
+  const socket = getSocket();
+  if (!socket) return;
+
+  function handle(event, handler) {
+    socket.off(event);
+    socket.on(event, handler);
+  }
+
+  handle("book:created", (data) => {
+    invalidateCache("GET:/books");
+    invalidateCache("GET:/dashboard");
+  });
+
+  handle("book:updated", (data) => {
+    invalidateCache("GET:/books");
+    invalidateCache("GET:/dashboard");
+  });
+
+  handle("book:deleted", (data) => {
+    invalidateCache("GET:/books");
+    invalidateCache("GET:/dashboard");
+  });
+
+  handle("book:imported", (data) => {
+    invalidateCache("GET:/books");
+    invalidateCache("GET:/dashboard");
+  });
+
+  handle("request:created", (data) => {
+    invalidateCache("GET:/books");
+    if (currentUserId && data.ownerId === currentUserId) {
+      invalidateCache("GET:/borrow-requests");
+      invalidateCache("GET:/dashboard");
+    }
+  });
+
+  handle("request:approved", (data) => {
+    invalidateCache("GET:/books");
+    invalidateCache("GET:/dashboard");
+    if (currentUserId) {
+      invalidateCache("GET:/borrow-requests");
+      invalidateCache("GET:/loans/borrowed");
+    }
+  });
+
+  handle("request:rejected", (data) => {
+    invalidateCache("GET:/books");
+    if (currentUserId && data.requesterId === currentUserId) {
+      invalidateCache("GET:/borrow-requests");
+      invalidateCache("GET:/dashboard");
+    }
+  });
+
+  handle("loan:returned", (data) => {
+    invalidateCache("GET:/books");
+    if (currentUserId) {
+      invalidateCache("GET:/loans/borrowed");
+      invalidateCache("GET:/loans/history");
+      invalidateCache("GET:/dashboard");
+    }
+  });
+}
+
+export function initSocket(token, userId) {
+  connectSocket(token);
+  setCurrentUserId(userId);
+  setupSocketListeners();
+}
+
+export function destroySocket() {
+  disconnectSocket();
+  setCurrentUserId(null);
+}
+
+export function clearLocalCache() {
+  invalidateCache();
 }
 
 function friendlyErrorMessage(message) {
