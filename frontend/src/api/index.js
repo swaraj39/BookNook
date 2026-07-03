@@ -1,5 +1,5 @@
-const API_URL = "https://booknook-gfb8.onrender.com/api";
-// const API_URL = "http://localhost:8080/api";
+// const API_URL = "https://booknook-gfb8.onrender.com/api";
+const API_URL = "http://localhost:8080/api";
 // const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 function friendlyErrorMessage(message) {
   const text = String(message || "").toLowerCase();
@@ -71,6 +71,7 @@ export const api = {
     }),
   me: () => request("/me"),
   dashboard: () => request("/dashboard"),
+  leaderboard: () => request("/leaderboard"),
   genres: () => request("/genres"),
   books: (params) => {
     const query = new URLSearchParams({ size: 20, ...params });

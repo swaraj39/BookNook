@@ -262,6 +262,15 @@ export class AppController {
       return AppController.handleError(res, error);
     }
   }
+  static async leaderboard(req: AuthRequest, res: Response) {
+    try {
+      const result = await LookupService.leaderboard();
+      return res.json(result);
+    } catch (error: any) {
+      return AppController.handleError(res, error);
+    }
+  }
+
   static async bookHistory(req: AuthRequest, res: Response) {
     try {
       const { page, size } = req.query;

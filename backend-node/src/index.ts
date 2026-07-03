@@ -32,6 +32,7 @@ app.post("/api/auth/forgot-password/reset", AuthController.forgotPasswordReset);
 // App routes
 app.get("/api/me", authenticate, AppController.me);
 app.get("/api/genres", authenticate, AppController.genres);
+app.get("/api/leaderboard", authenticate, AppController.leaderboard);
 app.get("/api/dashboard", authenticate, AppController.dashboard);
 app.get("/api/books", authenticate, AppController.catalog);
 app.get("/api/books/mine", authenticate, AppController.myBooks);

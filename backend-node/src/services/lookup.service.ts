@@ -45,6 +45,42 @@ export class LookupService {
     };
   }
 
+  static async leaderboard(limit?: number) {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth()-5, 1);
+    const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const results = await prisma.bookTransaction.groupBy({
+      by: ["requesterId"],
+      where: {
+        status: "returned",
+        returnedAt: { gte: startOfMonth, lt: startOfNextMonth },
+      },
+      _count: { id: true },
+      orderBy: { _count: { id: "desc" } },
+      ...(limit ? { take: limit } : {}),
+    });
+
+    if (results.length === 0) return [];
+
+    const userIds = results.map((r) => r.requesterId);
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, fullName: true, avatarInitials: true, avatarUrl: true },
+    });
+
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    return results.map((r, i) => ({
+      rank: i + 1,
+      userId: r.requesterId,
+      fullName: userMap.get(r.requesterId)?.fullName ?? "Unknown",
+      avatarInitials: userMap.get(r.requesterId)?.avatarInitials ?? null,
+      avatarUrl: userMap.get(r.requesterId)?.avatarUrl ?? null,
+      booksRead: r._count.id,
+    }));
+  }
+
   static async dashboard(userId: string) {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -101,27 +137,7 @@ export class LookupService {
       globalAvg: communityAverageRead
     }];
 
-    const activeBooks = await prisma.book.findMany({
-      where: { visibilityStatus: "visible" },
-      include: { owner: true, genre: true }
-    });
-
-    let bookOfTheDay = null;
-    if (activeBooks.length > 0) {
-      const dateSeed = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
-      const index = Math.abs(dateSeed) % activeBooks.length;
-      const chosen = activeBooks[index];
-      bookOfTheDay = {
-        id: chosen.id,
-        title: chosen.title,
-        author: chosen.author ?? null,
-        coverColor: chosen.coverColor,
-        coverUrl: chosen.coverUrl,
-        description: chosen.description,
-        genreName: chosen.genre?.name ?? "N/A",
-        ownerName: chosen.owner.fullName
-      };
-    }
+    const leaderboard = await LookupService.leaderboard(5);
 
     return {
       totalBooks: cachedStats.totalBooks,
@@ -134,7 +150,7 @@ export class LookupService {
       totalBooksRead,
       chartData,
       latestReadings,
-      bookOfTheDay
+      leaderboard
     };
   }
 }

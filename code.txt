@@ -116,7 +116,7 @@ CMD ["nginx", "-g", "daemon off;"]
 </file>
 
 <file path="src/api/index.js">
-const API_URL = "https://booknook-gfb8.onrender.com/api";
+const API_URL = "http://localhost:8080/api";
 function friendlyErrorMessage(message) {
   const text = String(message || "").toLowerCase();
   const looksLikeDatabaseError = [
@@ -183,6 +183,7 @@ export const api = {
     }),
   me: () => request("/me"),
   dashboard: () => request("/dashboard"),
+  leaderboard: () => request("/leaderboard"),
   genres: () => request("/genres"),
   books: (params) => {
     const query = new URLSearchParams({ size: 20, ...params });
@@ -358,6 +359,20 @@ const blankBook = {
 // filter/paginate the "All / Available / Request Pending / Borrowed by me /
 const CATALOG_FETCH_SIZE = 1000;
 const CATALOG_PAGE_SIZE = 20;
+const LIST_FETCH_SIZE = 1000;
+const LIST_PAGE_SIZE = 20;
+function paginateList(list, pageIndex, pageSize = LIST_PAGE_SIZE) {
+  const totalElements = list.length;
+  const totalPages = Math.max(1, Math.ceil(totalElements / pageSize));
+  const safePage = Math.min(Math.max(pageIndex, 0), totalPages - 1);
+  const start = safePage * pageSize;
+  return {
+    content: list.slice(start, start + pageSize),
+    totalElements,
+    totalPages,
+    page: safePage
+  };
+}
 function matchesCapsule(book, capsule) {
   switch (capsule) {
     case "available":
@@ -542,11 +557,16 @@ export default function App() {
   const [stats, setStats] = useState(null);
   const [genres, setGenres] = useState([]);
   const [catalogBooks, setCatalogBooks] = useState([]);
-  const [requestsPage, setRequestsPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-  const [myBooksPage, setMyBooksPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-  const [borrowedPage, setBorrowedPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-  const [historyPage, setHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
-  const [bookHistoryPage, setBookHistoryPage] = useState({ content: [], totalPages: 0, totalElements: 0, page: 0 });
+  const [allRequests, setAllRequests] = useState([]);
+  const [requestsPageIndex, setRequestsPageIndex] = useState(0);
+  const [allMyBooks, setAllMyBooks] = useState([]);
+  const [myBooksPageIndex, setMyBooksPageIndex] = useState(0);
+  const [allBorrowed, setAllBorrowed] = useState([]);
+  const [borrowedPageIndex, setBorrowedPageIndex] = useState(0);
+  const [allHistory, setAllHistory] = useState([]);
+  const [historyPageIndex, setHistoryPageIndex] = useState(0);
+  const [allBookHistory, setAllBookHistory] = useState([]);
+  const [bookHistoryPageIndex, setBookHistoryPageIndex] = useState(0);
   const [selectedBook, setSelectedBook] = useState(null);
   const [filters, setFilters] = useState({ search: "", genreId: "", availability: "all", sort: "title", page: 0 });
   const [searchTerm, setSearchTerm] = useState("");
@@ -584,6 +604,28 @@ export default function App() {
       page: safePage
     };
   }, [filteredCatalogBooks, filters.page]);
+  // Same idea as booksPage above: the full list is fetched once per view/
+  // refresh, and paging just re-slices it in memory - no extra API calls.
+  const requestsPage = useMemo(
+    () => paginateList(allRequests, requestsPageIndex),
+    [allRequests, requestsPageIndex]
+  );
+  const myBooksPage = useMemo(
+    () => paginateList(allMyBooks, myBooksPageIndex),
+    [allMyBooks, myBooksPageIndex]
+  );
+  const borrowedPage = useMemo(
+    () => paginateList(allBorrowed, borrowedPageIndex),
+    [allBorrowed, borrowedPageIndex]
+  );
+  const historyPage = useMemo(
+    () => paginateList(allHistory, historyPageIndex),
+    [allHistory, historyPageIndex]
+  );
+  const bookHistoryPage = useMemo(
+    () => paginateList(allBookHistory, bookHistoryPageIndex),
+    [allBookHistory, bookHistoryPageIndex]
+  );
   const checkNavScroll = useCallback(() => {
     const el = navRef.current;
     if (el) {
@@ -611,7 +653,7 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-      fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+      fetch(`http://localhost:8080/api/quote/today`)
         .then((response) => response.ok ? response.json() : null)
         .then((quote) => {
           if (quote) setDailyThought(quote);
@@ -664,23 +706,35 @@ export default function App() {
             break;
           }
           case "requests": {
-            const data = await api.requests(0);
-            if (!cancelled) setRequestsPage(data);
+            const data = await api.requests(0, LIST_FETCH_SIZE);
+            if (!cancelled) {
+              setAllRequests(data.content || []);
+              setRequestsPageIndex(0);
+            }
             break;
           }
           case "myBooks": {
-            const data = await api.myBooks(0);
-            if (!cancelled) setMyBooksPage(data);
+            const data = await api.myBooks(0, LIST_FETCH_SIZE);
+            if (!cancelled) {
+              setAllMyBooks(data.content || []);
+              setMyBooksPageIndex(0);
+            }
             break;
           }
           case "borrowed": {
-            const data = await api.borrowed(0);
-            if (!cancelled) setBorrowedPage(data);
+            const data = await api.borrowed(0, LIST_FETCH_SIZE);
+            if (!cancelled) {
+              setAllBorrowed(data.content || []);
+              setBorrowedPageIndex(0);
+            }
             break;
           }
           case "history": {
-            const data = await api.loanHistory(0);
-            if (!cancelled) setHistoryPage(data);
+            const data = await api.loanHistory(0, LIST_FETCH_SIZE);
+            if (!cancelled) {
+              setAllHistory(data.content || []);
+              setHistoryPageIndex(0);
+            }
             break;
           }
         }
@@ -697,10 +751,11 @@ export default function App() {
       try {
         const [freshBook, history] = await Promise.all([
           api.book(selectedBookId),
-          api.bookHistory(selectedBookId, 0)
+          api.bookHistory(selectedBookId, 0, LIST_FETCH_SIZE)
         ]);
         setSelectedBook(freshBook);
-        setBookHistoryPage(history);
+        setAllBookHistory(history.content || []);
+        setBookHistoryPageIndex(0);
       } catch (error) {
         notify(error.message || "Unable to load book details.", "error");
         navigateTo("catalog", { replace: true });
@@ -749,7 +804,8 @@ export default function App() {
   async function handleLogout() {
     setShowProfileDropdown(false);
     try {
-      await fetch("https:
+      // await fetch("https:
+      await fetch("http://localhost:8080/api/auth/logout", {
         method: "POST",
         credentials: "include",
       });
@@ -795,6 +851,47 @@ async function loadCatalogFromApi() {
     setCatalogLoading(false);
   }
 }
+async function loadRequestsFromApi() {
+  try {
+    const data = await api.requests(0, LIST_FETCH_SIZE);
+    setAllRequests(data.content || []);
+  } catch (error) {
+    notify(error.message, "error");
+  }
+}
+async function loadMyBooksFromApi() {
+  try {
+    const data = await api.myBooks(0, LIST_FETCH_SIZE);
+    setAllMyBooks(data.content || []);
+  } catch (error) {
+    notify(error.message, "error");
+  }
+}
+async function loadBorrowedFromApi() {
+  try {
+    const data = await api.borrowed(0, LIST_FETCH_SIZE);
+    setAllBorrowed(data.content || []);
+  } catch (error) {
+    notify(error.message, "error");
+  }
+}
+async function loadHistoryFromApi() {
+  try {
+    const data = await api.loanHistory(0, LIST_FETCH_SIZE);
+    setAllHistory(data.content || []);
+  } catch (error) {
+    notify(error.message, "error");
+  }
+}
+async function loadBookHistoryFromApi(id) {
+  try {
+    const data = await api.bookHistory(id, 0, LIST_FETCH_SIZE);
+    setAllBookHistory(data.content || []);
+    setBookHistoryPageIndex(0);
+  } catch (error) {
+    notify(error.message, "error");
+  }
+}
 async function reloadCurrentView() {
   if (view === "catalog") {
     await loadCatalogFromApi();
@@ -809,23 +906,19 @@ async function reloadCurrentView() {
         break;
       }
       case "requests": {
-        const data = await api.requests(requestsPage.page);
-        setRequestsPage(data);
+        await loadRequestsFromApi();
         break;
       }
       case "myBooks": {
-        const data = await api.myBooks(myBooksPage.page);
-        setMyBooksPage(data);
+        await loadMyBooksFromApi();
         break;
       }
       case "borrowed": {
-        const data = await api.borrowed(borrowedPage.page);
-        setBorrowedPage(data);
+        await loadBorrowedFromApi();
         break;
       }
       case "history": {
-        const data = await api.loanHistory(historyPage.page);
-        setHistoryPage(data);
+        await loadHistoryFromApi();
         break;
       }
     }
@@ -840,20 +933,20 @@ async function resolveConfirm(confirmed) {
   if (confirmed && confirm?.onConfirm) await confirm.onConfirm();
   setConfirm(null);
 }
-async function loadRequests(page) {
-  try { setRequestsPage(await api.requests(page)); } catch (e) { notify(e.message, "error"); }
+function loadRequests(page) {
+  setRequestsPageIndex(page);
 }
-async function loadMyBooks(page) {
-  try { setMyBooksPage(await api.myBooks(page)); } catch (e) { notify(e.message, "error"); }
+function loadMyBooks(page) {
+  setMyBooksPageIndex(page);
 }
-async function loadBorrowed(page) {
-  try { setBorrowedPage(await api.borrowed(page)); } catch (e) { notify(e.message, "error"); }
+function loadBorrowed(page) {
+  setBorrowedPageIndex(page);
 }
-async function loadHistory(page) {
-  try { setHistoryPage(await api.loanHistory(page)); } catch (e) { notify(e.message, "error"); }
+function loadHistory(page) {
+  setHistoryPageIndex(page);
 }
-async function loadBookHistory(id, page) {
-  try { setBookHistoryPage(await api.bookHistory(id, page)); } catch (e) { notify(e.message, "error"); }
+function changeBookHistoryPage(page) {
+  setBookHistoryPageIndex(page);
 }
 async function openDetails(book) {
   setDetailsLoading(true);
@@ -861,7 +954,7 @@ async function openDetails(book) {
     const freshBook = await api.book(book.id);
     setSelectedBook(freshBook);
     setSelectedBookId(book.id);
-    await loadBookHistory(book.id, 0);
+    await loadBookHistoryFromApi(book.id);
     navigateTo("detail", { bookId: book.id });
   } finally {
     setDetailsLoading(false);
@@ -1059,6 +1152,7 @@ return (
           me={me}
           dailyThought={dailyThought}
           openDetails={openDetails}
+          onNavigate={navigateTo}
         />
       )}
       {view !== "home" && view !== "catalog" && view !== "dashboard" && (
@@ -1103,15 +1197,15 @@ return (
           onRefresh={loadCatalogFromApi}
         />
       )}
-      {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onRefresh={() => loadRequests(requestsPage.page)} />}
-      {view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} onRefresh={() => loadMyBooks(myBooksPage.page)} />}
-      {view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} returnBook={returnBook} openDetails={openDetails} onRefresh={() => loadBorrowed(borrowedPage.page)} />}
-      {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={() => loadHistory(historyPage.page)} />}
+      {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onRefresh={loadRequestsFromApi} />}
+      {view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} onRefresh={loadMyBooksFromApi} />}
+      {view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} returnBook={returnBook} openDetails={openDetails} onRefresh={loadBorrowedFromApi} />}
+      {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={loadHistoryFromApi} />}
       {view === "detail" && selectedBook && (
         <Details
           book={selectedBook}
           historyPage={bookHistoryPage}
-          onPageChange={(p) => loadBookHistory(selectedBook.id, p)}
+          onPageChange={changeBookHistoryPage}
           me={me}
           navigateBack={navigateBack}
           navigateTo={navigateTo}
@@ -2004,19 +2098,55 @@ export function Catalog({
 </file>
 
 <file path="src/pages/Dashboard.jsx">
-import React from "react";
+import React, { useState } from "react";
 import { label, dateText } from "../utils/helpers";
-import { BookOpen, Calendar, Milestone, Sparkles, Tv } from "lucide-react";
-export function Dashboard({ stats, me, dailyThought, openDetails }) {
-  const videoLinks = [
-    "https://www.youtube.com/embed/AUw7laSlcbo?si=0lZXz_XqWHQrkd6x"
-  ];
-  const getSelectedVideo = () => {
-    if (!me?.id) return videoLinks[0];
-    const code = me.id.charCodeAt(0) || 0;
-    return videoLinks[code % videoLinks.length];
-  };
+import { BookOpen, Milestone, Sparkles, Trophy, ExternalLink, Crown, Medal } from "lucide-react";
+export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) {
+  const [showLeaderboardPopup, setShowLeaderboardPopup] = useState(false);
+  const [allLeaderboard, setAllLeaderboard] = useState(null);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
   const chartMax = Math.max(...(stats.chartData || []).map(d => Math.max(d.userCount, d.globalAvg, 4)), 1);
+  async function handleOpenPopup() {
+    if (allLeaderboard) {
+      setShowLeaderboardPopup(true);
+      return;
+    }
+    setLoadingLeaderboard(true);
+    setShowLeaderboardPopup(true);
+    try {
+      const { api } = await import("../api");
+      const data = await api.leaderboard();
+      setAllLeaderboard(data);
+    } catch {
+      setAllLeaderboard([]);
+    } finally {
+      setLoadingLeaderboard(false);
+    }
+  }
+  function handleClosePopup() {
+    setShowLeaderboardPopup(false);
+  }
+  function PodiumStandee({ entry, position }) {
+    if (!entry) return null;
+    const maxBooks = Math.max(...(stats.leaderboard || []).map(e => e.booksRead), 1);
+    const barHeight = position === 1 ? 100 : position === 2 ? 75 : 50;
+    return (
+      <div className={`podium-column pos-${position}`}>
+        <div className="podium-bar-wrap">
+          <div className={`podium-bar bar-${position}`} style={{ height: `${barHeight}%` }}>
+            <span className="podium-count">{entry.booksRead}</span>
+          </div>
+        </div>
+        <div className="podium-avatar" style={{ backgroundColor: entry.avatarUrl ? "transparent" : "var(--brand)" }}>
+          {entry.avatarUrl ? <img src={entry.avatarUrl} alt={entry.fullName} /> : entry.avatarInitials || entry.fullName[0]}
+        </div>
+        <span className="podium-name">{entry.fullName.split(" ")[0]}</span>
+        <div className="podium-medal">
+          {position === 1 ? <Crown size={16} /> : <Medal size={14} />}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="dashboard-layout">
       {}
@@ -2083,11 +2213,11 @@ export function Dashboard({ stats, me, dailyThought, openDetails }) {
       <section className="dashboard-split-feed-row">
         {}
         <div className="latest-readings-scroller-box">
-          <div className="feed-title-header">
+          <div className="history-scroll-viewport">
+            <div className="feed-title-header">
             <BookOpen size={18} />
             <h3>Your Latest Reading Logs</h3>
           </div>
-          <div className="history-scroll-viewport">
             {stats.latestReadings && stats.latestReadings.filter((log) => log.status !== "rejected").length > 0 ? (
               stats.latestReadings
                 .filter((log) => log.status !== "rejected")
@@ -2115,52 +2245,87 @@ export function Dashboard({ stats, me, dailyThought, openDetails }) {
           </div>
         </div>
         {}
-        <div className="media-column-stack-block">
-          {}
-          <div className="video-player-media-panel">
-            <div className="feed-title-header">
-              <Tv size={16} />
-              <h3>Community Spotlight Stream</h3>
-            </div>
-            <div className="iframe-video-wrapper">
-              <div className="iframe-video-wrapper">
-                <iframe
-                  width="100%"
-                  height="100%"
-                  src={getSelectedVideo()}
-                  title="Book Nook Streaming Hub"
-                  frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  allowFullScreen
-                ></iframe>
+        <div className="leaderboard-panel">
+          <div className="feed-title-header">
+            <Trophy size={16} />
+            <h3>Leaderboard </h3>
+          </div>
+          <div className="leaderboard-body">
+            {stats.leaderboard && stats.leaderboard.length > 0 ? (
+              <>
+                <div className="podium-strip">
+                  <PodiumStandee entry={stats.leaderboard[1]} position={2} />
+                  <PodiumStandee entry={stats.leaderboard[0]} position={1} />
+                  <PodiumStandee entry={stats.leaderboard[2]} position={3} />
+                </div>
+                {stats.leaderboard.slice(3).length > 0 && (
+                  <div className="leaderboard-rest">
+                    {stats.leaderboard.slice(3).map((entry) => (
+                      <div key={entry.userId} className="leaderboard-row">
+                        <span className={`leaderboard-rank rank-${entry.rank}`}>{entry.rank}</span>
+                        <div className="leaderboard-avatar" style={{ backgroundColor: entry.avatarUrl ? "transparent" : "var(--brand)" }}>
+                          {entry.avatarUrl ? <img src={entry.avatarUrl} alt={entry.fullName} /> : entry.avatarInitials || entry.fullName[0]}
+                        </div>
+                        <div className="leaderboard-info">
+                          <span className="leaderboard-name">{entry.fullName}</span>
+                        </div>
+                        <span className="leaderboard-count">{entry.booksRead} <small>book{entry.booksRead !== 1 ? "s" : ""}</small></span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="empty-logs-placeholder">
+                <Milestone size={32} />
+                <p>No books have been returned this month yet.</p>
               </div>
+            )}
+            <div className="leaderboard-footer">
+              <button className="leaderboard-view-all" onClick={handleOpenPopup}>
+                View All <ExternalLink size={14} />
+              </button>
             </div>
           </div>
           {}
-          <div className="book-of-the-day-showcase-panel">
-            <div className="feed-title-header">
-              <Calendar size={16} />
-              <h3>Book of the Day</h3>
-            </div>
-            {stats.bookOfTheDay ? (
-              <div className="showcase-content-box" onClick={() => openDetails(stats.bookOfTheDay)}>
-                <div className="showcase-cover-card" style={{ backgroundColor: stats.bookOfTheDay.coverColor || "var(--brand-dark)" }}>
-                  {stats.bookOfTheDay.coverUrl ? <img src={stats.bookOfTheDay.coverUrl} alt={stats.bookOfTheDay.title} /> : stats.bookOfTheDay.title[0]}
+          {showLeaderboardPopup && (
+            <div className="leaderboard-popup-overlay" onClick={handleClosePopup}>
+              <div className="leaderboard-popup" onClick={(e) => e.stopPropagation()}>
+                <div className="leaderboard-popup-header">
+                  <Trophy size={18} />
+                  <h3>Full Leaderboard</h3>
+                  <button className="leaderboard-popup-close" onClick={handleClosePopup}>×</button>
                 </div>
-                <div className="showcase-text-summary">
-                  <h4>{stats.bookOfTheDay.title}</h4>
-                  <p className="author">{stats.bookOfTheDay.author}</p>
-                  <span className="badge-owner-tag">Lender: {stats.bookOfTheDay.ownerName}</span>
-                  {stats.bookOfTheDay.description && (
-                    <p className="clamped-desc-snippet">{stats.bookOfTheDay.description}</p>
+                <div className="leaderboard-popup-body">
+                  {loadingLeaderboard ? (
+                    <div className="empty-logs-placeholder"><p>Loading...</p></div>
+                  ) : (
+                    <>
+                      <div className="podium-strip">
+                        <PodiumStandee entry={allLeaderboard?.[1]} position={2} />
+                        <PodiumStandee entry={allLeaderboard?.[0]} position={1} />
+                        <PodiumStandee entry={allLeaderboard?.[2]} position={3} />
+                      </div>
+                      <div className="leaderboard-rest">
+                        {(allLeaderboard ?? []).slice(3).map((entry) => (
+                          <div key={entry.userId} className="leaderboard-row">
+                            <span className={`leaderboard-rank rank-${entry.rank}`}>{entry.rank}</span>
+                            <div className="leaderboard-avatar" style={{ backgroundColor: entry.avatarUrl ? "transparent" : "var(--brand)" }}>
+                              {entry.avatarUrl ? <img src={entry.avatarUrl} alt={entry.fullName} /> : entry.avatarInitials || entry.fullName[0]}
+                            </div>
+                            <div className="leaderboard-info">
+                              <span className="leaderboard-name">{entry.fullName}</span>
+                            </div>
+                            <span className="leaderboard-count">{entry.booksRead} <small>book{entry.booksRead !== 1 ? "s" : ""}</small></span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
-            ) : (
-              <p className="empty-logs-placeholder">No active catalog items listed to choose from today.</p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </section>
     </div>
@@ -6045,7 +6210,7 @@ th:last-child {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
   color: var(--ink);
 }
 .feed-title-header h3 { margin: 0; font-size: 16px; font-weight: 700; }
@@ -6092,14 +6257,19 @@ th:last-child {
 .timeline-meta-chips {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   font-size: 11px;
+}
+.date-marker-lbl {
+  color: var(--muted);
+  white-space: nowrap;
 }
 .chip-status-lbl {
   padding: 2px 8px;
   border-radius: 20px;
   font-weight: 700;
   background: var(--line);
+  white-space: nowrap;
 }
 .chip-status-lbl.active { background: #dbeafe; color: #1e40af; }
 .chip-status-lbl.returned { background: #dff6ec; color: #065f46; }
@@ -6166,6 +6336,264 @@ th:last-child {
   padding: 20px;
 }
 .empty-logs-placeholder p { font-size: 13px; margin: 8px 0 0; }
+.leaderboard-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+.leaderboard-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.podium-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 16px 4px 12px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.podium-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.podium-column.pos-1 { order: 2; }
+.podium-column.pos-2 { order: 1; }
+.podium-column.pos-3 { order: 3; }
+.podium-bar-wrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  height: 80px;
+}
+.podium-bar {
+  width: 60%;
+  border-radius: 6px 6px 0 0;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 6px;
+  transition: height 0.4s ease;
+  min-height: 20px;
+}
+.podium-bar.bar-1 {
+  background: linear-gradient(to top, #f59e0b, #fbbf24);
+  box-shadow: 0 -2px 12px rgba(245, 158, 11, 0.3);
+}
+.podium-bar.bar-2 {
+  background: linear-gradient(to top, #94a3b8, #cbd5e1);
+  box-shadow: 0 -2px 8px rgba(148, 163, 184, 0.2);
+}
+.podium-bar.bar-3 {
+  background: linear-gradient(to top, #cd7f32, #d4956a);
+  box-shadow: 0 -2px 8px rgba(205, 127, 50, 0.2);
+}
+.podium-count {
+  font-size: 13px;
+  font-weight: 800;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+.podium-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 2px solid var(--line);
+}
+.pos-1 .podium-avatar {
+  width: 44px;
+  height: 44px;
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+}
+.pos-2 .podium-avatar {
+  border-color: #94a3b8;
+}
+.pos-3 .podium-avatar {
+  border-color: #cd7f32;
+}
+.podium-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.podium-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
+  white-space: nowrap;
+}
+.podium-medal {
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pos-1 .podium-medal { color: #f59e0b; }
+.pos-2 .podium-medal { color: #94a3b8; }
+.pos-3 .podium-medal { color: #cd7f32; }
+.leaderboard-rest {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.leaderboard-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+.leaderboard-row:hover {
+  background: var(--brand-soft);
+}
+.leaderboard-rank {
+  width: 22px;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  color: var(--muted);
+}
+.leaderboard-rank.rank-1 { color: #f59e0b; }
+.leaderboard-rank.rank-2 { color: #94a3b8; }
+.leaderboard-rank.rank-3 { color: #cd7f32; }
+.leaderboard-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.leaderboard-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.leaderboard-info {
+  flex: 1;
+  min-width: 0;
+}
+.leaderboard-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.leaderboard-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand);
+  white-space: nowrap;
+}
+.leaderboard-count small {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.leaderboard-footer {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: center;
+}
+.leaderboard-view-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.leaderboard-view-all:hover {
+  background: var(--brand-soft);
+}
+.leaderboard-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: grid;
+  place-items: center;
+  z-index: 1000;
+  padding: 16px;
+}
+.leaderboard-popup {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  animation: popupFadeIn 0.2s ease;
+}
+@keyframes popupFadeIn {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.leaderboard-popup-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.leaderboard-popup-header h3 {
+  flex: 1;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.leaderboard-popup-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background 0.15s, color 0.15s;
+}
+.leaderboard-popup-close:hover {
+  background: var(--brand-soft);
+  color: var(--ink);
+}
+.leaderboard-popup-body {
+  padding: 12px 20px 20px;
+  overflow-y: auto;
+}
 @media (max-width: 992px) {
   .analytics-block-grid, .dashboard-split-feed-row {
     grid-template-columns: 1fr;
@@ -7884,6 +8312,14 @@ export class AppController {
       return AppController.handleError(res, error);
     }
   }
+  static async leaderboard(req: AuthRequest, res: Response) {
+    try {
+      const result = await LookupService.leaderboard();
+      return res.json(result);
+    } catch (error: any) {
+      return AppController.handleError(res, error);
+    }
+  }
   static async bookHistory(req: AuthRequest, res: Response) {
     try {
       const { page, size } = req.query;
@@ -8052,6 +8488,7 @@ app.post("/api/auth/forgot-password/verify-otp", AuthController.forgotPasswordVe
 app.post("/api/auth/forgot-password/reset", AuthController.forgotPasswordReset);
 app.get("/api/me", authenticate, AppController.me);
 app.get("/api/genres", authenticate, AppController.genres);
+app.get("/api/leaderboard", authenticate, AppController.leaderboard);
 app.get("/api/dashboard", authenticate, AppController.dashboard);
 app.get("/api/books", authenticate, AppController.catalog);
 app.get("/api/books/mine", authenticate, AppController.myBooks);
@@ -8786,6 +9223,36 @@ export class LookupService {
       pageSize: size,
     };
   }
+  static async leaderboard(limit?: number) {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth()-5, 1);
+    const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const results = await prisma.bookTransaction.groupBy({
+      by: ["requesterId"],
+      where: {
+        status: "returned",
+        returnedAt: { gte: startOfMonth, lt: startOfNextMonth },
+      },
+      _count: { id: true },
+      orderBy: { _count: { id: "desc" } },
+      ...(limit ? { take: limit } : {}),
+    });
+    if (results.length === 0) return [];
+    const userIds = results.map((r) => r.requesterId);
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, fullName: true, avatarInitials: true, avatarUrl: true },
+    });
+    const userMap = new Map(users.map((u) => [u.id, u]));
+    return results.map((r, i) => ({
+      rank: i + 1,
+      userId: r.requesterId,
+      fullName: userMap.get(r.requesterId)?.fullName ?? "Unknown",
+      avatarInitials: userMap.get(r.requesterId)?.avatarInitials ?? null,
+      avatarUrl: userMap.get(r.requesterId)?.avatarUrl ?? null,
+      booksRead: r._count.id,
+    }));
+  }
   static async dashboard(userId: string) {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -8832,26 +9299,7 @@ export class LookupService {
       userCount: booksReadThisMonth,
       globalAvg: communityAverageRead
     }];
-    const activeBooks = await prisma.book.findMany({
-      where: { visibilityStatus: "visible" },
-      include: { owner: true, genre: true }
-    });
-    let bookOfTheDay = null;
-    if (activeBooks.length > 0) {
-      const dateSeed = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
-      const index = Math.abs(dateSeed) % activeBooks.length;
-      const chosen = activeBooks[index];
-      bookOfTheDay = {
-        id: chosen.id,
-        title: chosen.title,
-        author: chosen.author ?? null,
-        coverColor: chosen.coverColor,
-        coverUrl: chosen.coverUrl,
-        description: chosen.description,
-        genreName: chosen.genre?.name ?? "N/A",
-        ownerName: chosen.owner.fullName
-      };
-    }
+    const leaderboard = await LookupService.leaderboard(5);
     return {
       totalBooks: cachedStats.totalBooks,
       availableBooks: cachedStats.availableBooks,
@@ -8863,7 +9311,7 @@ export class LookupService {
       totalBooksRead,
       chartData,
       latestReadings,
-      bookOfTheDay
+      leaderboard
     };
   }
 }
