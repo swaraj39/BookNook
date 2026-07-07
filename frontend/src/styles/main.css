@@ -3986,6 +3986,7 @@ tbody tr:hover,
   left: 0;
   z-index: 90;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   background: rgba(250, 246, 235, 0.86);
@@ -4067,3 +4068,239 @@ tbody tr:hover,
   }
 }
 
+/* ==========================================================================
+   User Guide Section Styling Framework (Side-by-Side Viewport Columns)
+   Modern SaaS Tech Theme: slate canvas, floating white cards, indigo/blue
+   brand accents, crisp micro-borders, left-aligned node hierarchy.
+   ========================================================================== */
+
+:root {
+  --canvas: #f8fafc;      /* Slate 50 - main canvas background */
+  --card-bg: #ffffff;
+  --line: #e2e8f0;        /* crisp micro-border */
+  --brand: #2563eb;       /* primary tech-blue/indigo */
+  --brand-soft: rgba(37, 99, 235, 0.06);
+  --brand-glow: rgba(37, 99, 235, 0.1);
+  --accent: #10b981;      /* emerald - success / final node only */
+  --accent-soft: #ecfdf5;
+  --ink: #0f172a;         /* deep obsidian slate - headers */
+  --muted: #475569;       /* supporting/description text */
+  --muted-light: #94a3b8;
+  --bg-light: #f1f5f9;
+}
+
+.guide-container {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 28px !important;
+  align-items: flex-start !important;
+  width: 100%;
+  padding-top: 20px !important;
+  height: calc(100vh - 140px) !important;
+  overflow: hidden !important;
+  position: relative !important;
+  background: var(--canvas);
+}
+
+.guide-sidebar {
+  width: 280px !important;
+  flex-shrink: 0;
+  padding: 16px 12px !important;
+  background: var(--card-bg);
+  height: max-content !important;
+  max-height: 100% !important;
+  overflow-y: auto !important;
+}
+
+/* Restores layout column flow while completely hiding the vertical scrollbar track */
+.guide-content-viewport {
+  flex: 1;
+  min-width: 0;
+  height: 100% !important;
+  overflow-y: scroll !important;
+  padding-right: 0px;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+  background: var(--canvas);
+}
+
+.guide-content-viewport::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* Desktop Snake Matrix Structure Rules */
+.desktop-snake-matrix {
+  display: flex;
+  flex-direction: column;
+  gap: 80px; /* Space between row 1 and row 2 for curve connections */
+  max-width: 960px;
+  margin: 0 auto 64px auto;
+  padding: 20px 0;
+}
+
+.snake-row {
+  display: flex;
+  gap: 40px;
+  width: 100%;
+}
+
+.row-forward {
+  justify-content: flex-start;
+}
+
+.row-backward {
+  /* Aligns Row 2 cards on the right side to stay right underneath Node 3 */
+  justify-content: flex-end;
+}
+
+.flow-node-wrapper {
+  width: 250px;
+  flex-shrink: 0;
+}
+
+/* Node Card: asymmetrical, left-aligned hierarchy with soft elevation */
+.flow-card-node {
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 22px 20px;
+  text-align: left;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.flow-card-node:hover {
+  transform: translateY(-4px);
+  border-color: var(--brand);
+  box-shadow: 0 20px 25px -5px var(--brand-glow), 0 8px 10px -6px rgb(0 0 0 / 0.06);
+}
+
+.flow-card-node.highlight-success {
+  border: 1.5px solid var(--accent);
+}
+.flow-card-node.highlight-success:hover {
+  box-shadow: 0 20px 25px -5px rgba(16, 185, 129, 0.14), 0 8px 10px -6px rgb(0 0 0 / 0.06);
+}
+
+/* Icon: top-left, sleek rounded tint container */
+.node-icon-wrapper {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.flow-card-node.highlight-success .node-icon-wrapper {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Header row: step tag sits beside the title, both left-aligned */
+.node-header-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.node-step-tag {
+  font-size: 11px !important;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--brand);
+  white-space: nowrap;
+}
+.flow-card-node.highlight-success .node-step-tag {
+  color: var(--accent);
+}
+
+.flow-card-node h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.flow-card-node p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted-light);
+  line-height: 1.5;
+  text-align: left;
+}
+
+/* FAQ Component Footer Row Rules — structurally distinct from roadmap cards:
+   background-integrated panels, left-accent stripe, no elevation. */
+.flow-action-faq-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  border-top: 1px solid var(--line);
+  padding-top: 36px;
+  margin-top: 24px;
+}
+
+.faq-action-card {
+  background: var(--bg-light);
+  border: none;
+  border-left: 3px solid var(--brand);
+  border-radius: 6px;
+  padding: 18px 22px;
+  box-shadow: none;
+}
+
+.faq-action-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.faq-action-header h5 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.faq-action-card p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.text-brand {
+  color: var(--brand);
+}
+
+/* Fluid Mobile Column Configuration */
+@media (max-width: 768px) {
+  .mobile-roadway-track {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 48px;
+    margin-bottom: 48px;
+  }
+
+  .flow-node-wrapper {
+    width: 100% !important;
+    max-width: 280px !important;
+  }
+
+  .flow-action-faq-row {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}

@@ -1122,7 +1122,7 @@ return (
         />
       )}
     </main>
-    {pageLoading && <PageLoader />}
+    {pageLoading && <PageLoader isDashboard={pageLoading === "dashboard"} />}
     {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
     {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
     <ConfirmDialog
@@ -1401,7 +1401,7 @@ function SpinnerInline() {
 
 <file path="src/components/common/PageLoader.jsx">
 import React, { useState, useEffect } from "react";
-const messages = [
+const dashboardMessages = [
   { text: "Welcome back", icon: "👋" },
   { text: "Preparing your dashboard", icon: "⚙️" },
   { text: "Gathering your reading stats", icon: "📊" },
@@ -1415,22 +1415,33 @@ const messages = [
   { text: "Thanks for your patience", icon: "🙏" },
   { text: "Just a few seconds more", icon: "⏱️" },
 ];
-export function PageLoader() {
+export function PageLoader({ isDashboard = false }) {
   const [index, setIndex] = useState(0);
   useEffect(() => {
+    if (!isDashboard) return;
     const id = setInterval(() => {
-      setIndex((i) => (i + 1) % messages.length);
+      setIndex((i) => (i + 1) % dashboardMessages.length);
     }, 2000);
     return () => clearInterval(id);
-  }, []);
+  }, [isDashboard]);
+  if (!isDashboard) {
+    return (
+      <div className="nav-loader-overlay">
+        <div className="dashboard-loader-spinner-wrap">
+          <div className="dashboard-loader-spinner" />
+        </div>
+        <p className="dashboard-loader-text">Loading...</p>
+      </div>
+    );
+  }
   return (
     <div className="nav-loader-overlay">
       <div className="dashboard-loader-spinner-wrap">
         <div className="dashboard-loader-spinner" />
-        <span className="dashboard-loader-emoji">{messages[index].icon}</span>
+        <span className="dashboard-loader-emoji">{dashboardMessages[index].icon}</span>
       </div>
       <p key={index} className="dashboard-loader-text">
-        {messages[index].text}
+        {dashboardMessages[index].text}
       </p>
     </div>
   );
@@ -2021,7 +2032,7 @@ export function Dashboard({ stats, me, dailyThought, openDetails }) {
               <Sparkles size={14} />
               <span>Thought of the Day</span>
             </div>
-            <blockquote>"{dailyThought.quote || dailyThought.text || dailyThought.content || dailyThought.q}"</blockquote>
+            <blockquote>"{dailyThought.q}"</blockquote>
             <cite>— {dailyThought.author || dailyThought.by || dailyThought.a}</cite>
           </div>
         )}
@@ -2391,10 +2402,12 @@ export function ForgotPassword({ onBack, darkMode: darkModeProp, setDarkMode: se
                 </button>
                 {step === "email" && (
                     <>
-                        <div className="bn-auth-step-icon">
-                            <Mail size={26} />
+                        <div className="bn-auth-step-header">
+                            <div className="bn-auth-step-icon">
+                                <Mail size={26} />
+                            </div>
+                            <h2>Forgot password?</h2>
                         </div>
-                        <h2>Forgot password?</h2>
                         <p className="bn-auth-sub">Enter the email address associated with your account and we'll send you a one-time code.</p>
                         <form onSubmit={handleEmailSubmit} className="bn-auth-form">
                             <label className="bn-auth-field">
@@ -2419,10 +2432,12 @@ export function ForgotPassword({ onBack, darkMode: darkModeProp, setDarkMode: se
                 )}
                 {step === "otp" && (
                     <>
-                        <div className="bn-auth-step-icon">
-                            <KeyRound size={26} />
+                        <div className="bn-auth-step-header">
+                            <div className="bn-auth-step-icon">
+                                <KeyRound size={26} />
+                            </div>
+                            <h2>Enter OTP</h2>
                         </div>
-                        <h2>Enter OTP</h2>
                         <p className="bn-auth-sub">We sent a 6-digit code to <strong>{email}</strong>. It expires in <strong style={{ color: otpSecondsLeft <= 20 ? "#B6452F" : "var(--auth-gold)" }}>{formatTime(otpSecondsLeft)}</strong>.</p>
                         <form onSubmit={handleOtpSubmit} className="bn-auth-form">
                             <div className="bn-auth-field">
@@ -2499,10 +2514,12 @@ export function ForgotPassword({ onBack, darkMode: darkModeProp, setDarkMode: se
                 )}
                 {step === "reset" && (
                     <>
-                        <div className="bn-auth-step-icon">
-                            <Lock size={26} />
+                        <div className="bn-auth-step-header">
+                            <div className="bn-auth-step-icon">
+                                <Lock size={26} />
+                            </div>
+                            <h2>Set new password</h2>
                         </div>
-                        <h2>Set new password</h2>
                         <p className="bn-auth-sub">Choose a strong new password for your account.</p>
                         <form onSubmit={handleResetSubmit} className="bn-auth-form">
                             <label className="bn-auth-field">
@@ -5796,20 +5813,7 @@ th:last-child {
   gap: 28px;
   width: 100%;
 }
-.dashboard-loader, .nav-loader-overlay {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  z-index: 99999 !important;
-  background: var(--bg) !important;
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-.nav-loader-overlay {
+.dashboard-loader {
   position: fixed !important;
   top: 0 !important;
   left: 0 !important;
@@ -6669,6 +6673,12 @@ th:last-child {
   margin-bottom: 18px;
   font-size: 13.5px;
 }
+.bn-auth-step-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 6px;
+}
 .bn-auth-step-icon {
   width: 50px;
   height: 50px;
@@ -6676,7 +6686,7 @@ th:last-child {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 14px;
+  flex-shrink: 0;
   color: var(--auth-gold);
   background: rgba(201, 145, 46, 0.12);
 }
@@ -6770,6 +6780,10 @@ th:last-child {
 .welcome-message-node h1,
 .new-hero-title {
   color: var(--ink);
+}
+.catalog-header-left h3{
+  color: var(--ink);
+  font-size: 50px;
 }
 .nav-item,
 .btn,
@@ -7035,6 +7049,7 @@ tbody tr:hover,
   left: 0;
   z-index: 90;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   background: rgba(250, 246, 235, 0.86);
@@ -8058,16 +8073,15 @@ app.get("/api/health", (req, res) => {
 });
 app.get("/api/quote/today", async (req, res) => {
   try {
-    const response = await fetch("https://dummyjson.com/quotes/random");
+    const response = await fetch("https://zenquotes.io/api/today");
     if (!response.ok) {
       return res.status(response.status).json({
         message: "ZenQuotes API failed",
-        status: response.status,
       });
     }
-    const data = await response.json();
-    res.json(data);
-  } catch (error: any) {
+    const data: any = await response.json();
+    res.json(data[0]);
+  } catch (error) {
     logError(error, req);
     res.status(getStatusCode(error)).json({
       message: getSafeErrorMessage(error),
