@@ -1,5 +1,6 @@
 import prisma from "../config/prisma";
 import { StatsCacheService } from "./stats-cache.service";
+import { ReadCacheService } from "./read-cache.service";
 export class BookService {
   static async catalog(params: any, userId?: string) {
     const {
@@ -129,6 +130,10 @@ export class BookService {
     };
   }
   static async get(id: string) {
+    const cacheKey = `book:${id}`;
+    const cached = await ReadCacheService.get<any>(cacheKey);
+    if (cached) return cached;
+
     const book = await prisma.book.findUnique({
       where: { id },
       include: {
@@ -137,7 +142,10 @@ export class BookService {
       },
     });
     if (!book) throw new Error("Book not found");
-    return this.mapBook(book);
+
+    const result = this.mapBook(book);
+    await ReadCacheService.set(cacheKey, result, 300);
+    return result;
   }
   static async create(userId: string, payload: any) {
     this.validateBookPayload(payload);
@@ -343,6 +351,7 @@ export class BookService {
         timeout: 10000,
       }
     );
+    await ReadCacheService.invalidate(`book:${id}`);
     return this.mapBook(updatedBook);
   }
   static async delete(userId: string, id: string, isAdmin: boolean) {
@@ -401,10 +410,13 @@ export class BookService {
         timeout: 10000,
       }
     );
-    await StatsCacheService.adjustFields({
-      totalBooks: -1,
-      availableBooks: deletedBook.availabilityStatus === "available" ? -1 : 0
-    });
+    await Promise.all([
+      StatsCacheService.adjustFields({
+        totalBooks: -1,
+        availableBooks: deletedBook.availabilityStatus === "available" ? -1 : 0
+      }),
+      ReadCacheService.invalidate(`book:${id}`),
+    ]);
   }
   private static validateBookPayload(payload: any) {
     if (!payload.title?.trim()) throw new Error("Title is required.");

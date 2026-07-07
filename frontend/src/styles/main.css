@@ -1912,42 +1912,6 @@ th:last-child {
     font-size: 14px;
   }
 }
-/* Catalog Page Flex Grid */
-/* .catalog {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 20px;
-  justify-content: flex-start;
-}
-.book-card {
-  flex: 0 1 280px;
-  max-width: calc(33.333% - 14px);
-}
-@media (max-width: 1100px) {
-  .book-card {
-    flex: 0 1 calc(50% - 10px);
-    max-width: calc(50% - 10px);
-  }
-}
-@media (max-width: 768px) {
-  .book-card {
-    flex: 0 1 100%;
-    max-width: 100%;
-  }
-} */
-/* .cover {
-  display: flex;
-  flex-direction: row;
-  gap: 16px;
-  min-height: 154px;
-  padding: 18px 18px 17px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--line);
-}
-.cover-art {
-  flex: 0 0 86px;
-} */
 @media (min-width: 1500px) {
   .book-card { border-radius: 16px; }
 }
@@ -3013,6 +2977,10 @@ th:last-child {
   padding: 20px;
 }
 .empty-logs-placeholder p { font-size: 13px; margin: 8px 0 0; }
+
+/* =========================
+   LEADERBOARD (fixed light/dark contrast)
+   ========================= */
 .leaderboard-panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -3076,7 +3044,9 @@ th:last-child {
   gap: 4px;
 }
 
-/* ---- Hero podium, colored to match the app's own brand palette ---- */
+/* ---- Hero podium: dedicated dark background so the white
+   text/pedestal blocks always contrast correctly, in both
+   light and dark themes (fixes invisible text in light mode) ---- */
 .leaderboard-hero {
   padding: 25px 5px 0;
   border-radius: 16px;
@@ -3085,7 +3055,22 @@ th:last-child {
   align-items: center;
   margin-bottom: 10px;
   flex-shrink: 0;
+  background: linear-gradient(160deg, #3b2f1f, #241a10);
 }
+
+/* Text colors used elsewhere on the page (outside the hero),
+   e.g. below the podium in the rest-of-list rows */
+[data-theme="light"] .leaderboard-title,
+[data-theme="light"] .leaderboard-name,
+[data-theme="light"] .leaderboard-rank,
+[data-theme="light"] .leaderboard-books {
+  color: #3b2f1f;
+}
+
+[data-theme="light"] .leaderboard-subtitle {
+  color: #6b5d4d;
+}
+
 .podium-strip {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -3140,11 +3125,10 @@ th:last-child {
   border-color: #ffffff;
   box-shadow: 0 0 0 3px rgba(209, 154, 102, 0.25);
 }
-.podium-avatar img { 
-  width: 100%; 
-  height: 100%; 
+.podium-avatar img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  
 }
 .podium-rank-chip {
   position: absolute;
@@ -3199,22 +3183,19 @@ th:last-child {
   font-weight: 800;
   color: rgba(255, 255, 255, 0.95);
 }
-.pedestal-1 { 
-  height: 170px; 
-  background: rgba(255, 255, 255, 0.3); 
+.pedestal-1 {
+  height: 170px;
+  background: rgba(255, 255, 255, 0.3);
   font-size: 50px;
   color: #ffa200;
-  /* text-shadow:
-    1px 1px 0 #ffa200,
-    -1px -1px 0 #382607; */
 }
-.pedestal-2 { 
-  height: 130px; 
+.pedestal-2 {
+  height: 130px;
   font-size: 35px;
   color: #cbd5e1;
 }
-.pedestal-3 { 
-  height: 80px; 
+.pedestal-3 {
+  height: 80px;
   font-size: 25px;
   color: #d19a66;
 }
@@ -3931,6 +3912,9 @@ th:last-child {
   --sidebar-bg: rgba(250, 246, 235, 0.86);
   --card-bg: rgba(255, 253, 247, 0.9);
   --input-bg: rgba(255, 253, 247, 0.95);
+  --leaderboard-text: #3b2f1f;
+  --leaderboard-text-secondary: #6b5d4d;
+  --leaderboard-podium: #e8e2d8;
 }
 [data-theme='dark'] {
   --ink: #F3ECDD;
@@ -4837,4 +4821,108 @@ tbody tr:hover,
   .journey-circle-anchor { left: 36px; transform: translateX(-50%); width: 56px; height: 56px; border-width: 3px; }
   .inner-circle-badge { width: 38px; height: 38px; }
   .flow-action-faq-row { grid-template-columns: 1fr; gap: 16px; }
+}
+/* Leaderboard Popup */
+.leaderboard-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.leaderboard-popup {
+  background: var(--bg-primary, #fff);
+  border-radius: 16px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  overflow: hidden;
+}
+
+.leaderboard-popup-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  flex-shrink: 0;
+}
+
+.leaderboard-popup-header h3 {
+  flex: 1;
+  margin: 0;
+}
+
+.leaderboard-popup-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--text-secondary, #6b7280);
+  padding: 0 8px;
+}
+
+.leaderboard-popup-body {
+  padding: 16px 24px 24px;
+  overflow-y: auto;
+  flex: 1;
+  max-height: calc(80vh - 60px); /* subtract header height */
+}
+
+/* Scrollbar styling */
+.leaderboard-popup-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.leaderboard-popup-body::-webkit-scrollbar-track {
+  background: var(--bg-secondary, #f3f4f6);
+  border-radius: 3px;
+}
+
+.leaderboard-popup-body::-webkit-scrollbar-thumb {
+  background: var(--brand, #6366f1);
+  border-radius: 3px;
+}
+
+.leaderboard-popup-body::-webkit-scrollbar-thumb:hover {
+  background: var(--brand-dark, #4f46e5);
+}
+
+/* For Firefox */
+.leaderboard-popup-body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--brand, #6366f1) var(--bg-secondary, #f3f4f6);
+}
+
+/* History scroll viewport */
+.history-scroll-viewport {
+  overflow-y: auto;
+  max-height: 400px; /* or whatever height you want */
+  padding-right: 4px;
+}
+
+.history-scroll-viewport::-webkit-scrollbar {
+  width: 4px;
+}
+
+.history-scroll-viewport::-webkit-scrollbar-track {
+  background: var(--bg-secondary, #f3f4f6);
+  border-radius: 2px;
+}
+
+.history-scroll-viewport::-webkit-scrollbar-thumb {
+  background: var(--brand, #6366f1);
+  border-radius: 2px;
+}
+
+.history-scroll-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: var(--brand, #6366f1) var(--bg-secondary, #f3f4f6);
 }

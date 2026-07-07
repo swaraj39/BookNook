@@ -55,6 +55,7 @@
   src/pages/Dashboard.jsx
   src/pages/Details.jsx
   src/pages/ForgotPassword.jsx
+  src/pages/Guide.jsx
   src/pages/Home.jsx
   src/pages/LoanHistory.jsx
   src/pages/Login.jsx
@@ -715,7 +716,12 @@ export class AppController {
   }
   static async leaderboard(req: AuthRequest, res: Response) {
     try {
-      const result = await LookupService.leaderboard();
+      const { period, limit } = req.query;
+      const normalizedPeriod = queryString(period) === "today" ? "today" : "week";
+      const result = await LookupService.leaderboard(
+        limit ? queryNumber(limit, 5) : undefined,
+        normalizedPeriod
+      );
       return res.json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
@@ -1624,15 +1630,16 @@ export class LookupService {
       pageSize: size,
     };
   }
-  static async leaderboard(limit?: number) {
+  static async leaderboard(limit?: number, period: "today" | "week" = "week") {
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth()-5, 1);
-    const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const start = period === "today"
+      ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const results = await prisma.bookTransaction.groupBy({
       by: ["requesterId"],
       where: {
         status: "returned",
-        returnedAt: { gte: startOfMonth, lt: startOfNextMonth },
+        returnedAt: { gte: start, lte: now },
       },
       _count: { id: true },
       orderBy: { _count: { id: "desc" } },
@@ -1700,7 +1707,7 @@ export class LookupService {
       userCount: booksReadThisMonth,
       globalAvg: communityAverageRead
     }];
-    const leaderboard = await LookupService.leaderboard(5);
+    const leaderboard = await LookupService.leaderboard(5, "week");
     return {
       totalBooks: cachedStats.totalBooks,
       availableBooks: cachedStats.availableBooks,
@@ -2460,7 +2467,10 @@ export const api = {
     }),
   me: () => request("/me"),
   dashboard: () => request("/dashboard"),
-  leaderboard: () => request("/leaderboard"),
+  leaderboard: (params = {}) => {
+    const query = new URLSearchParams(params);
+    return request(`/leaderboard?${query}`);
+  },
   genres: () => request("/genres"),
   books: (params) => {
     const query = new URLSearchParams({ size: 20, ...params });
@@ -2600,12 +2610,13 @@ import { Dashboard } from "./pages/Dashboard";
 import { Requests } from "./pages/Requests";
 import { MyLibrary } from "./pages/MyLibrary";
 import { LoanHistory } from "./pages/LoanHistory";
+import { Guide } from './pages/Guide';
 import { Details } from "./pages/Details";
 import { initials } from "./utils/helpers";
 import { ConfirmDialog } from "./components/common/ConfirmDialog";
 import { PageLoader } from "./components/common/PageLoader";
 import logo from "./styles/blue_altair_logo-removebg-preview.png";
-const VALID_VIEWS = new Set(["dashboard", "home", "catalog", "requests", "myBooks", "borrowed", "myLibrary", "history", "detail"]);
+const VALID_VIEWS = new Set(["dashboard", "home", "catalog", "requests", "myBooks", "borrowed", "myLibrary", "history", "detail", "guide"]);
 function getStoredView() {
   const storedView = localStorage.getItem("bn_view") || "dashboard";
   const mapped = storedView === "myBooks" || storedView === "borrowed" ? "myLibrary" : storedView;
@@ -3343,7 +3354,8 @@ const navSections = [
     items: [
       ["requests", "Requests", CheckSquare, stats?.pendingApprovals],
       ["myLibrary", "My Shelf", LibraryBig],
-      ["history", "History", History]
+      ["history", "History", History],
+      ["guide", "Guide", Info]
     ]
   }
 ];
@@ -4384,7 +4396,7 @@ export function Catalog({
 <file path="src/pages/Dashboard.jsx">
 import React, { useState } from "react";
 import { label, dateText } from "../utils/helpers";
-import { BookOpen, Milestone, Sparkles, Trophy, ExternalLink, Crown, Medal } from "lucide-react";
+import { BookOpen, Milestone, Sparkles, Trophy, ExternalLink, Crown } from "lucide-react";
 export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) {
   const [showLeaderboardPopup, setShowLeaderboardPopup] = useState(false);
   const [allLeaderboard, setAllLeaderboard] = useState(null);
@@ -4410,25 +4422,44 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
   function handleClosePopup() {
     setShowLeaderboardPopup(false);
   }
+  function booksLabel(count) {
+    return `${count} book${count !== 1 ? "s" : ""}`;
+  }
   function PodiumStandee({ entry, position }) {
-    if (!entry) return null;
-    const rankSuffix = position === 1 ? "1st" : position === 2 ? "2nd" : "3rd";
+    if (!entry) return <div className={`podium-column pos-${position}`} />;
     return (
       <div className={`podium-column pos-${position}`}>
-        <span className="podium-rank-badge"># {rankSuffix}</span>
-        <div
-          className="podium-avatar"
-          style={{ backgroundColor: entry.avatarUrl ? "transparent" : "var(--brand)" }}
-        >
-          {entry.avatarUrl ? (
-            <img src={entry.avatarUrl} alt={entry.fullName} />
-          ) : (
-            entry.avatarInitials || entry.fullName[0]
-          )}
+        <div className="podium-avatar-wrap">
+          {position === 1 && <Crown size={20} className="podium-crown" />}
+          <div
+            className="podium-avatar"
+            style={{ backgroundColor: entry.avatarUrl ? "transparent" : "var(--brand)" }}
+          >
+            {entry.avatarUrl ? (
+              <img src={entry.avatarUrl} alt={entry.fullName} />
+            ) : (
+              entry.avatarInitials || entry.fullName?.[0] || "?"
+            )}
+          </div>
+          <span className="podium-rank-chip">{position}</span>
         </div>
-        <span className="podium-name">{entry.fullName.split(" ")[0]}</span>
-        <span className="podium-sub-label">Books Read</span>
-        <span className="podium-count-big">{entry.booksRead}</span>
+        <span className="podium-name">{(entry.fullName || "Unknown").split(" ")[0]}</span>
+        <span className="podium-count-big">{booksLabel(entry.booksRead)}</span>
+        <div className={`pedestal pedestal-${position}`}>{position}</div>
+      </div>
+    );
+  }
+  function LeaderboardRow({ entry }) {
+    return (
+      <div className="leaderboard-row">
+        <span className={`leaderboard-rank rank-${entry.rank}`}>{entry.rank}</span>
+        <div className="leaderboard-avatar" style={{ backgroundColor: entry.avatarUrl ? "transparent" : "var(--brand)" }}>
+          {entry.avatarUrl ? <img src={entry.avatarUrl} alt={entry.fullName} /> : entry.avatarInitials || entry.fullName?.[0] || "?"}
+        </div>
+        <div className="leaderboard-info">
+          <span className="leaderboard-name">{entry.fullName}</span>
+        </div>
+        <span className="leaderboard-count">{booksLabel(entry.booksRead)}</span>
       </div>
     );
   }
@@ -4498,11 +4529,11 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
       <section className="dashboard-split-feed-row">
         {}
         <div className="latest-readings-scroller-box">
+          <div className="feed-title-header">
+            <BookOpen size={18} />
+            <h3>Your Latest Reading Logs</h3>
+          </div>
           <div className="history-scroll-viewport">
-            <div className="feed-title-header">
-              <BookOpen size={18} />
-              <h3>Your Latest Reading Logs</h3>
-            </div>
             {stats.latestReadings && stats.latestReadings.filter((log) => log.status !== "rejected").length > 0 ? (
               stats.latestReadings
                 .filter((log) => log.status !== "rejected")
@@ -4531,9 +4562,9 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
         </div>
         {}
         <div className="leaderboard-panel">
-          <div className="feed-title-header leaderboard-header-row">
+          <div className="leaderboard-header-row">
             <div className="leaderboard-header-left">
-              <Trophy size={16} />
+              <Trophy size={16} style={{ marginTop: 5 }} />
               <div>
                 <h3>Leaderboard</h3>
                 <span className="leaderboard-subtitle">Top readers · last 5 months</span>
@@ -4546,24 +4577,17 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
           <div className="leaderboard-body">
             {stats.leaderboard && stats.leaderboard.length > 0 ? (
               <>
-                <div className="podium-strip">
-                  <PodiumStandee entry={stats.leaderboard[1]} position={2} />
-                  <PodiumStandee entry={stats.leaderboard[0]} position={1} />
-                  <PodiumStandee entry={stats.leaderboard[2]} position={3} />
+                <div className="leaderboard-hero">
+                  <div className="podium-strip">
+                    <PodiumStandee entry={stats.leaderboard[1]} position={2} />
+                    <PodiumStandee entry={stats.leaderboard[0]} position={1} />
+                    <PodiumStandee entry={stats.leaderboard[2]} position={3} />
+                  </div>
                 </div>
                 {stats.leaderboard.slice(3).length > 0 && (
                   <div className="leaderboard-rest">
                     {stats.leaderboard.slice(3).map((entry) => (
-                      <div key={entry.userId} className="leaderboard-row">
-                        <span className={`leaderboard-rank rank-${entry.rank}`}>{entry.rank}</span>
-                        <div className="leaderboard-avatar" style={{ backgroundColor: entry.avatarUrl ? "transparent" : "var(--brand)" }}>
-                          {entry.avatarUrl ? <img src={entry.avatarUrl} alt={entry.fullName} /> : entry.avatarInitials || entry.fullName[0]}
-                        </div>
-                        <div className="leaderboard-info">
-                          <span className="leaderboard-name">{entry.fullName}</span>
-                        </div>
-                        <span className="leaderboard-count">{entry.booksRead} <small>book{entry.booksRead !== 1 ? "s" : ""}</small></span>
-                      </div>
+                      <LeaderboardRow key={entry.userId} entry={entry} />
                     ))}
                   </div>
                 )}
@@ -4589,23 +4613,16 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
                     <div className="empty-logs-placeholder"><p>Loading...</p></div>
                   ) : (
                     <>
-                      <div className="podium-strip">
-                        <PodiumStandee entry={allLeaderboard?.[1]} position={2} />
-                        <PodiumStandee entry={allLeaderboard?.[0]} position={1} />
-                        <PodiumStandee entry={allLeaderboard?.[2]} position={3} />
+                      <div className="leaderboard-hero">
+                        <div className="podium-strip">
+                          <PodiumStandee entry={allLeaderboard?.[1]} position={2} />
+                          <PodiumStandee entry={allLeaderboard?.[0]} position={1} />
+                          <PodiumStandee entry={allLeaderboard?.[2]} position={3} />
+                        </div>
                       </div>
                       <div className="leaderboard-rest">
                         {(allLeaderboard ?? []).slice(3).map((entry) => (
-                          <div key={entry.userId} className="leaderboard-row">
-                            <span className={`leaderboard-rank rank-${entry.rank}`}>{entry.rank}</span>
-                            <div className="leaderboard-avatar" style={{ backgroundColor: entry.avatarUrl ? "transparent" : "var(--brand)" }}>
-                              {entry.avatarUrl ? <img src={entry.avatarUrl} alt={entry.fullName} /> : entry.avatarInitials || entry.fullName[0]}
-                            </div>
-                            <div className="leaderboard-info">
-                              <span className="leaderboard-name">{entry.fullName}</span>
-                            </div>
-                            <span className="leaderboard-count">{entry.booksRead} <small>book{entry.booksRead !== 1 ? "s" : ""}</small></span>
-                          </div>
+                          <LeaderboardRow key={entry.userId} entry={entry} />
                         ))}
                       </div>
                     </>
@@ -5031,6 +5048,117 @@ export function ForgotPassword({ onBack, darkMode: darkModeProp, setDarkMode: se
                         </form>
                     </>
                 )}
+            </div>
+        </div>
+    );
+}
+</file>
+
+<file path="src/pages/Guide.jsx">
+import React, { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import Particles from "@tsparticles/react";
+import { loadSlim } from "@tsparticles/slim";
+import {
+    LogIn,
+    LayoutDashboard,
+    Search,
+    SendHorizontal,
+    Hourglass,
+    CheckCircle,
+    PlusCircle
+} from "lucide-react";
+export function Guide() {
+    const [init, setInit] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
+    useEffect(() => {
+        setInit(true);
+        const handleResize = () => {
+            setIsMobile(window.innerWidth <= 768);
+        };
+        handleResize();
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
+    const particlesInit = async (engine) => {
+        await loadSlim(engine);
+    };
+    const flowSteps = [
+        { id: "login", title: "Login", desc: "Access with your community account.", icon: LogIn },
+        { id: "dashboard", title: "Dashboard", desc: "View library activity metrics panels.", icon: LayoutDashboard },
+        { id: "browse", title: "Go to Browse", desc: "Explore public book collections.", icon: Search },
+        { id: "request", title: "Request", desc: "Set borrow duration terms and submit.", icon: SendHorizontal },
+        { id: "wait", title: "Wait for Approval", desc: "Lender reviews transaction request.", icon: Hourglass },
+        { id: "reading", title: "Currently Reading", desc: "Access granted! Enjoy your read.", icon: CheckCircle }
+    ];
+    const particlesOptions = {
+        fpsLimit: 60,
+        particles: {
+            color: { value: "#b47b2b" },
+            links: { enable: true, color: "#e7e5e4", distance: 120, opacity: 0.15 },
+            move: { enable: true, speed: 0.6, direction: "none", outModes: { default: "bounce" } },
+            number: { value: 15, density: { enable: true, area: 800 } },
+            opacity: { value: 0.15 },
+            size: { value: { min: 1, max: 2 } }
+        },
+        detectRetina: true
+    };
+    return (
+        <div className="guide-flow-canvas">
+            {init && (
+                <Particles id="guide-tsparticles" className="particles-canvas" particlesInit={particlesInit} options={particlesOptions} />
+            )}
+            <div className="guide-flow-viewport">
+                <div className="guide-flow-inner">
+                    <h2 className="guide-flow-page-title">Application Lifecycle Journey</h2>
+                    <p className="guide-flow-subtitle">
+                        Interactive roadmap tracking how core functionalities operate from entry to shelf access.
+                    </p>
+                    {}
+                    <div className="vertical-timeline-container">
+                        <div className="timeline-backbone-line"></div>
+                        {flowSteps.map((step, idx) => {
+                            const IconComponent = step.icon;
+                            const isEven = idx % 2 === 0;
+                            return (
+                                <div
+                                    key={step.id}
+                                    className={`timeline-journey-row ${isEven ? 'row-left-align' : 'row-right-align'} ${step.id === 'reading' ? 'final-success-node' : ''}`}
+                                >
+                                    {}
+                                    <div className="journey-text-block">
+                                        <span className="node-step-tag">Step {String(idx + 1).padStart(2, '0')}</span>
+                                        <h4>{step.title}</h4>
+                                        <p>{step.desc}</p>
+                                    </div>
+                                    {}
+                                    <div className="journey-circle-anchor">
+                                        <div className="inner-circle-badge">
+                                            <IconComponent size={26} />
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    {}
+                    <div className="flow-action-faq-row">
+                        <div className="faq-action-card">
+                            <div className="faq-action-header">
+                                <PlusCircle size={16} />
+                                <h5>How users can add a book?</h5>
+                            </div>
+                            <p>They can add a book by clicking the add button, and then entering the details and saving them.</p>
+                        </div>
+                        <div className="faq-action-card">
+                            <div className="faq-action-header">
+                                <PlusCircle size={16} />
+                                <h5>How they can request a book?</h5>
+                            </div>
+                            <p>Through browse page, they can click the request button and then fill the details and request the book.</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -7890,42 +8018,6 @@ th:last-child {
     font-size: 14px;
   }
 }
-/* Catalog Page Flex Grid */
-/* .catalog {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 20px;
-  justify-content: flex-start;
-}
-.book-card {
-  flex: 0 1 280px;
-  max-width: calc(33.333% - 14px);
-}
-@media (max-width: 1100px) {
-  .book-card {
-    flex: 0 1 calc(50% - 10px);
-    max-width: calc(50% - 10px);
-  }
-}
-@media (max-width: 768px) {
-  .book-card {
-    flex: 0 1 100%;
-    max-width: 100%;
-  }
-} */
-/* .cover {
-  display: flex;
-  flex-direction: row;
-  gap: 16px;
-  min-height: 154px;
-  padding: 18px 18px 17px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--line);
-}
-.cover-art {
-  flex: 0 0 86px;
-} */
 @media (min-width: 1500px) {
   .book-card { border-radius: 16px; }
 }
@@ -8625,6 +8717,18 @@ th:last-child {
   display: grid;
   grid-template-columns: 3fr 2fr;
   gap: 24px;
+  align-items: stretch;
+}
+.latest-readings-scroller-box {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  height: 100%;
+  min-height: 440px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .feed-title-header {
   display: flex;
@@ -8632,15 +8736,13 @@ th:last-child {
   gap: 8px;
   margin-bottom: 14px;
   color: var(--ink);
+  flex-shrink: 0;
 }
 .feed-title-header h3 { margin: 0; font-size: 16px; font-weight: 700; }
 .history-scroll-viewport {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  height: 380px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -8759,18 +8861,28 @@ th:last-child {
 .leaderboard-panel {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 16px;
   padding: 16px;
+  height: 100%;
+  min-height: 440px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .leaderboard-header-row {
+  display: flex;
+  align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-shrink: 0;
 }
 .leaderboard-header-left {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
+  min-width: 0;
 }
 .leaderboard-header-left h3 { margin: 0; }
 .leaderboard-subtitle {
@@ -8780,94 +8892,177 @@ th:last-child {
   font-weight: 500;
   margin-top: 1px;
 }
+.leaderboard-view-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: background 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.leaderboard-view-all:hover {
+  background: var(--brand-soft);
+}
 .leaderboard-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+.leaderboard-hero {
+  padding: 25px 5px 0;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+  background: linear-gradient(160deg, #3b2f1f, #241a10);
+}
+[data-theme="light"] .leaderboard-title,
+[data-theme="light"] .leaderboard-name,
+[data-theme="light"] .leaderboard-rank,
+[data-theme="light"] .leaderboard-books {
+  color: #3b2f1f;
+}
+[data-theme="light"] .leaderboard-subtitle {
+  color: #6b5d4d;
 }
 .podium-strip {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   align-items: end;
-  gap: 8px;
-  padding: 20px 4px 16px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid var(--line);
+  gap: 6px;
+  width: 100%;
 }
 .podium-column {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
 }
 .podium-column.pos-1 { order: 2; }
 .podium-column.pos-2 { order: 1; }
 .podium-column.pos-3 { order: 3; }
-.podium-rank-badge {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  color: var(--muted);
-  margin-bottom: 2px;
+.podium-avatar-wrap { position: relative; }
+.podium-crown {
+  position: absolute;
+  top: -25px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #ffd54a;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.3));
 }
-.pos-1 .podium-rank-badge { color: #d946a5; font-size: 13px; }
-.pos-2 .podium-rank-badge { color: #22c55e; }
-.pos-3 .podium-rank-badge { color: #06b6d4; }
 .podium-avatar {
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  color: white;
+  color: rgb(94, 50, 20);
   font-size: 13px;
   font-weight: 700;
   overflow: hidden;
-  flex-shrink: 0;
-  border: 2px solid var(--line);
+  border: 3px solid #ffffff;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+  background-color: #4d2c0d;
 }
 .pos-1 .podium-avatar {
   width: 56px;
   height: 56px;
   font-size: 16px;
-  border-color: #d946a5;
-  box-shadow: 0 0 0 3px rgba(217, 70, 165, 0.18);
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
 }
 .pos-2 .podium-avatar {
-  border-color: #22c55e;
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.16);
+  border-color: #cbd5e1;
+  box-shadow: 0 0 0 3px rgba(203, 213, 225, 0.25);
 }
 .pos-3 .podium-avatar {
-  border-color: #06b6d4;
-  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.16);
+  border-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(209, 154, 102, 0.25);
 }
-.podium-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.podium-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.podium-rank-chip {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  color: #000000;
+  font-size: 10px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.pos-1 .podium-rank-chip { background: #ffa200; color: #fff; }
+.pos-2 .podium-rank-chip { background: #cbd5e1; color: #334155; }
+.pos-3 .podium-rank-chip { background: #d19a66; color: #fff; }
 .podium-name {
   font-size: 12px;
   font-weight: 700;
-  color: var(--ink);
+  color: #fff;
   text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 90px;
   white-space: nowrap;
-  margin-top: 2px;
-}
-.podium-sub-label {
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-  font-weight: 700;
+  margin-top: 6px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 .podium-count-big {
-  font-size: 18px;
-  font-weight: 800;
-  color: var(--brand);
+  font-size: 12px;
+  font-weight: 300;
+  margin-top: 2px;
 }
-.pos-1 .podium-count-big { color: #d946a5; font-size: 21px; }
-.pos-2 .podium-count-big { color: #22c55e; }
-.pos-3 .podium-count-big { color: #06b6d4; }
+.pos-1 .podium-count-big { color: #ffd54a; font-size: 13px; }
+.pos-2 .podium-count-big { color: #e2e8f0; }
+.pos-3 .podium-count-big { color: #f3d5b5; }
+.pedestal {
+  margin-top: 10px;
+  width: 100%;
+  border-radius: 50% 50% 6px 6px / 24px 24px 6px 6px;
+  background: rgba(255, 255, 255, 0.22);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 6px;
+  font-size: 15px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.95);
+}
+.pedestal-1 {
+  height: 170px;
+  background: rgba(255, 255, 255, 0.3);
+  font-size: 50px;
+  color: #ffa200;
+}
+.pedestal-2 {
+  height: 130px;
+  font-size: 35px;
+  color: #cbd5e1;
+}
+.pedestal-3 {
+  height: 80px;
+  font-size: 25px;
+  color: #d19a66;
+}
 .leaderboard-rest {
   display: flex;
   flex-direction: column;
@@ -8895,8 +9090,8 @@ th:last-child {
 .leaderboard-rank.rank-2 { color: #94a3b8; }
 .leaderboard-rank.rank-3 { color: #cd7f32; }
 .leaderboard-avatar {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -8925,32 +9120,10 @@ th:last-child {
   color: var(--brand);
   white-space: nowrap;
 }
-.leaderboard-count small {
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--muted);
-}
-.leaderboard-view-all {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--brand);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 4px 12px;
-  border-radius: 6px;
-  transition: background 0.15s;
-}
-.leaderboard-view-all:hover {
-  background: var(--brand-soft);
-}
 .leaderboard-popup-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0, 0, 0, 0.5);
   display: grid;
   place-items: center;
   z-index: 1000;
@@ -8962,10 +9135,10 @@ th:last-child {
   border-radius: 16px;
   width: 100%;
   max-width: 480px;
-  max-height: 80vh;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   animation: popupFadeIn 0.2s ease;
 }
 @keyframes popupFadeIn {
@@ -9004,12 +9177,15 @@ th:last-child {
   color: var(--ink);
 }
 .leaderboard-popup-body {
-  padding: 12px 20px 20px;
+  padding: 16px 20px 20px;
   overflow-y: auto;
 }
 @media (max-width: 992px) {
   .analytics-block-grid, .dashboard-split-feed-row {
     grid-template-columns: 1fr;
+  }
+  .latest-readings-scroller-box, .leaderboard-panel {
+    min-height: 360px;
   }
   .dashboard-welcome-banner {
     flex-direction: column;
@@ -9020,6 +9196,27 @@ th:last-child {
     text-align: left;
     align-items: flex-start;
   }
+}
+@media (max-width: 480px) {
+  .latest-readings-scroller-box, .leaderboard-panel {
+    padding: 14px;
+    min-height: 320px;
+  }
+  .leaderboard-header-left h3 { font-size: 14px; }
+  .leaderboard-hero { padding: 14px 4px 0; }
+  .podium-strip { gap: 4px; }
+  .podium-avatar { width: 36px; height: 36px; font-size: 12px; border-width: 2px; }
+  .pos-1 .podium-avatar { width: 46px; height: 46px; font-size: 14px; }
+  .podium-name { font-size: 10.5px; max-width: 64px; margin-top: 4px; }
+  .podium-count-big { font-size: 10.5px; }
+  .pos-1 .podium-count-big { font-size: 11.5px; }
+  .pedestal { font-size: 12px; }
+  .pedestal-1 { height: 48px; }
+  .pedestal-2 { height: 34px; }
+  .pedestal-3 { height: 26px; }
+  .leaderboard-view-all { font-size: 11px; padding: 4px 6px; }
+  .leaderboard-name { font-size: 12px; }
+  .leaderboard-count { font-size: 11px; }
 }
 .forgot-link-wrapper {
   grid-column: 1 / -1;
@@ -9572,6 +9769,9 @@ th:last-child {
   --sidebar-bg: rgba(250, 246, 235, 0.86);
   --card-bg: rgba(255, 253, 247, 0.9);
   --input-bg: rgba(255, 253, 247, 0.95);
+  --leaderboard-text: #3b2f1f;
+  --leaderboard-text-secondary: #6b5d4d;
+  --leaderboard-podium: #e8e2d8;
 }
 [data-theme='dark'] {
   --ink: #F3ECDD;
@@ -9961,11 +10161,251 @@ tbody tr:hover,
     top: 56px;
   }
 }
-.my-library-toggle-row {
+:root {
+  --canvas-bg: #fbf9f4;
+  --text-primary: #1c1917;
+  --text-muted: #57534e;
+  --brand-gold: #b47b2b;
+  --brand-gold-light: rgba(180, 123, 43, 0.06);
+  --success-green: #10b981;
+  --success-green-light: rgba(16, 185, 129, 0.06);
+  --border-color: #e7e5e4;
+}
+.guide-flow-canvas {
+  background-color: #ffffff !important;
+  border: 1px solid var(--border-color);
+  border-radius: 28px;
+  box-shadow:
+    0 25px 50px -12px rgba(28, 25, 23, 0.04),
+    0 4px 12px -2px rgba(28, 25, 23, 0.01),
+    0 1px 1px 0 rgba(0, 0, 0, 0.01);
+  min-height: 100vh;
+  padding: 80px 50px;
+  font-family: system-ui, -apple-system, sans-serif;
+  position: relative;
+}
+.guide-flow-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  position: relative;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+.guide-flow-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  position: relative;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+.guide-flow-page-title {
+  color: var(--text-primary);
+  font-size: 32px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
+}
+.guide-flow-subtitle {
+  color: var(--text-muted);
+  font-size: 15px;
+  text-align: center;
+  margin-bottom: 80px;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.vertical-timeline-container {
+  position: relative;
+  width: 100%;
+  margin: 0 auto 100px auto;
   display: flex;
-  gap: 12px;
-  margin: 19px 19px 20px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 56px;
+}
+.timeline-backbone-line {
+  position: absolute;
+  top: 36px;
+  bottom: 36px;
+  left: 50%;
+  width: 4px;
+  background: linear-gradient(to bottom, var(--brand-gold), #d9a75d, var(--brand-gold));
+  transform: translateX(-50%);
+  border-radius: 4px;
+  opacity: 0.35;
+  z-index: 1;
+}
+.timeline-journey-row {
+  display: flex;
+  position: relative;
+  align-items: center;
+  width: 100%;
+  z-index: 2;
+}
+.row-left-align {
+  flex-direction: row;
+  justify-content: flex-start;
+}
+.row-right-align {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+}
+.journey-text-block {
+  width: 44%;
+  padding: 28px 32px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  box-shadow:
+    0 10px 25px -5px rgba(28, 25, 23, 0.03),
+    0 8px 10px -6px rgba(0, 0, 0, 0.01);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: left;
+}
+.row-left-align .journey-text-block {
+  margin-right: auto;
+}
+.row-right-align .journey-text-block {
+  margin-left: auto;
+}
+.journey-circle-anchor {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 74px;
+  height: 74px;
+  background: #ffffff;
+  border: 4px solid #ffffff;
+  box-shadow: 0 0 0 2px var(--brand-gold), 0 10px 20px -3px rgba(180, 123, 43, 0.15);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s ease;
+}
+.inner-circle-badge {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--brand-gold-light);
+  color: var(--brand-gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.timeline-journey-row:hover .journey-text-block {
+  transform: translateY(-4px);
+  border-color: var(--brand-gold);
+  box-shadow: 0 20px 30px -10px rgba(180, 123, 43, 0.08);
+}
+.timeline-journey-row:hover .journey-circle-anchor {
+  transform: translateX(-50%) scale(1.04);
+}
+.final-success-node .journey-circle-anchor {
+  box-shadow: 0 0 0 2px var(--success-green), 0 10px 20px -3px rgba(16, 185, 129, 0.15);
+}
+.final-success-node .inner-circle-badge {
+  background: var(--success-green-light);
+  color: var(--success-green);
+}
+.final-success-node:hover .journey-text-block {
+  border-color: var(--success-green);
+  box-shadow: 0 20px 30px -10px rgba(16, 185, 129, 0.08);
+}
+.node-step-tag {
+  font-size: 11px !important;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--brand-gold);
+  display: block;
+  margin-bottom: 6px;
+}
+.final-success-node .node-step-tag {
+  color: var(--success-green);
+}
+.journey-text-block h4 {
+  margin: 0 0 8px 0;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.journey-text-block p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+.flow-action-faq-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 48px;
+  margin-top: 80px;
+}
+.faq-action-card {
+  background: #ffffff;
+  border-left: 4px solid var(--brand-gold);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 15px -3px rgba(28, 25, 23, 0.02);
+  border-top: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+.faq-action-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--brand-gold);
+}
+.faq-action-header h5 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.faq-action-card p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+@media (max-width: 768px) {
+  .timeline-backbone-line {
+    left: 36px;
+    transform: none;
+  }
+  .timeline-journey-row {
+    flex-direction: row !important;
+    align-items: flex-start;
+  }
+  .journey-text-block {
+    width: calc(100% - 72px);
+    margin-left: 72px !important;
+    margin-right: 0 !important;
+  }
+  .journey-circle-anchor {
+    left: 36px;
+    transform: translateX(-50%);
+    width: 56px;
+    height: 56px;
+  }
+  .inner-circle-badge {
+    width: 38px;
+    height: 38px;
+  }
+  .flow-action-faq-row {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
 }
 </file>
 
@@ -10090,88 +10530,6 @@ export function normalizeImportRow(row) {
 }
 </file>
 
-<file path="package.json">
-{
-  "name": "backend-node",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "ts-node src/index.ts",
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
-    "prisma:generate": "prisma generate"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "@prisma/client": "^6.2.1",
-    "@types/cookie-parser": "^1.4.8",
-    "bcryptjs": "^3.0.3",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "prisma": "^6.2.1",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^25.9.3",
-    "eslint": "^10.5.0",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^6.0.3"
-  }
-}
-</file>
-
-<file path="package.json">
-{
-  "name": "backend-node",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "ts-node src/index.ts",
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
-    "prisma:generate": "prisma generate"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "@prisma/client": "^6.2.1",
-    "@types/cookie-parser": "^1.4.8",
-    "bcryptjs": "^3.0.3",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "prisma": "^6.2.1",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^25.9.3",
-    "eslint": "^10.5.0",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^6.0.3"
-  }
-}
-</file>
-
 <file path="index.html">
 <!doctype html>
 <html lang="en">
@@ -10189,54 +10547,6 @@ export function normalizeImportRow(row) {
 </html>
 </file>
 
-<file path="package.json">
-{
-  "name": "booknook-frontend",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
-    "dotenv": "^17.4.2",
-    "lucide-react": "^1.21.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "three": "^0.185.0",
-    "xlsx": "^0.18.5",
-    "vite": "^5.4.11"
-  }
-}
-</file>
-
-<file path="package.json">
-{
-  "name": "booknook-frontend",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
-    "dotenv": "^17.4.2",
-    "lucide-react": "^1.21.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "three": "^0.185.0",
-    "xlsx": "^0.18.5",
-    "vite": "^5.4.11"
-  }
-}
-</file>
-
 <file path=".gitignore">
 node_modules
 # Keep environment variables out of version control
@@ -10247,6 +10557,144 @@ node_modules
 /scripts/
 /Docker/
 *.txt
+</file>
+
+<file path="package.json">
+{
+  "name": "backend-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "prisma:generate": "prisma generate"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "@types/cookie-parser": "^1.4.8",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "prisma": "^6.2.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.5.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^6.0.3"
+  }
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "backend-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "prisma:generate": "prisma generate"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "@types/cookie-parser": "^1.4.8",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "prisma": "^6.2.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.5.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^6.0.3"
+  }
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "booknook-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tsparticles/react": "^4.3.1",
+    "@tsparticles/slim": "^4.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "dotenv": "^17.4.2",
+    "framer-motion": "^12.42.2",
+    "lucide-react": "^1.23.0",
+    "react": "^18.3.1",
+    "react-archer": "^5.1.0",
+    "react-dom": "^18.3.1",
+    "three": "^0.185.0",
+    "vite": "^5.4.11",
+    "xlsx": "^0.18.5"
+  }
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "booknook-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tsparticles/react": "^4.3.1",
+    "@tsparticles/slim": "^4.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "dotenv": "^17.4.2",
+    "framer-motion": "^12.42.2",
+    "lucide-react": "^1.23.0",
+    "react": "^18.3.1",
+    "react-archer": "^5.1.0",
+    "react-dom": "^18.3.1",
+    "three": "^0.185.0",
+    "vite": "^5.4.11",
+    "xlsx": "^0.18.5"
+  }
+}
 </file>
 
 </files>

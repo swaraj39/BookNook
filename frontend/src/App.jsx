@@ -38,7 +38,7 @@ import { initials } from "./utils/helpers";
 import { ConfirmDialog } from "./components/common/ConfirmDialog";
 import { PageLoader } from "./components/common/PageLoader";
 import logo from "./styles/blue_altair_logo-removebg-preview.png";
-const VALID_VIEWS = new Set(["dashboard", "home", "catalog", "requests", "myBooks", "borrowed", "history", "detail", "guide"]);
+const VALID_VIEWS = new Set(["dashboard", "home", "catalog", "requests", "myBooks", "borrowed", "myLibrary", "history", "detail", "guide"]);
 function getStoredView() {
   const storedView = localStorage.getItem("bn_view") || "dashboard";
   const mapped = storedView === "myBooks" || storedView === "borrowed" ? "myLibrary" : storedView;
@@ -880,7 +880,7 @@ return (
       {view === "dashboard" && stats && (
         <Dashboard stats={stats} me={me} dailyThought={dailyThought} openDetails={openDetails} onNavigate={navigateTo} />
       )}
-      {view !== "home" && view !== "catalog" && view !== "dashboard" && view !== "guide" && (
+      {view !== "home" && view !== "catalog" && view !== "dashboard" && (
         <section className="topbar">
           <div className="page-title">
             <h2>BA Reading Community Tracker</h2>
@@ -891,16 +891,56 @@ return (
           </div>
         </section>
       )}
-      {view === "home" && <HomePage stats={stats} dailyThought={dailyThought} navigateTo={navigateTo} setFilters={setFilters} setBookModal={setBookModal} />}
-      {view === "catalog" && <Catalog page={booksPage} genres={genres} filters={filters} setFilters={setFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} loading={catalogLoading} me={me} openDetails={openDetails} setRequestModal={setRequestModal} setBookModal={setBookModal} returnBook={returnBook} importBooks={importBooks} importing={importing} onRefresh={loadCatalogFromApi} />}
+      {
+      }
+      {view === "home" && (
+        <HomePage
+          stats={stats}
+          dailyThought={dailyThought}
+          navigateTo={navigateTo}
+          setFilters={setFilters}
+          setBookModal={setBookModal}
+        />
+      )}
+      {view === "catalog" && (
+        <Catalog
+          page={booksPage}
+          genres={genres}
+          filters={filters}
+          setFilters={setFilters}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          loading={catalogLoading}
+          me={me}
+          openDetails={openDetails}
+          setRequestModal={setRequestModal}
+          setBookModal={setBookModal}
+          returnBook={returnBook}
+          importBooks={importBooks}
+          importing={importing}
+          onRefresh={loadCatalogFromApi}
+        />
+      )}
       {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onRefresh={loadRequestsFromApi} />}
-      {view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} onRefresh={() => loadMyBooks(myBooksPage.page)} />}
-      {view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} returnBook={returnBook} openDetails={openDetails} onRefresh={() => loadBorrowed(borrowedPage.page)} />}
-      {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={() => loadHistory(historyPage.page)} />}
-      {view === "guide" && <Guide />}
+      {(view === "myLibrary" || view === "myBooks" || view === "borrowed") && (
+        <MyLibrary
+          myBooksPage={myBooksPage}
+          onMyBooksPageChange={loadMyBooks}
+          borrowedPage={borrowedPage}
+          onBorrowedPageChange={loadBorrowed}
+          setBookModal={setBookModal}
+          deleteBook={deleteBook}
+          returnBook={returnBook}
+          openDetails={openDetails}
+          onRefreshShelf={loadMyBooksFromApi}
+          onRefreshReading={loadBorrowedFromApi}
+        />
+      )}
+      {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={loadHistoryFromApi} />}
       {view === "detail" && selectedBook && (
         <Details book={selectedBook} historyPage={bookHistoryPage} onPageChange={changeBookHistoryPage} me={me} navigateBack={navigateBack} navigateTo={navigateTo} setBookModal={setBookModal} setRequestModal={setRequestModal} returnBook={returnBook} />
       )}
+      {view === "guide" && <Guide/> }
     </main>
     
     {/* Dedicated Mobile Bottom Tab Bar (Strictly hidden on Laptop/Desktop) */}
