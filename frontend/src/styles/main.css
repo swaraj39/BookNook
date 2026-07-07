@@ -844,7 +844,7 @@ th:last-child {
 }
 .table-wrap table {
   width: 100%;
-  min-width: 900px;
+  min-width: 0; /* Changed from 900px to 0 to prevent mobile overflow */
   border-collapse: collapse;
   table-layout: auto;
 }
@@ -852,9 +852,9 @@ th:last-child {
 .table-wrap td {
   width: 25%;
 }
-.table-wrap td:last-child {
+/* .table-wrap td:last-child {
   white-space: nowrap;
-}
+} */
 .empty { padding: 34px 18px; color: var(--muted); text-align: center; background: var(--bg); }
 .loading-state { display: flex; align-items: center; justify-content: center; min-height: 40vh; }
 .loading-state.empty { background: transparent; }
@@ -2238,26 +2238,30 @@ th:last-child {
 }
 .catalog-header {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  max-width: 100%;
+  gap: 20px;
+  max-width: 1240px;
   width: 100%;
-  margin: 0 auto 12px;
-}
-.catalog-header-left p {
-  margin: 0 0 6px;
+  margin: 0 auto 20px;
+  padding: 10px 0;
 }
 .catalog-header-left h3 {
   margin: 0;
   font-size: clamp(24px, 3vw, 36px);
   font-weight: 700;
+  color: var(--ink);
+  line-height: 1.2;
 }
-.catalog-header-right {
+.catalog-header-right-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.catalog-actions-cluster {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 0;
 }
 .catalog-capsules {
   display: flex;
@@ -2365,97 +2369,112 @@ th:last-child {
 /* --- Mobile Responsive Table (Card Layout) --- */
 /* --- Mobile "Natural Stack" Card Layout --- */
 @media (max-width: 768px) {
-  .table-responsive-wrapper table, 
-  .table-responsive-wrapper thead, 
-  .table-responsive-wrapper tbody, 
-  .table-responsive-wrapper th, 
-  .table-responsive-wrapper td, 
-  .table-responsive-wrapper tr {
+  /* 1. Reset Table to Stacked Layout */
+  table,
+  .table-wrap table,
+  .table-responsive-wrapper table,
+  .table-responsive-wrapper tbody,
+  .table-responsive-wrapper tr,
+  .table-responsive-wrapper td,
+  .table-responsive-wrapper th {
     display: block;
-    width: 100%;
-    min-width: 0 !important; /* Forces table to stop being 760px wide */
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
   }
 
-  .table-responsive-wrapper thead { display: none; }
+  .table-responsive-wrapper thead { display: none !important; }
 
-  /* Outer Container Styling */
+  /* 2. Outer Container Styling */
   .table-responsive-wrapper {
-    background: var(--bg); /* The "Outer Box" color */
+    background: var(--bg);
     padding: 16px;
     border-radius: 12px;
+    width: 100%;
+    overflow: hidden;
+    box-sizing: border-box;
   }
 
-  /* Inner Card Styling */
+  /* 3. Card Styling */
   .table-responsive-wrapper tr {
-    margin-bottom: 20px;
+    margin-bottom: 16px;
+    padding: 20px;
     background: var(--card-bg) !important;
     border: 1px solid var(--line) !important;
     border-radius: 18px !important;
-    padding: 20px;
     box-shadow: var(--shadow-sm);
     position: relative;
     overflow: hidden;
-    width: 100%;
-    box-sizing: border-box;
-    display: block;
-    min-width: 0 !important;
   }
+  .table-responsive-wrapper tr:last-child { margin-bottom: 0; }
 
+  /* 4. Color-coded Status Borders for My Shelf */
+  .shelf-row.available { border-left: 6px solid var(--success-green) !important; }
+  .shelf-row.borrowed { border-left: 6px solid var(--accent) !important; }
+  .shelf-row.request_pending, 
+  .shelf-row.pending { border-left: 6px solid var(--brand) !important; }
+
+  /* 5. Metadata Layout (Label: Value) */
   .table-responsive-wrapper td {
     padding: 6px 0;
     border: none;
     text-align: left;
     min-height: auto;
+    word-break: break-word;
+    overflow-wrap: break-word;
   }
 
-  /* Make the Book Title the prominent header of the card */
+  /* Styling for the labels (e.g., "BORROWER:") */
+  .table-responsive-wrapper td::before {
+    content: attr(data-label) ": ";
+    display: inline-block;
+    width: 90px;
+    flex-shrink: 0;
+    font-weight: 800;
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* 6. Header Section of the Card (Book Title) */
   .table-responsive-wrapper td[data-label="Book"] {
     border-bottom: 1px solid var(--line);
     margin-bottom: 12px;
     padding-bottom: 12px;
   }
 
-  /* Hide labels for the main items to save space, show them for metadata */
-  .table-responsive-wrapper td::before {
-    content: attr(data-label) ": ";
-    font-weight: 800;
-    font-size: 10px;
-    text-transform: uppercase;
-    color: var(--muted);
-    display: inline-block;
-    width: 90px; /* Slight increase for better label spacing */
-    flex-shrink: 0;
-  }
-
-  /* Force wrap on long names/titles to prevent horizontal push */
-  .table-responsive-wrapper td {
-    word-break: break-word;
-    overflow-wrap: break-word;
-  }
-
-  /* Remove labels for Book and Type to make them look like a header */
+  /* HIDE labels for Book, Genre, Type, and Actions to make them look like headers */
   .table-responsive-wrapper td[data-label="Book"]::before,
+  .table-responsive-wrapper td[data-label="Genre"]::before,
   .table-responsive-wrapper td[data-label="Type"]::before,
   .table-responsive-wrapper td[data-label="Actions"]::before {
     display: none;
   }
 
-  /* Header Row Styling */
-  .table-responsive-wrapper td[data-label="Type"] {
-    position: absolute;
-    top: 18px;
-    right: 20px;
-    width: auto !important;
-    padding: 0;
-  }
-
   .book-info-compact strong {
     font-size: 18px;
     display: block;
-    max-width: calc(100% - 80px); /* Leave room for the Type chip */
+    max-width: calc(100% - 80px); /* Leave room for the chip on the right */
   }
 
-  /* Action Buttons Stacking */
+  /* 7. Genre & Status Rows - Flex them to look like Chips */
+  .table-responsive-wrapper td[data-label="Genre"],
+  .table-responsive-wrapper td[data-label="Type"],
+  .table-responsive-wrapper td[data-label="Status"] {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--line);
+    padding: 8px 0;
+  }
+
+  /* Force the value (Genre name/Status) to look like a chip if it isn't one already */
+  .table-responsive-wrapper td[data-label="Genre"]::after,
+  .table-responsive-wrapper td[data-label="Status"] span {
+    font-weight: 700;
+  }
+
+  /* 8. Action Buttons at the bottom */
   .table-responsive-wrapper td[data-label="Actions"] {
     margin-top: 12px;
     padding-top: 16px;
@@ -2482,15 +2501,10 @@ th:last-child {
     min-width: 0;
   }
 
-  .row-actions .btn svg {
-    flex-shrink: 0;
-  }
+  .row-actions .btn svg { flex-shrink: 0; }
+  .row-actions .btn-text { display: inline !important; }
 
-  .row-actions .btn-text {
-    display: inline !important;
-  }
-
-  /* --- Two-Block Pagination (Mobile) --- */
+  /* 9. Mobile Pagination */
   .two-block-pagination .pagination {
     flex-direction: column !important;
     gap: 16px;
@@ -2524,7 +2538,6 @@ th:last-child {
     width: 100%;
   }
 
-   /* Hide the individual page number list on mobile to keep it "Two-Block" */
   .two-block-pagination .pagination-numbers {
     display: none;
   }
@@ -4759,10 +4772,12 @@ tbody tr:hover,
   .catalog-header {
     flex-direction: column !important;
     align-items: flex-start !important;
-    gap: 12px !important;
+    gap: 16px !important;
+    margin-bottom: 16px !important;
   }
-  .catalog-header-left h3 { font-size: 26px !important; }
-  .catalog-header-right-row { width: 100% !important; justify-content: space-between !important; }
+  .catalog-header-left h3 { 
+    font-size: 24px !important;
+  }
   .catalog-header-right-row {
     display: flex !important;
     align-items: center !important;
@@ -4770,12 +4785,18 @@ tbody tr:hover,
     width: 100% !important;
     gap: 12px !important;
   }
-
   .catalog-actions-cluster {
     display: flex !important;
     align-items: center !important;
+    justify-content: flex-end !important;
     gap: 8px !important;
     flex-wrap: wrap !important;
+    flex: 1 !important;
+  }
+  .catalog-actions-cluster .btn {
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+    min-height: 38px !important;
   }
 
   /* FIXED TOOLBAR: Compact, ultra-clean mobile structure grid layout */
@@ -4926,3 +4947,9 @@ tbody tr:hover,
   scrollbar-width: thin;
   scrollbar-color: var(--brand, #6366f1) var(--bg-secondary, #f3f4f6);
 }
+
+/* --- History Page Status Borders --- */
+.history-row.returned { border-left: 6px solid #64748b !important; } /* Muted Grey */
+.history-row.converted_to_loan { border-left: 6px solid var(--brand) !important; } /* Active Blue */
+.history-row.overdue { border-left: 6px solid var(--danger) !important; } /* Danger Red */
+

@@ -36,7 +36,14 @@ function RequestRow({ row, me, approve, reject, openDetails }) {
 
   return (
     <>
-      <tr className={`request-row ${isReceivedRequest ? 'incoming' : 'outgoing'}`}>
+      {/*
+        NOTE: `row.status` is now appended to the className alongside the
+        incoming/outgoing direction class. The direction class still drives
+        the default green/blue border, but the status class (e.g. "rejected",
+        "overdue") takes precedence in CSS so a rejected/overdue card always
+        renders its red status border regardless of direction.
+      */}
+      <tr className={`request-row ${isReceivedRequest ? 'incoming' : 'outgoing'} ${row.status}`}>
         <td data-label="Type">
           {isReceivedRequest ? (
             <span className="chip received">Incoming</span>

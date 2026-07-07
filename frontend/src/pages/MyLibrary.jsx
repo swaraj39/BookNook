@@ -31,7 +31,7 @@ function ReturnButton({ loan, returnBook }) {
 export function MyLibrary({ myBooksPage, onMyBooksPageChange, borrowedPage, onBorrowedPageChange, setBookModal, deleteBook, returnBook, openDetails, onRefreshShelf, onRefreshReading }) {
   const [tab, setTab] = useState("shelf");
   const refreshFn = tab === "shelf" ? onRefreshShelf : onRefreshReading;
-
+  
   return (
     <Panel
       title={tab === "shelf" ? "My Books" : "Currently Reading"}
@@ -58,6 +58,7 @@ export function MyLibrary({ myBooksPage, onMyBooksPageChange, borrowedPage, onBo
           </button>
         </div>
       </div>
+      
       {tab === "shelf" ? (
         myBooksPage.content.length === 0 ? (
           <EmptyState
@@ -69,26 +70,39 @@ export function MyLibrary({ myBooksPage, onMyBooksPageChange, borrowedPage, onBo
           />
         ) : (
           <>
-            <Table headers={["Book", "Genre", "Status", "Actions"]}>
-              {myBooksPage.content.map((book) => (
-                <tr key={book.id}>
-                  <td><strong>{book.title}</strong><br />{book.author}</td>
-                  <td>{book.genre?.name}</td>
-                  <td><span className={`chip ${book.availabilityStatus}`}>{label(book.availabilityStatus)}</span></td>
-                  <td><div className="row-actions">
-                    {book.availabilityStatus !== "borrowed" && (
-                      <>
-                        <button className="btn" onClick={() => setBookModal(toBookForm(book))}>Edit</button>
-                        <button className="btn danger" onClick={() => deleteBook(book.id)}>Delete</button>
-                      </>
-                    )}
-                    <button className="btn" onClick={() => openDetails(book)}>View Book</button>
-                  </div></td>
-                </tr>
-              ))}
-            </Table>
+            <div className="table-responsive-wrapper">
+              <Table headers={["Book", "Genre", "Status", "Actions"]}>
+                {myBooksPage.content.map((book) => (
+                  <tr key={book.id} className={`shelf-row ${book.availabilityStatus?.toLowerCase()}`}>
+                    <td data-label="Book">
+                      <div className="book-info-compact" onClick={() => openDetails(book)}>
+                        <strong>{book.title}</strong>
+                        <span>{book.author}</span>
+                      </div>
+                    </td>
+                    <td data-label="Genre">{book.genre?.name || "-"}</td>
+                    <td data-label="Status">
+                      <span className={`chip ${book.availabilityStatus?.toLowerCase()}`}>{label(book.availabilityStatus)}</span>
+                    </td>
+                    <td data-label="Actions">
+                      <div className="row-actions">
+                        {book.availabilityStatus !== "borrowed" && (
+                          <>
+                            <button className="btn" onClick={() => setBookModal(toBookForm(book))}>Edit</button>
+                            <button className="btn danger" onClick={() => deleteBook(book.id)}>Delete</button>
+                          </>
+                        )}
+                        <button className="btn" onClick={() => openDetails(book)}>View Book</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </Table>
+            </div>
             {myBooksPage.totalPages > 1 && (
-              <Pagination page={myBooksPage.page} totalPages={myBooksPage.totalPages} totalElements={myBooksPage.totalElements} onPageChange={onMyBooksPageChange} />
+              <div className="two-block-pagination">
+                <Pagination page={myBooksPage.page} totalPages={myBooksPage.totalPages} totalElements={myBooksPage.totalElements} onPageChange={onMyBooksPageChange} />
+              </div>
             )}
           </>
         )
@@ -101,21 +115,36 @@ export function MyLibrary({ myBooksPage, onMyBooksPageChange, borrowedPage, onBo
           />
         ) : (
           <>
-            <Table headers={["Book", "Owner", "Borrowed", "Due", "Status", "Actions"]}>
-              {borrowedPage.content.map((loan) => (
-                <tr key={loan.id}>
-                  <td><strong>{loan.book.title}</strong><br />{loan.book.author}</td>
-                  <td>{loan.owner.fullName}</td>
-                  <td>{dateText(loan.borrowedAt)}</td>
-                  <td>{dateText(loan.dueAt)}</td>
-                  <td><span className={`chip ${loan.status}`}>{label(loan.status)}</span></td>
-                  <td><div className="row-actions"><ReturnButton loan={loan} returnBook={returnBook} />
-                    <button className="btn" onClick={() => openDetails(loan.book)}>Details</button></div></td>
-                </tr>
-              ))}
-            </Table>
+            <div className="table-responsive-wrapper">
+              <Table headers={["Book", "Owner", "Borrowed", "Due", "Status", "Actions"]}>
+                {borrowedPage.content.map((loan) => (
+                  <tr key={loan.id} className={`shelf-row ${loan.status?.toLowerCase() || 'borrowed'}`}>
+                    <td data-label="Book">
+                      <div className="book-info-compact" onClick={() => openDetails(loan.book)}>
+                        <strong>{loan.book.title}</strong>
+                        <span>{loan.book.author}</span>
+                      </div>
+                    </td>
+                    <td data-label="Owner">{loan.owner.fullName}</td>
+                    <td data-label="Borrowed">{dateText(loan.borrowedAt)}</td>
+                    <td data-label="Due">{dateText(loan.dueAt)}</td>
+                    <td data-label="Status">
+                      <span className={`chip ${loan.status}`}>{label(loan.status)}</span>
+                    </td>
+                    <td data-label="Actions">
+                      <div className="row-actions">
+                        <ReturnButton loan={loan} returnBook={returnBook} />
+                        <button className="btn" onClick={() => openDetails(loan.book)}>Details</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </Table>
+            </div>
             {borrowedPage.totalPages > 1 && (
-              <Pagination page={borrowedPage.page} totalPages={borrowedPage.totalPages} totalElements={borrowedPage.totalElements} onPageChange={onBorrowedPageChange} />
+              <div className="two-block-pagination">
+                <Pagination page={borrowedPage.page} totalPages={borrowedPage.totalPages} totalElements={borrowedPage.totalElements} onPageChange={onBorrowedPageChange} />
+              </div>
             )}
           </>
         )
