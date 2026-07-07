@@ -4080,9 +4080,12 @@ tbody tr:hover,
     width: 100% !important;
     flex: 1 0 auto !important;
     min-height: auto !important;
-    padding: 0 20px 40px 20px !important; /* Spacious framing away from device walls */
-    margin-top: -30px; /* Pulls the card slightly up over the image gradient fade area */
+    padding: 0 20px 40px 20px !important;
+    margin-top: -30px;
     background: transparent !important;
+    
+    /* FIXED: This breaks the scroll containment lock, allowing smooth up/down scrolling anywhere */
+    overscroll-behavior: auto !important; 
   }
 
   /* 3. Form Card internal geometry refinements */
