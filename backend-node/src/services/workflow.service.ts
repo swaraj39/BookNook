@@ -1,5 +1,6 @@
 import prisma from "../config/prisma";
 import { StatsCacheService } from "./stats-cache.service";
+import { ReadCacheService } from "./read-cache.service";
 
 const TX_OPTIONS = {
   maxWait: 10000,
@@ -155,6 +156,7 @@ export class WorkflowService {
       return tr;
     }, TX_OPTIONS);
 
+    await ReadCacheService.invalidate(`book:${payload.bookId}`);
     return this.mapTransaction(transaction);
   }
 
@@ -241,8 +243,10 @@ export class WorkflowService {
       return tr;
     }, TX_OPTIONS);
 
-    // Decrement available inventory since book is now physically in 'borrowed' loop
-    await StatsCacheService.adjustFields({ availableBooks: -1 });
+    await Promise.all([
+      StatsCacheService.adjustFields({ availableBooks: -1 }),
+      ReadCacheService.invalidate(`book:${updatedTransaction.bookId}`),
+    ]);
 
     return this.mapTransaction(updatedTransaction);
   }
@@ -325,10 +329,12 @@ export class WorkflowService {
       };
     }, TX_OPTIONS);
 
-    // 2. Now 'shouldMakeAvailable' is perfectly safe to evaluate down here!
-    await StatsCacheService.adjustFields({
-      availableBooks: shouldMakeAvailable ? 1 : 0
-    });
+    await Promise.all([
+      StatsCacheService.adjustFields({
+        availableBooks: shouldMakeAvailable ? 1 : 0
+      }),
+      ReadCacheService.invalidate(`book:${updatedTransaction.bookId}`),
+    ]);
 
     return this.mapTransaction(updatedTransaction);
   }
@@ -389,9 +395,10 @@ export class WorkflowService {
       return tr;
     }, TX_OPTIONS);
 
-    // This is where a real read completion happens!
-    // Increment the available count pool and elevate the global complete transaction stats.
-    await StatsCacheService.adjustFields({ availableBooks: 1, totalBooksReadGlobal: 1 });
+    await Promise.all([
+      StatsCacheService.adjustFields({ availableBooks: 1, totalBooksReadGlobal: 1 }),
+      ReadCacheService.invalidate(`book:${updatedTransaction.bookId}`),
+    ]);
 
     return this.mapTransaction(updatedTransaction);
   }
