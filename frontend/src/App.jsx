@@ -365,8 +365,8 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-      // fetch("https://booknook-gfb8.onrender.com/api/quote/today")
-      fetch(`http://localhost:8080/api/quote/today`)
+      fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+      // fetch(`http://localhost:8080/api/quote/today`)
         .then((response) => response.ok ? response.json() : null)
         .then((quote) => {
           if (quote) setDailyThought(quote);
@@ -516,8 +516,8 @@ export default function App() {
   async function handleLogout() {
     setShowProfileDropdown(false);
     try {
-      // await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
-      await fetch("http://localhost:8080/api/auth/logout", {
+      await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
+      // await fetch("http://localhost:8080/api/auth/logout", {
         method: "POST",
         credentials: "include",
       });
@@ -785,8 +785,7 @@ const navSections = [
     label: "Your Activity",
     items: [
       ["requests", "Requests", CheckSquare, stats?.pendingApprovals],
-      ["myBooks", "My Shelf", LibraryBig],
-      ["borrowed", "Currently Reading", BookOpenText],
+      ["myLibrary", "My Shelf", LibraryBig],
       ["history", "History", History],
       ["guide", "Guide", Info]
     ]
