@@ -3996,11 +3996,107 @@ tbody tr:hover,
   position: fixed;
   z-index: 4;
 }
+/* ==========================================================================
+   Fixed Unified Mobile Scrolling Configuration (< 980px)
+   ========================================================================== */
 @media (max-width: 980px) {
+  /* 1. Root container behaves as a natural document stream */
+  .bn-auth {
+    flex-direction: column !important; 
+    overflow-y: auto !important;       /* Allows the whole page wrapper to handle the one true scroll */
+    height: auto !important;
+    min-height: 100vh !important;
+  }
+
+  /* 2. Banner image stays flat and static in the document flow */
+  .bn-auth-image-wrap {
+    display: flex !important;
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 45vh !important;       
+    min-height: 320px !important;
+    transform: none !important;     
+    padding: 2rem 1.5rem !important;
+    
+    /* Elegant downward blend into the main canvas background */
+    mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 85%, rgba(0,0,0,0) 100%) !important;
+    -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 85%, rgba(0,0,0,0) 100%) !important;
+    clip-path: none !important; 
+  }
+
+  .bn-auth-image-fade {
+    background: linear-gradient(
+      180deg,
+      rgba(20, 16, 10, 0) 0%,
+      rgba(20, 16, 10, 0.4) 60%,
+      var(--auth-paper) 100%
+    ) !important;
+  }
+  
+  [data-auth-theme="dark"] .bn-auth-image-fade {
+    background: linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0) 0%,
+      rgba(0, 0, 0, 0.5) 60%,
+      var(--auth-paper-dark) 100%
+    ) !important;
+  }
+
+  .bn-auth-image-copy {
+    max-width: 100% !important;
+    align-items: center !important;
+    text-align: center !important;
+  }
+
+  .bn-auth-image-copy h1 {
+    font-size: 2.5rem !important; 
+  }
+
+  .bn-auth-image-copy p {
+    font-size: 1.1rem !important;
+    max-width: 500px;
+  }
+
+  /* 3. Right container stripped of all custom inner scroll constraints */
   .bn-auth-right {
-    width: 100%;
+    width: 100% !important;
+    flex: 0 0 auto !important;         /* Becomes a static blocking layout node */
+    height: auto !important;
+    min-height: auto !important;
+    padding: 0 20px 40px 20px !important; 
+    margin-top: -30px; 
+    background: transparent !important;
+    
+    /* CRITICAL FIXES: Strips all internal containment locks entirely */
+    overflow-y: visible !important;   
+    overscroll-behavior: auto !important; 
+    scrollbar-gutter: auto !important;
+  }
+
+  /* 4. Form Card layout preservation */
+  .bn-auth-card {
+    transform: none !important;
+    margin: 0 auto !important;
+    padding: 32px 24px !important;
+    box-shadow: var(--auth-shadow) !important;
+    background: var(--auth-card) !important;
+  }
+  
+  [data-auth-theme="dark"] .bn-auth-card {
+    background: var(--auth-card-dark) !important;
+  }
+
+  /* 5. Sticky utility button locks cleanly over the page view */
+  .bn-theme-toggle {
+    position: fixed !important; /* Kept fixed so it floats independently while scrolling */
+    top: 16px !important;
+    right: 16px !important;
+    z-index: 1000 !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
   }
 }
+
 .nav-loader-overlay {
   position: fixed;
   top: 64px;
@@ -4092,27 +4188,29 @@ tbody tr:hover,
   --border-color: #e7e5e4;
 }
 
+/* ==========================================================================
+   Premium Winding Journey Section - Semantic Variable Mapping
+   ========================================================================== */
+
 .guide-flow-canvas {
-  /* This now acts as your single massive, elevated presentation container */
-  background-color: #ffffff !important; 
-  border: 1px solid var(--border-color);
-  border-radius: 28px; /* Extra smooth, premium outer corner rounding */
+  /* Dynamic Mapping to Global Theme tokens */
+  background-color: var(--panel) !important; 
+  border: 1px solid var(--line);
+  border-radius: 28px;
   
-  /* Layered soft drop-shadow for the ultimate ambient pop effect off the screen */
-  box-shadow: 
-    0 25px 50px -12px rgba(28, 25, 23, 0.04),
-    0 4px 12px -2px rgba(28, 25, 23, 0.01),
-    0 1px 1px 0 rgba(0, 0, 0, 0.01);
+  /* Leverages the deep token box shadows for light/dark ambient depth */
+  box-shadow: var(--shadow);
 
   min-height: 100vh;
-  padding: 80px 50px; /* Spacious framing from the new outer border line */
-  font-family: system-ui, -apple-system, sans-serif;
+  padding: 80px 50px; 
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   position: relative;
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
-/* Clear out any restrictive card styles from the inner container so it doesn't duplicate layout boxes */
+/* Fluid inner container reset */
 .guide-flow-inner {
-  max-width: 900px; /* Perfect horizontal footprint to bridge alternating cards */
+  max-width: 900px;
   margin: 0 auto;
   position: relative;
   background: transparent;
@@ -4120,19 +4218,9 @@ tbody tr:hover,
   box-shadow: none;
   padding: 0;
 }
-/* Outer wrapper handles the page width restrict safely */
-.guide-flow-inner {
-  max-width: 900px; /* Tightened width layout to close the empty anchor gap */
-  margin: 0 auto;
-  position: relative;
-  background: transparent; /* FIXED: Removed the harsh white card wrapper */
-  border: none;
-  box-shadow: none;
-  padding: 0;
-}
 
 .guide-flow-page-title {
-  color: var(--text-primary);
+  color: var(--ink);
   font-size: 32px;
   font-weight: 700;
   text-align: center;
@@ -4141,7 +4229,7 @@ tbody tr:hover,
 }
 
 .guide-flow-subtitle {
-  color: var(--text-muted);
+  color: var(--muted);
   font-size: 15px;
   text-align: center;
   margin-bottom: 80px;
@@ -4157,17 +4245,17 @@ tbody tr:hover,
   margin: 0 auto 100px auto;
   display: flex;
   flex-direction: column;
-  gap: 56px; /* Slightly increased for more vertical breathing room */
+  gap: 56px;
 }
 
-/* Central flowing line vector mimic */
+/* Central path vector adapts seamlessly between themes */
 .timeline-backbone-line {
   position: absolute;
   top: 36px;
   bottom: 36px;
   left: 50%;
   width: 4px;
-  background: linear-gradient(to bottom, var(--brand-gold), #d9a75d, var(--brand-gold));
+  background: linear-gradient(to bottom, var(--brand), var(--brand-dark), var(--brand));
   transform: translateX(-50%);
   border-radius: 4px;
   opacity: 0.35;
@@ -4182,7 +4270,7 @@ tbody tr:hover,
   z-index: 2;
 }
 
-/* Grid Alignment Mechanics using Flex instead of Absolute overlays */
+/* Layout orientation structures */
 .row-left-align {
   flex-direction: row;
   justify-content: flex-start;
@@ -4193,21 +4281,18 @@ tbody tr:hover,
   justify-content: flex-start;
 }
 
-/* Premium Left-Aligned Text Blocks for both sides */
+/* Left-aligned description block mapping onto global card backgrounds */
 .journey-text-block {
   width: 44%; 
   padding: 28px 32px;
-  background: #ffffff;
-  border: 1px solid var(--border-color);
-  border-radius: 20px; /* Smooth, high-end corner geometry */
-  box-shadow: 
-    0 10px 25px -5px rgba(28, 25, 23, 0.03), 
-    0 8px 10px -6px rgba(0, 0, 0, 0.01);
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: var(--shadow-sm);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  text-align: left; /* FIXED: All nodes are cleanly left-aligned for standard reading orientation */
+  text-align: left;
 }
 
-/* Handles precise micro-spacing adjustments away from the center line */
 .row-left-align .journey-text-block {
   margin-right: auto;
 }
@@ -4216,16 +4301,16 @@ tbody tr:hover,
   margin-left: auto;
 }
 
-/* Ensure the central isolation ring on the circle anchors matches the new fluid background */
+/* Winding circle anchor points using mask backgrounds matching current theme variables */
 .journey-circle-anchor {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
   width: 74px;
   height: 74px;
-  background: #ffffff;
-  border: 4px solid #ffffff; /* FIXED: Seamlessly isolates the circle badge through the timeline line */
-  box-shadow: 0 0 0 2px var(--brand-gold), 0 10px 20px -3px rgba(180, 123, 43, 0.15);
+  background: var(--panel);
+  border: 4px solid var(--panel); /* Masks out backbone line using native theme pane fill */
+  box-shadow: 0 0 0 2px var(--brand), var(--shadow-sm);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -4237,86 +4322,85 @@ tbody tr:hover,
   width: 54px;
   height: 54px;
   border-radius: 50%;
-  background: var(--brand-gold-light);
-  color: var(--brand-gold);
+  background: var(--brand-soft);
+  color: var(--brand);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Interactive Hover States */
+/* Interactive States using CSS focus variables */
 .timeline-journey-row:hover .journey-text-block {
   transform: translateY(-4px);
-  border-color: var(--brand-gold);
-  box-shadow: 0 20px 30px -10px rgba(180, 123, 43, 0.08);
+  border-color: var(--focus);
+  box-shadow: var(--shadow);
 }
 
 .timeline-journey-row:hover .journey-circle-anchor {
   transform: translateX(-50%) scale(1.04);
 }
 
-/* Success Terminal Step Variants */
+/* Success Terminal Node Override Rules */
 .final-success-node .journey-circle-anchor {
-  box-shadow: 0 0 0 2px var(--success-green), 0 10px 20px -3px rgba(16, 185, 129, 0.15);
+  box-shadow: 0 0 0 2px var(--accent), var(--shadow-sm);
 }
 .final-success-node .inner-circle-badge {
-  background: var(--success-green-light);
-  color: var(--success-green);
+  background: var(--brand-soft);
+  color: var(--accent);
 }
 .final-success-node:hover .journey-text-block {
-  border-color: var(--success-green);
-  box-shadow: 0 20px 30px -10px rgba(16, 185, 129, 0.08);
+  border-color: var(--accent);
 }
 
-/* Typography Hierarchy */
+/* Typography tokens hierarchy alignment */
 .node-step-tag {
   font-size: 11px !important;
   text-transform: uppercase;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: var(--brand-gold);
+  color: var(--brand);
   display: block;
   margin-bottom: 6px;
 }
 
 .final-success-node .node-step-tag {
-  color: var(--success-green);
+  color: var(--accent);
 }
 
 .journey-text-block h4 {
   margin: 0 0 8px 0;
   font-size: 19px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--ink);
   letter-spacing: -0.01em;
 }
 
 .journey-text-block p {
   margin: 0;
   font-size: 14px;
-  color: var(--text-muted);
+  color: var(--muted);
   line-height: 1.55;
 }
 
-/* Footer FAQ Cards Rulesets */
+/* Footer FAQ Grid Layout Overhaul */
 .flow-action-faq-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 24px;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--line);
   padding-top: 48px;
   margin-top: 80px;
 }
 
 .faq-action-card {
-  background: #ffffff;
-  border-left: 4px solid var(--brand-gold);
+  background: var(--card-bg);
+  border-left: 4px solid var(--brand);
+  border-top: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
   border-radius: 12px;
   padding: 24px;
-  box-shadow: 0 4px 15px -3px rgba(28, 25, 23, 0.02);
-  border-top: 1px solid var(--border-color);
-  border-right: 1px solid var(--border-color);
-  border-bottom: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
 }
 
 .faq-action-header {
@@ -4324,24 +4408,24 @@ tbody tr:hover,
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-  color: var(--brand-gold);
+  color: var(--brand);
 }
 
 .faq-action-header h5 {
   margin: 0;
   font-size: 15px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--ink);
 }
 
 .faq-action-card p {
   margin: 0;
   font-size: 14px;
-  color: var(--text-muted);
+  color: var(--muted);
   line-height: 1.5;
 }
 
-/* Mobile Media Standard Adaptations */
+/* Fluid Mobile Adaptations */
 @media (max-width: 768px) {
   .timeline-backbone-line {
     left: 36px;
@@ -4364,6 +4448,7 @@ tbody tr:hover,
     transform: translateX(-50%);
     width: 56px;
     height: 56px;
+    border-width: 3px;
   }
 
   .inner-circle-badge {
