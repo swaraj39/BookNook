@@ -1,6 +1,5 @@
 // const API_URL = "https://booknook-gfb8.onrender.com/api";
 const API_URL = "http://localhost:8080/api";
-// const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 function friendlyErrorMessage(message) {
   const text = String(message || "").toLowerCase();
   const looksLikeDatabaseError = [
@@ -13,18 +12,14 @@ function friendlyErrorMessage(message) {
     "connection pool",
     "too many connections",
   ].some((needle) => text.includes(needle));
-
   if (looksLikeDatabaseError) {
     return "The library desk is a bit overloaded right now. Please try again in a moment.";
   }
-
   if (!message || text === "internal server error") {
     return "Something wobbled on our side. Please try again in a moment.";
   }
-
   return message;
 }
-
 async function request(path, options = {}) {
   const token = localStorage.getItem("bn_token");
   const headers = {
@@ -71,7 +66,10 @@ export const api = {
     }),
   me: () => request("/me"),
   dashboard: () => request("/dashboard"),
-  leaderboard: () => request("/leaderboard"),
+  leaderboard: (params = {}) => {
+    const query = new URLSearchParams(params);
+    return request(`/leaderboard?${query}`);
+  },
   genres: () => request("/genres"),
   books: (params) => {
     const query = new URLSearchParams({ size: 20, ...params });
@@ -124,7 +122,6 @@ export const api = {
     request(`/loans/${id}/return`, {
       method: "POST",
     }),
-
   forgotPasswordRequest: (email) =>
     request("/auth/forgot-password/request", {
       method: "POST",

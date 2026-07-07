@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { label, dateText } from "../utils/helpers";
-import { BookOpen, Milestone, Sparkles, Trophy, ExternalLink, Crown, Medal } from "lucide-react";
+import { BookOpen, Milestone, Sparkles, Trophy, ExternalLink, Crown } from "lucide-react";
 
 export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) {
   const [showLeaderboardPopup, setShowLeaderboardPopup] = useState(false);
@@ -26,33 +26,50 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
       setLoadingLeaderboard(false);
     }
   }
-
   function handleClosePopup() {
     setShowLeaderboardPopup(false);
   }
 
-  // Podium standee for the top 3 readers of the last 5 months.
-  // Rank badge ("#1st" / "#2nd" / "#3rd") sits above the avatar, followed by
-  // the reader's name and their books-read total for the period.
+  function booksLabel(count) {
+    return `${count} book${count !== 1 ? "s" : ""}`;
+  }
+
   function PodiumStandee({ entry, position }) {
-    if (!entry) return null;
-    const rankSuffix = position === 1 ? "1st" : position === 2 ? "2nd" : "3rd";
+    if (!entry) return <div className={`podium-column pos-${position}`} />;
     return (
       <div className={`podium-column pos-${position}`}>
-        <span className="podium-rank-badge"># {rankSuffix}</span>
-        <div
-          className="podium-avatar"
-          style={{ backgroundColor: entry.avatarUrl ? "transparent" : "var(--brand)" }}
-        >
-          {entry.avatarUrl ? (
-            <img src={entry.avatarUrl} alt={entry.fullName} />
-          ) : (
-            entry.avatarInitials || entry.fullName[0]
-          )}
+        <div className="podium-avatar-wrap">
+          {position === 1 && <Crown size={20} className="podium-crown" />}
+          <div
+            className="podium-avatar"
+            style={{ backgroundColor: entry.avatarUrl ? "transparent" : "var(--brand)" }}
+          >
+            {entry.avatarUrl ? (
+              <img src={entry.avatarUrl} alt={entry.fullName} />
+            ) : (
+              entry.avatarInitials || entry.fullName?.[0] || "?"
+            )}
+          </div>
+          <span className="podium-rank-chip">{position}</span>
         </div>
-        <span className="podium-name">{entry.fullName.split(" ")[0]}</span>
-        <span className="podium-sub-label">Books Read</span>
-        <span className="podium-count-big">{entry.booksRead}</span>
+        <span className="podium-name">{(entry.fullName || "Unknown").split(" ")[0]}</span>
+        <span className="podium-count-big">{booksLabel(entry.booksRead)}</span>
+        <div className={`pedestal pedestal-${position}`}>{position}</div>
+      </div>
+    );
+  }
+
+  function LeaderboardRow({ entry }) {
+    return (
+      <div className="leaderboard-row">
+        <span className={`leaderboard-rank rank-${entry.rank}`}>{entry.rank}</span>
+        <div className="leaderboard-avatar" style={{ backgroundColor: entry.avatarUrl ? "transparent" : "var(--brand)" }}>
+          {entry.avatarUrl ? <img src={entry.avatarUrl} alt={entry.fullName} /> : entry.avatarInitials || entry.fullName?.[0] || "?"}
+        </div>
+        <div className="leaderboard-info">
+          <span className="leaderboard-name">{entry.fullName}</span>
+        </div>
+        <span className="leaderboard-count">{booksLabel(entry.booksRead)}</span>
       </div>
     );
   }
@@ -123,11 +140,11 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
       <section className="dashboard-split-feed-row">
         {}
         <div className="latest-readings-scroller-box">
+          <div className="feed-title-header">
+            <BookOpen size={18} />
+            <h3>Your Latest Reading Logs</h3>
+          </div>
           <div className="history-scroll-viewport">
-            <div className="feed-title-header">
-              <BookOpen size={18} />
-              <h3>Your Latest Reading Logs</h3>
-            </div>
             {stats.latestReadings && stats.latestReadings.filter((log) => log.status !== "rejected").length > 0 ? (
               stats.latestReadings
                 .filter((log) => log.status !== "rejected")
@@ -156,9 +173,9 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
         </div>
         {}
         <div className="leaderboard-panel">
-          <div className="feed-title-header leaderboard-header-row">
+          <div className="leaderboard-header-row">
             <div className="leaderboard-header-left">
-              <Trophy size={16} />
+              <Trophy size={16} style={{ marginTop: 5 }} />
               <div>
                 <h3>Leaderboard</h3>
                 <span className="leaderboard-subtitle">Top readers · last 5 months</span>
@@ -168,27 +185,21 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
               View All <ExternalLink size={14} />
             </button>
           </div>
+
           <div className="leaderboard-body">
             {stats.leaderboard && stats.leaderboard.length > 0 ? (
               <>
-                <div className="podium-strip">
-                  <PodiumStandee entry={stats.leaderboard[1]} position={2} />
-                  <PodiumStandee entry={stats.leaderboard[0]} position={1} />
-                  <PodiumStandee entry={stats.leaderboard[2]} position={3} />
+                <div className="leaderboard-hero">
+                  <div className="podium-strip">
+                    <PodiumStandee entry={stats.leaderboard[1]} position={2} />
+                    <PodiumStandee entry={stats.leaderboard[0]} position={1} />
+                    <PodiumStandee entry={stats.leaderboard[2]} position={3} />
+                  </div>
                 </div>
                 {stats.leaderboard.slice(3).length > 0 && (
                   <div className="leaderboard-rest">
                     {stats.leaderboard.slice(3).map((entry) => (
-                      <div key={entry.userId} className="leaderboard-row">
-                        <span className={`leaderboard-rank rank-${entry.rank}`}>{entry.rank}</span>
-                        <div className="leaderboard-avatar" style={{ backgroundColor: entry.avatarUrl ? "transparent" : "var(--brand)" }}>
-                          {entry.avatarUrl ? <img src={entry.avatarUrl} alt={entry.fullName} /> : entry.avatarInitials || entry.fullName[0]}
-                        </div>
-                        <div className="leaderboard-info">
-                          <span className="leaderboard-name">{entry.fullName}</span>
-                        </div>
-                        <span className="leaderboard-count">{entry.booksRead} <small>book{entry.booksRead !== 1 ? "s" : ""}</small></span>
-                      </div>
+                      <LeaderboardRow key={entry.userId} entry={entry} />
                     ))}
                   </div>
                 )}
@@ -200,6 +211,7 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
               </div>
             )}
           </div>
+
           {}
           {showLeaderboardPopup && (
             <div className="leaderboard-popup-overlay" onClick={handleClosePopup}>
@@ -214,23 +226,16 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
                     <div className="empty-logs-placeholder"><p>Loading...</p></div>
                   ) : (
                     <>
-                      <div className="podium-strip">
-                        <PodiumStandee entry={allLeaderboard?.[1]} position={2} />
-                        <PodiumStandee entry={allLeaderboard?.[0]} position={1} />
-                        <PodiumStandee entry={allLeaderboard?.[2]} position={3} />
+                      <div className="leaderboard-hero">
+                        <div className="podium-strip">
+                          <PodiumStandee entry={allLeaderboard?.[1]} position={2} />
+                          <PodiumStandee entry={allLeaderboard?.[0]} position={1} />
+                          <PodiumStandee entry={allLeaderboard?.[2]} position={3} />
+                        </div>
                       </div>
                       <div className="leaderboard-rest">
                         {(allLeaderboard ?? []).slice(3).map((entry) => (
-                          <div key={entry.userId} className="leaderboard-row">
-                            <span className={`leaderboard-rank rank-${entry.rank}`}>{entry.rank}</span>
-                            <div className="leaderboard-avatar" style={{ backgroundColor: entry.avatarUrl ? "transparent" : "var(--brand)" }}>
-                              {entry.avatarUrl ? <img src={entry.avatarUrl} alt={entry.fullName} /> : entry.avatarInitials || entry.fullName[0]}
-                            </div>
-                            <div className="leaderboard-info">
-                              <span className="leaderboard-name">{entry.fullName}</span>
-                            </div>
-                            <span className="leaderboard-count">{entry.booksRead} <small>book{entry.booksRead !== 1 ? "s" : ""}</small></span>
-                          </div>
+                          <LeaderboardRow key={entry.userId} entry={entry} />
                         ))}
                       </div>
                     </>

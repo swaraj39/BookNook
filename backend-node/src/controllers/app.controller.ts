@@ -264,13 +264,17 @@ export class AppController {
   }
   static async leaderboard(req: AuthRequest, res: Response) {
     try {
-      const result = await LookupService.leaderboard();
+      const { period, limit } = req.query;
+      const normalizedPeriod = queryString(period) === "today" ? "today" : "week";
+      const result = await LookupService.leaderboard(
+        limit ? queryNumber(limit, 5) : undefined,
+        normalizedPeriod
+      );
       return res.json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
     }
   }
-
   static async bookHistory(req: AuthRequest, res: Response) {
     try {
       const { page, size } = req.query;
