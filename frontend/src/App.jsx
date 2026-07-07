@@ -34,12 +34,13 @@ import { Requests } from "./pages/Requests";
 import { MyBooks } from "./pages/MyBooks";
 import { Borrowed } from "./pages/Borrowed";
 import { LoanHistory } from "./pages/LoanHistory";
+import { Guide } from './pages/Guide';
 import { Details } from "./pages/Details";
 import { initials } from "./utils/helpers";
 import { ConfirmDialog } from "./components/common/ConfirmDialog";
 import { PageLoader } from "./components/common/PageLoader";
 import logo from "./styles/blue_altair_logo-removebg-preview.png";
-const VALID_VIEWS = new Set(["dashboard", "home", "catalog", "requests", "myBooks", "borrowed", "history", "detail"]);
+const VALID_VIEWS = new Set(["dashboard", "home", "catalog", "requests", "myBooks", "borrowed", "history", "detail", "guide"]);
 function getStoredView() {
   const storedView = localStorage.getItem("bn_view") || "dashboard";
   return VALID_VIEWS.has(storedView) ? storedView : "dashboard";
@@ -790,7 +791,8 @@ const navSections = [
       ["requests", "Requests", CheckSquare, stats?.pendingApprovals],
       ["myBooks", "My Shelf", LibraryBig],
       ["borrowed", "Currently Reading", BookOpenText],
-      ["history", "History", History]
+      ["history", "History", History],
+      ["guide", "Guide", Info]
     ]
   }
 ];
@@ -873,7 +875,7 @@ return (
           openDetails={openDetails}
         />
       )}
-      {view !== "home" && view !== "catalog" && view !== "dashboard" && (
+      {view !== "home" && view !== "catalog" && view !== "dashboard" && view !== "guide" && (
         <section className="topbar">
           <div className="page-title">
             { }
@@ -915,10 +917,11 @@ return (
           onRefresh={loadCatalogFromApi}
         />
       )}
-      {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onRefresh={loadRequestsFromApi} />}
-      {view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} onRefresh={loadMyBooksFromApi} />}
-      {view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} returnBook={returnBook} openDetails={openDetails} onRefresh={loadBorrowedFromApi} />}
-      {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={loadHistoryFromApi} />}
+      {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onRefresh={() => loadRequests(requestsPage.page)} />}
+      {view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} onRefresh={() => loadMyBooks(myBooksPage.page)} />}
+      {view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} returnBook={returnBook} openDetails={openDetails} onRefresh={() => loadBorrowed(borrowedPage.page)} />}
+      {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={() => loadHistory(historyPage.page)} />}
+      {view === "guide" && <Guide />}
       {view === "detail" && selectedBook && (
         <Details
           book={selectedBook}

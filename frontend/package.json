@@ -9,13 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tsparticles/react": "^4.3.1",
+    "@tsparticles/slim": "^4.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "dotenv": "^17.4.2",
-    "lucide-react": "^1.21.0",
+    "framer-motion": "^12.42.2",
+    "lucide-react": "^1.23.0",
     "react": "^18.3.1",
+    "react-archer": "^5.1.0",
     "react-dom": "^18.3.1",
     "three": "^0.185.0",
-    "xlsx": "^0.18.5",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "xlsx": "^0.18.5"
   }
 }
