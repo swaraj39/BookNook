@@ -902,6 +902,20 @@ return (
         <Details book={selectedBook} historyPage={bookHistoryPage} onPageChange={changeBookHistoryPage} me={me} navigateBack={navigateBack} navigateTo={navigateTo} setBookModal={setBookModal} setRequestModal={setRequestModal} returnBook={returnBook} />
       )}
     </main>
+    
+    {/* Dedicated Mobile Bottom Tab Bar (Strictly hidden on Laptop/Desktop) */}
+    <nav className="mobile-bottom-nav">
+      {navSections.flatMap(s => s.items).map(([id, label, Icon, badge]) => (
+        <button key={id} className={`mobile-bottom-nav-item ${view === id ? "active" : ""}`} onClick={() => navigateTo(id)}>
+          <div className="mobile-bottom-nav-item-content">
+            <Icon size={19} />
+            <span>{label}</span>
+          </div>
+          {badge > 0 && <span className="nav-badge mobile-nav-badge">{badge}</span>}
+        </button>
+      ))}
+    </nav>
+
     {pageLoading && <PageLoader isDashboard={pageLoading === "dashboard"} />}
     {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
     {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}

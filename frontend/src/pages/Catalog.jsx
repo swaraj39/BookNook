@@ -52,27 +52,29 @@ export function Catalog({
       <div className="catalog-header-left">
         <h3>Books on the shelf</h3>
       </div>
-      <div className="catalog-header-right">
+      <div className="catalog-header-right-row">
         {onRefresh && <RefreshButton onRefresh={onRefresh} title="Refresh catalog" />}
-        {isAdmin && (
-          <>
-            <input
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              style={{ display: "none" }}
-              disabled={importing}
-            />
-            <button className="btn" onClick={handleImportClick} disabled={importing}>
-              {importing ? <><SpinnerInline /> Importing...</> : <><Upload size={15} /> Import</>}
-            </button>
-          </>
-        )}
-        <button className="btn" onClick={() => handleExportBooks()}>Export</button>
-        <button className="btn primary" onClick={() => setBookModal({ title: "", author: "", genreId: "", condition: "good", exchangeLocation: "", defaultLoanDays: 14, description: "" })}>
-          <Plus size={15} /> Add book
-        </button>
+        <div className="catalog-actions-cluster">
+          {isAdmin && (
+            <>
+              <input
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                style={{ display: "none" }}
+                disabled={importing}
+              />
+              <button className="btn" onClick={handleImportClick} disabled={importing}>
+                {importing ? <><SpinnerInline /> Importing...</> : <><Upload size={15} /> Import</>}
+              </button>
+            </>
+          )}
+          <button className="btn" onClick={() => handleExportBooks()}>Export</button>
+          <button className="btn primary" onClick={() => setBookModal({ title: "", author: "", genreId: "", condition: "good", exchangeLocation: "", defaultLoanDays: 14, description: "" })}>
+            <Plus size={15} /> Add book
+          </button>
+        </div>
       </div>
     </div>
     <div className="catalog-content">

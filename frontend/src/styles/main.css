@@ -4415,11 +4415,12 @@ tbody tr:hover,
 }
 
 /* ==========================================================================
-   Comprehensive Layout Responsiveness Overhaul (< 768px)
+   Isolated Mobile Layout Overhaul - Strictly Active Below 768px
    ========================================================================== */
 @media (max-width: 768px) {
-  /* 1. Desktop Nav container visibility control */
-  .desktop-nav-only {
+  
+  /* 1. Freeze Desktop Navigation Bar Elements */
+  .nav-scroll-wrap, .nav-scroll-btn {
     display: none !important;
   }
 
@@ -4437,10 +4438,10 @@ tbody tr:hover,
     justify-content: space-between !important;
     padding: 0 16px !important;
     background: var(--sidebar-bg) !important;
-    backdrop-filter: blur(12px) !important;
+    backdrop-filter: blur(16px) !important;
     border-bottom: 1px solid var(--line) !important;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02) !important;
-    z-index: 200 !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.015) !important;
+    z-index: 250 !important;
   }
 
   .brand {
@@ -4463,32 +4464,32 @@ tbody tr:hover,
     display: flex !important;
     align-items: center !important;
     gap: 12px !important;
+    z-index: auto !important;
   }
   .top-nav-actions::before { display: none !important; }
 
-  /* 3. Dedicated Fixed Bottom Tab Bar */
+  /* 3. Render Dedicated Sticky Bottom Tab Bar */
   .mobile-bottom-nav {
     display: flex !important;
     position: fixed !important;
     bottom: 0 !important;
     left: 0 !important;
     right: 0 !important;
-    height: 68px !important;
+    height: 66px !important;
     background: var(--sidebar-bg) !important;
     backdrop-filter: blur(16px) saturate(1.2) !important;
     border-top: 1px solid var(--line) !important;
-    padding: 0 8px !important;
-    z-index: 200 !important;
+    padding: 0 6px !important;
+    z-index: 250 !important;
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.03) !important;
     align-items: center !important;
     justify-content: space-between !important;
   }
 
-  /* 4. Squeezed Navigation Items Layout Grid */
   .mobile-bottom-nav-item {
     flex: 1 1 0 !important;
     min-width: 0 !important;
-    height: 54px !important;
+    height: 50px !important;
     border: none !important;
     background: transparent !important;
     color: var(--muted) !important;
@@ -4497,9 +4498,7 @@ tbody tr:hover,
     align-items: center !important;
     justify-content: center !important;
     position: relative !important;
-    padding: 4px 2px !important;
     border-radius: 12px !important;
-    transition: all 0.15s ease !important;
   }
 
   .mobile-bottom-nav-item-content {
@@ -4507,25 +4506,18 @@ tbody tr:hover,
     flex-direction: column !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 3px !important;
+    gap: 2px !important;
     width: 100% !important;
   }
 
-  .mobile-bottom-nav-item-content svg {
-    width: 18px !important;
-    height: 18px !important;
-  }
-
+  .mobile-bottom-nav-item-content svg { width: 18px !important; height: 18px !important; }
   .mobile-bottom-nav-item-content span {
     font-size: 10px !important;
     font-weight: 600 !important;
-    letter-spacing: -0.01em !important;
-    text-align: center !important;
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     max-width: 100% !important;
-    display: block !important;
   }
 
   .mobile-bottom-nav-item.active {
@@ -4535,26 +4527,85 @@ tbody tr:hover,
 
   .mobile-nav-badge {
     position: absolute !important;
-    top: 4px !important;
-    right: 14px !important;
+    top: 2px !important;
+    right: 12px !important;
     min-width: 14px !important;
     height: 14px !important;
     font-size: 8px !important;
     padding: 0 4px !important;
-    z-index: 10 !important;
   }
 
-  /* 5. Adjust Main Body Viewport Spacing Cushions */
+  /* 4. Main Body Cushion Offset Protection */
   .main {
     padding: 84px 16px 92px 16px !important; 
+    transform: none !important; /* FIXED: Resolves Browse transition header rendering glitches */
+    animation: none !important; 
   }
 
-  .nav-loader-overlay {
-    top: 60px !important;
-    bottom: 68px !important;
+  .nav-loader-overlay { top: 60px !important; bottom: 66px !important; }
+
+  /* ==========================================================================
+     FIXED: Browse Page (Catalog) Toolbar Design System
+     ========================================================================== */
+  .catalog-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  .catalog-header-left h3 { font-size: 26px !important; }
+  .catalog-header-right-row { width: 100% !important; justify-content: space-between !important; }
+  .catalog-header-right-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    gap: 12px !important;
   }
 
-  /* 6. Guide Roadmap Layout Adjustments */
+  .catalog-actions-cluster {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+
+  /* FIXED TOOLBAR: Compact, ultra-clean mobile structure grid layout */
+  .toolbar {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important; /* Row 2 drops to 50/50 split splits */
+    gap: 10px !important;
+    padding: 12px !important;
+    border-radius: 12px !important;
+  }
+
+  .search-wrap {
+    grid-column: 1 / -1 !important; /* Full width row on top for text search entry */
+    width: 100% !important;
+  }
+
+  .toolbar .select {
+    grid-column: auto !important; /* Side-by-side dropdown selectors */
+    min-height: 42px !important;
+    font-size: 13.5px !important;
+    padding: 8px 10px !important;
+    border-radius: 8px !important;
+  }
+
+  /* Horizontal responsive touch capsule ribbon alignment tracks */
+  .catalog-capsules {
+    display: flex !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    gap: 8px !important;
+    padding: 4px 2px 10px 2px !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+  .catalog-capsules::-webkit-scrollbar { display: none !important; }
+  .catalog-capsule { flex-shrink: 0 !important; font-size: 13px !important; }
+
+  /* 5. Guide Process Layout Fixes */
   .timeline-backbone-line { left: 36px; transform: none; }
   .timeline-journey-row { flex-direction: row !important; align-items: flex-start; }
   .journey-text-block { width: calc(100% - 72px); margin-left: 72px !important; margin-right: 0 !important; }
