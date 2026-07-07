@@ -11,6 +11,16 @@ services:
     volumes:
       - booknook-postgres-data:/var/lib/postgresql/data
 
+  redis:
+    image: redis:7-alpine
+    container_name: booknook-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - booknook-redis-data:/data
+    command: redis-server --appendonly yes
+
   backend:
     image: maven:3.9.9-eclipse-temurin-21
     container_name: booknook-backend
@@ -18,11 +28,17 @@ services:
     command: mvn spring-boot:run
     depends_on:
       - postgres
+      - redis
     environment:
       BOOKNOOK_DB_URL: jdbc:postgresql://postgres:5432/booknook
       BOOKNOOK_DB_USER: postgres
       BOOKNOOK_DB_PASSWORD: postgres
       BOOKNOOK_CURRENT_USER_EMAIL: gaurav.choudhary@booknook.com
+
+      # Redis
+      BOOKNOOK_REDIS_HOST: redis
+      BOOKNOOK_REDIS_PORT: 6379
+
     ports:
       - "8080:8080"
     volumes:
@@ -32,3 +48,4 @@ services:
 volumes:
   booknook-postgres-data:
   booknook-maven-cache:
+  booknook-redis-data:
