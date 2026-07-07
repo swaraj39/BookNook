@@ -2342,11 +2342,236 @@ th:last-child {
   cursor: not-allowed !important;
   pointer-events: none !important;
 }
+/* --- Requests Page Refactor --- */
+
 .request-container {
-  display: grid;
-  max-width: 100%;
-  width: 1386.090;
+  width: 100%;
+  max-width: 100%; /* Prevents container from pushing out */
+  margin: 0;
+  overflow-x: hidden; /* Safety lock against horizontal scroll */
 }
+
+/* Ensure the capsules don't push the panel width */
+.request-container .catalog-capsules {
+  max-width: calc(100vw - 40px);
+}
+
+.book-info-compact {
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+}
+
+.book-info-compact strong {
+  color: var(--brand-dark);
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.book-info-compact span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.request-row:hover .book-info-compact strong {
+  text-decoration: underline;
+}
+
+/* Premium Row Styling */
+/* Premium Row Styling - Thick color-coded border for the Card */
+  .request-row.incoming {
+    border-left: 6px solid var(--success-green) !important;
+  }
+
+  .request-row.outgoing {
+    border-left: 6px solid var(--brand) !important;
+  }
+
+/* Desktop Actions Hide Text on small desktop but keep buttons tidy */
+@media (max-width: 1100px) {
+  .row-actions .btn-text {
+    display: none;
+  }
+  .row-actions .btn {
+    padding: 8px;
+    min-width: 40px;
+  }
+}
+
+/* --- Mobile Responsive Table (Card Layout) --- */
+/* --- Mobile "Natural Stack" Card Layout --- */
+@media (max-width: 768px) {
+  .table-responsive-wrapper table, 
+  .table-responsive-wrapper thead, 
+  .table-responsive-wrapper tbody, 
+  .table-responsive-wrapper th, 
+  .table-responsive-wrapper td, 
+  .table-responsive-wrapper tr {
+    display: block;
+    width: 100%;
+    min-width: 0 !important; /* Forces table to stop being 760px wide */
+  }
+
+  .table-responsive-wrapper thead { display: none; }
+
+  /* Outer Container Styling */
+  .table-responsive-wrapper {
+    background: var(--bg); /* The "Outer Box" color */
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  /* Inner Card Styling */
+  .table-responsive-wrapper tr {
+    margin-bottom: 20px;
+    background: var(--card-bg) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 18px !important;
+    padding: 20px;
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    box-sizing: border-box;
+    display: block;
+    min-width: 0 !important;
+  }
+
+  .table-responsive-wrapper td {
+    padding: 6px 0;
+    border: none;
+    text-align: left;
+    min-height: auto;
+  }
+
+  /* Make the Book Title the prominent header of the card */
+  .table-responsive-wrapper td[data-label="Book"] {
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+  }
+
+  /* Hide labels for the main items to save space, show them for metadata */
+  .table-responsive-wrapper td::before {
+    content: attr(data-label) ": ";
+    font-weight: 800;
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: inline-block;
+    width: 90px; /* Slight increase for better label spacing */
+    flex-shrink: 0;
+  }
+
+  /* Force wrap on long names/titles to prevent horizontal push */
+  .table-responsive-wrapper td {
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  /* Remove labels for Book and Type to make them look like a header */
+  .table-responsive-wrapper td[data-label="Book"]::before,
+  .table-responsive-wrapper td[data-label="Type"]::before,
+  .table-responsive-wrapper td[data-label="Actions"]::before {
+    display: none;
+  }
+
+  /* Header Row Styling */
+  .table-responsive-wrapper td[data-label="Type"] {
+    position: absolute;
+    top: 18px;
+    right: 20px;
+    width: auto !important;
+    padding: 0;
+  }
+
+  .book-info-compact strong {
+    font-size: 18px;
+    display: block;
+    max-width: calc(100% - 80px); /* Leave room for the Type chip */
+  }
+
+  /* Action Buttons Stacking */
+  .table-responsive-wrapper td[data-label="Actions"] {
+    margin-top: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+
+  .row-actions {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    width: 100%;
+    margin-top: 10px;
+  }
+
+  .row-actions .btn {
+    flex: 1;
+    height: 44px;
+    font-size: 13px;
+    font-weight: 700;
+    justify-content: center;
+    border-radius: 10px;
+    padding: 0 4px;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  .row-actions .btn svg {
+    flex-shrink: 0;
+  }
+
+  .row-actions .btn-text {
+    display: inline !important;
+  }
+
+  /* --- Two-Block Pagination (Mobile) --- */
+  .two-block-pagination .pagination {
+    flex-direction: column !important;
+    gap: 16px;
+    padding: 20px 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .two-block-pagination .pagination-info {
+    text-align: center;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--ink);
+    order: 1;
+  }
+
+  .two-block-pagination .pagination-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    width: 100%;
+    order: 2;
+  }
+
+  .two-block-pagination .pagination-btn {
+    height: 48px;
+    background: var(--panel) !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 12px !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    width: 100%;
+  }
+
+   /* Hide the individual page number list on mobile to keep it "Two-Block" */
+  .two-block-pagination .pagination-numbers {
+    display: none;
+  }
+}
+
+/* Fix for the Navigation Bar coming into view */
+.main {
+  overflow-x: hidden; /* Prevents pages from pushing out the sidebar/nav */
+}
+
+
 @keyframes btn-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }

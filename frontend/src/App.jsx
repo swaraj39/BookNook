@@ -893,7 +893,7 @@ return (
       )}
       {view === "home" && <HomePage stats={stats} dailyThought={dailyThought} navigateTo={navigateTo} setFilters={setFilters} setBookModal={setBookModal} />}
       {view === "catalog" && <Catalog page={booksPage} genres={genres} filters={filters} setFilters={setFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} loading={catalogLoading} me={me} openDetails={openDetails} setRequestModal={setRequestModal} setBookModal={setBookModal} returnBook={returnBook} importBooks={importBooks} importing={importing} onRefresh={loadCatalogFromApi} />}
-      {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onRefresh={() => loadRequests(requestsPage.page)} />}
+      {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onRefresh={loadRequestsFromApi} />}
       {view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} onRefresh={() => loadMyBooks(myBooksPage.page)} />}
       {view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} returnBook={returnBook} openDetails={openDetails} onRefresh={() => loadBorrowed(borrowedPage.page)} />}
       {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={() => loadHistory(historyPage.page)} />}
