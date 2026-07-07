@@ -944,6 +944,7 @@ return (
           returnBook={returnBook}
         />
       )}
+      {view === "guide" && <Guide/> }
     </main>
     {pageLoading && <PageLoader isDashboard={pageLoading === "dashboard"} />}
     {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
