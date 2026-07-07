@@ -1912,42 +1912,6 @@ th:last-child {
     font-size: 14px;
   }
 }
-/* Catalog Page Flex Grid */
-/* .catalog {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 20px;
-  justify-content: flex-start;
-}
-.book-card {
-  flex: 0 1 280px;
-  max-width: calc(33.333% - 14px);
-}
-@media (max-width: 1100px) {
-  .book-card {
-    flex: 0 1 calc(50% - 10px);
-    max-width: calc(50% - 10px);
-  }
-}
-@media (max-width: 768px) {
-  .book-card {
-    flex: 0 1 100%;
-    max-width: 100%;
-  }
-} */
-/* .cover {
-  display: flex;
-  flex-direction: row;
-  gap: 16px;
-  min-height: 154px;
-  padding: 18px 18px 17px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--line);
-}
-.cover-art {
-  flex: 0 0 86px;
-} */
 @media (min-width: 1500px) {
   .book-card { border-radius: 16px; }
 }
@@ -2788,6 +2752,10 @@ th:last-child {
   padding: 20px;
 }
 .empty-logs-placeholder p { font-size: 13px; margin: 8px 0 0; }
+
+/* =========================
+   LEADERBOARD (fixed light/dark contrast)
+   ========================= */
 .leaderboard-panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -2851,7 +2819,9 @@ th:last-child {
   gap: 4px;
 }
 
-/* ---- Hero podium, colored to match the app's own brand palette ---- */
+/* ---- Hero podium: dedicated dark background so the white
+   text/pedestal blocks always contrast correctly, in both
+   light and dark themes (fixes invisible text in light mode) ---- */
 .leaderboard-hero {
   padding: 25px 5px 0;
   border-radius: 16px;
@@ -2860,7 +2830,22 @@ th:last-child {
   align-items: center;
   margin-bottom: 10px;
   flex-shrink: 0;
+  background: linear-gradient(160deg, #3b2f1f, #241a10);
 }
+
+/* Text colors used elsewhere on the page (outside the hero),
+   e.g. below the podium in the rest-of-list rows */
+[data-theme="light"] .leaderboard-title,
+[data-theme="light"] .leaderboard-name,
+[data-theme="light"] .leaderboard-rank,
+[data-theme="light"] .leaderboard-books {
+  color: #3b2f1f;
+}
+
+[data-theme="light"] .leaderboard-subtitle {
+  color: #6b5d4d;
+}
+
 .podium-strip {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -2915,11 +2900,10 @@ th:last-child {
   border-color: #ffffff;
   box-shadow: 0 0 0 3px rgba(209, 154, 102, 0.25);
 }
-.podium-avatar img { 
-  width: 100%; 
-  height: 100%; 
+.podium-avatar img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  
 }
 .podium-rank-chip {
   position: absolute;
@@ -2974,22 +2958,19 @@ th:last-child {
   font-weight: 800;
   color: rgba(255, 255, 255, 0.95);
 }
-.pedestal-1 { 
-  height: 170px; 
-  background: rgba(255, 255, 255, 0.3); 
+.pedestal-1 {
+  height: 170px;
+  background: rgba(255, 255, 255, 0.3);
   font-size: 50px;
   color: #ffa200;
-  /* text-shadow:
-    1px 1px 0 #ffa200,
-    -1px -1px 0 #382607; */
 }
-.pedestal-2 { 
-  height: 130px; 
+.pedestal-2 {
+  height: 130px;
   font-size: 35px;
   color: #cbd5e1;
 }
-.pedestal-3 { 
-  height: 80px; 
+.pedestal-3 {
+  height: 80px;
   font-size: 25px;
   color: #d19a66;
 }
@@ -3706,6 +3687,9 @@ th:last-child {
   --sidebar-bg: rgba(250, 246, 235, 0.86);
   --card-bg: rgba(255, 253, 247, 0.9);
   --input-bg: rgba(255, 253, 247, 0.95);
+  --leaderboard-text: #3b2f1f;
+  --leaderboard-text-secondary: #6b5d4d;
+  --leaderboard-podium: #e8e2d8;
 }
 [data-theme='dark'] {
   --ink: #F3ECDD;
@@ -4095,9 +4079,300 @@ tbody tr:hover,
     top: 56px;
   }
 }
-.my-library-toggle-row {
+
+/* Premium Winding Journey Style Sheets */
+:root {
+  --canvas-bg: #fbf9f4;
+  --text-primary: #1c1917;
+  --text-muted: #57534e;
+  --brand-gold: #b47b2b;
+  --brand-gold-light: rgba(180, 123, 43, 0.06);
+  --success-green: #10b981;
+  --success-green-light: rgba(16, 185, 129, 0.06);
+  --border-color: #e7e5e4;
+}
+
+.guide-flow-canvas {
+  /* This now acts as your single massive, elevated presentation container */
+  background-color: #ffffff !important; 
+  border: 1px solid var(--border-color);
+  border-radius: 28px; /* Extra smooth, premium outer corner rounding */
+  
+  /* Layered soft drop-shadow for the ultimate ambient pop effect off the screen */
+  box-shadow: 
+    0 25px 50px -12px rgba(28, 25, 23, 0.04),
+    0 4px 12px -2px rgba(28, 25, 23, 0.01),
+    0 1px 1px 0 rgba(0, 0, 0, 0.01);
+
+  min-height: 100vh;
+  padding: 80px 50px; /* Spacious framing from the new outer border line */
+  font-family: system-ui, -apple-system, sans-serif;
+  position: relative;
+}
+
+/* Clear out any restrictive card styles from the inner container so it doesn't duplicate layout boxes */
+.guide-flow-inner {
+  max-width: 900px; /* Perfect horizontal footprint to bridge alternating cards */
+  margin: 0 auto;
+  position: relative;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+/* Outer wrapper handles the page width restrict safely */
+.guide-flow-inner {
+  max-width: 900px; /* Tightened width layout to close the empty anchor gap */
+  margin: 0 auto;
+  position: relative;
+  background: transparent; /* FIXED: Removed the harsh white card wrapper */
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+.guide-flow-page-title {
+  color: var(--text-primary);
+  font-size: 32px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
+}
+
+.guide-flow-subtitle {
+  color: var(--text-muted);
+  font-size: 15px;
+  text-align: center;
+  margin-bottom: 80px;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Timeline Backbone Layout Engine */
+.vertical-timeline-container {
+  position: relative;
+  width: 100%;
+  margin: 0 auto 100px auto;
   display: flex;
-  gap: 12px;
-  margin: 19px 19px 20px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 56px; /* Slightly increased for more vertical breathing room */
+}
+
+/* Central flowing line vector mimic */
+.timeline-backbone-line {
+  position: absolute;
+  top: 36px;
+  bottom: 36px;
+  left: 50%;
+  width: 4px;
+  background: linear-gradient(to bottom, var(--brand-gold), #d9a75d, var(--brand-gold));
+  transform: translateX(-50%);
+  border-radius: 4px;
+  opacity: 0.35;
+  z-index: 1;
+}
+
+.timeline-journey-row {
+  display: flex;
+  position: relative;
+  align-items: center;
+  width: 100%;
+  z-index: 2;
+}
+
+/* Grid Alignment Mechanics using Flex instead of Absolute overlays */
+.row-left-align {
+  flex-direction: row;
+  justify-content: flex-start;
+}
+
+.row-right-align {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+}
+
+/* Premium Left-Aligned Text Blocks for both sides */
+.journey-text-block {
+  width: 44%; 
+  padding: 28px 32px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 20px; /* Smooth, high-end corner geometry */
+  box-shadow: 
+    0 10px 25px -5px rgba(28, 25, 23, 0.03), 
+    0 8px 10px -6px rgba(0, 0, 0, 0.01);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: left; /* FIXED: All nodes are cleanly left-aligned for standard reading orientation */
+}
+
+/* Handles precise micro-spacing adjustments away from the center line */
+.row-left-align .journey-text-block {
+  margin-right: auto;
+}
+
+.row-right-align .journey-text-block {
+  margin-left: auto;
+}
+
+/* Ensure the central isolation ring on the circle anchors matches the new fluid background */
+.journey-circle-anchor {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 74px;
+  height: 74px;
+  background: #ffffff;
+  border: 4px solid #ffffff; /* FIXED: Seamlessly isolates the circle badge through the timeline line */
+  box-shadow: 0 0 0 2px var(--brand-gold), 0 10px 20px -3px rgba(180, 123, 43, 0.15);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s ease;
+}
+
+.inner-circle-badge {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--brand-gold-light);
+  color: var(--brand-gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Interactive Hover States */
+.timeline-journey-row:hover .journey-text-block {
+  transform: translateY(-4px);
+  border-color: var(--brand-gold);
+  box-shadow: 0 20px 30px -10px rgba(180, 123, 43, 0.08);
+}
+
+.timeline-journey-row:hover .journey-circle-anchor {
+  transform: translateX(-50%) scale(1.04);
+}
+
+/* Success Terminal Step Variants */
+.final-success-node .journey-circle-anchor {
+  box-shadow: 0 0 0 2px var(--success-green), 0 10px 20px -3px rgba(16, 185, 129, 0.15);
+}
+.final-success-node .inner-circle-badge {
+  background: var(--success-green-light);
+  color: var(--success-green);
+}
+.final-success-node:hover .journey-text-block {
+  border-color: var(--success-green);
+  box-shadow: 0 20px 30px -10px rgba(16, 185, 129, 0.08);
+}
+
+/* Typography Hierarchy */
+.node-step-tag {
+  font-size: 11px !important;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--brand-gold);
+  display: block;
+  margin-bottom: 6px;
+}
+
+.final-success-node .node-step-tag {
+  color: var(--success-green);
+}
+
+.journey-text-block h4 {
+  margin: 0 0 8px 0;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.journey-text-block p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+/* Footer FAQ Cards Rulesets */
+.flow-action-faq-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 48px;
+  margin-top: 80px;
+}
+
+.faq-action-card {
+  background: #ffffff;
+  border-left: 4px solid var(--brand-gold);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 15px -3px rgba(28, 25, 23, 0.02);
+  border-top: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.faq-action-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--brand-gold);
+}
+
+.faq-action-header h5 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.faq-action-card p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* Mobile Media Standard Adaptations */
+@media (max-width: 768px) {
+  .timeline-backbone-line {
+    left: 36px;
+    transform: none;
+  }
+
+  .timeline-journey-row {
+    flex-direction: row !important;
+    align-items: flex-start;
+  }
+
+  .journey-text-block {
+    width: calc(100% - 72px);
+    margin-left: 72px !important;
+    margin-right: 0 !important;
+  }
+
+  .journey-circle-anchor {
+    left: 36px;
+    transform: translateX(-50%);
+    width: 56px;
+    height: 56px;
+  }
+
+  .inner-circle-badge {
+    width: 38px;
+    height: 38px;
+  }
+
+  .flow-action-faq-row {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
 }
