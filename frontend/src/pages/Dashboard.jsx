@@ -1,32 +1,87 @@
-// src/pages/Dashboard.jsx
-import React from "react";
+import React, { useState } from "react";
 import { label, dateText } from "../utils/helpers";
-import { BookOpen, Calendar, Milestone, Sparkles, Tv } from "lucide-react";
+import { BookOpen, Milestone, Sparkles, Trophy, ExternalLink, Crown } from "lucide-react";
 
-export function Dashboard({ stats, me, dailyThought, openDetails }) {
-  // Hardcoded array of informative learning clips / music streams for readers
-  const videoLinks = [
-    "https://www.youtube.com/embed/AUw7laSlcbo?si=0lZXz_XqWHQrkd6x" // YouTube Embedded Players Demo
-  ];
-
-  // Deterministically select video item for the user matching array bounds
-  const getSelectedVideo = () => {
-    if (!me?.id) return videoLinks[0];
-    const code = me.id.charCodeAt(0) || 0;
-    return videoLinks[code % videoLinks.length];
-  };
+export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) {
+  const [showLeaderboardPopup, setShowLeaderboardPopup] = useState(false);
+  const [allLeaderboard, setAllLeaderboard] = useState(null);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
 
   const chartMax = Math.max(...(stats.chartData || []).map(d => Math.max(d.userCount, d.globalAvg, 4)), 1);
 
+  async function handleOpenPopup() {
+    if (allLeaderboard) {
+      setShowLeaderboardPopup(true);
+      return;
+    }
+    setLoadingLeaderboard(true);
+    setShowLeaderboardPopup(true);
+    try {
+      const { api } = await import("../api");
+      const data = await api.leaderboard();
+      setAllLeaderboard(data);
+    } catch {
+      setAllLeaderboard([]);
+    } finally {
+      setLoadingLeaderboard(false);
+    }
+  }
+  function handleClosePopup() {
+    setShowLeaderboardPopup(false);
+  }
+
+  function booksLabel(count) {
+    return `${count} book${count !== 1 ? "s" : ""}`;
+  }
+
+  function PodiumStandee({ entry, position }) {
+    if (!entry) return <div className={`podium-column pos-${position}`} />;
+    return (
+      <div className={`podium-column pos-${position}`}>
+        <div className="podium-avatar-wrap">
+          {position === 1 && <Crown size={20} className="podium-crown" />}
+          <div
+            className="podium-avatar"
+            style={{ backgroundColor: entry.avatarUrl ? "transparent" : "var(--brand)" }}
+          >
+            {entry.avatarUrl ? (
+              <img src={entry.avatarUrl} alt={entry.fullName} />
+            ) : (
+              entry.avatarInitials || entry.fullName?.[0] || "?"
+            )}
+          </div>
+          <span className="podium-rank-chip">{position}</span>
+        </div>
+        <span className="podium-name">{(entry.fullName || "Unknown").split(" ")[0]}</span>
+        <span className="podium-count-big">{booksLabel(entry.booksRead)}</span>
+        <div className={`pedestal pedestal-${position}`}>{position}</div>
+      </div>
+    );
+  }
+
+  function LeaderboardRow({ entry }) {
+    return (
+      <div className="leaderboard-row">
+        <span className={`leaderboard-rank rank-${entry.rank}`}>{entry.rank}</span>
+        <div className="leaderboard-avatar" style={{ backgroundColor: entry.avatarUrl ? "transparent" : "var(--brand)" }}>
+          {entry.avatarUrl ? <img src={entry.avatarUrl} alt={entry.fullName} /> : entry.avatarInitials || entry.fullName?.[0] || "?"}
+        </div>
+        <div className="leaderboard-info">
+          <span className="leaderboard-name">{entry.fullName}</span>
+        </div>
+        <span className="leaderboard-count">{booksLabel(entry.booksRead)}</span>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-layout">
-      {/* Welcome Banner Row */}
+      {}
       <header className="dashboard-welcome-banner">
         <div className="welcome-message-node">
           <h1>Welcome, {me?.fullName || "Reader"}</h1>
           <p>Ready to look into another story tier today?</p>
         </div>
-
         {dailyThought && (
           <div className="dashboard-quote-panel">
             <div className="quote-badge">
@@ -38,32 +93,27 @@ export function Dashboard({ stats, me, dailyThought, openDetails }) {
           </div>
         )}
       </header>
-
-      {/* Main Analytics Row Block Section */}
+      {}
       <section className="analytics-block-grid">
         <div className="stats-cards-quad">
           <article className="metrics-pill-card">
             <label>Available Books</label>
             <strong>{stats?.totalBooks || 0}</strong>
           </article>
-
           <article className="metrics-pill-card">
             <label>Books Reading</label>
             <strong>{stats?.activeBorrowed || 0}</strong>
           </article>
-
           <article className="metrics-pill-card">
             <label>Books Read This Month</label>
             <strong>{stats?.booksReadThisMonth || 0}</strong>
           </article>
-
           <article className="metrics-pill-card">
             <label>Total Books Read</label>
             <strong>{stats?.totalBooksRead || 0}</strong>
           </article>
         </div>
-
-        {/* 1/4 Screen Month-by-Month CSS Flex Bar Graph Rendering */}
+        {}
         <div className="analytics-graph-container">
           <h4>Reading Frequency Matrix</h4>
           <p className="graph-sub">Your monthly velocity vs team average (dashed line)</p>
@@ -86,10 +136,9 @@ export function Dashboard({ stats, me, dailyThought, openDetails }) {
           </div>
         </div>
       </section>
-
-      {/* Bottom Layout Row split split */}
+      {}
       <section className="dashboard-split-feed-row">
-        {/* 3/5 Screen Scrollable Latest Activity Feed */}
+        {}
         <div className="latest-readings-scroller-box">
           <div className="feed-title-header">
             <BookOpen size={18} />
@@ -122,55 +171,79 @@ export function Dashboard({ stats, me, dailyThought, openDetails }) {
             )}
           </div>
         </div>
-
-        {/* 2/5 Screen Multimedia Column Block Stack */}
-        <div className="media-column-stack-block">
-          {/* Top Half Media Stream Embed Box */}
-          <div className="video-player-media-panel">
-            <div className="feed-title-header">
-              <Tv size={16} />
-              <h3>Community Spotlight Stream</h3>
-            </div>
-            <div className="iframe-video-wrapper">
-              <div className="iframe-video-wrapper">
-                <iframe
-                  width="100%"
-                  height="100%"
-                  src={getSelectedVideo()}
-                  title="Book Nook Streaming Hub"
-                  frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  allowFullScreen
-                ></iframe>
+        {}
+        <div className="leaderboard-panel">
+          <div className="leaderboard-header-row">
+            <div className="leaderboard-header-left">
+              <Trophy size={16} style={{ marginTop: 5 }} />
+              <div>
+                <h3>Leaderboard</h3>
+                <span className="leaderboard-subtitle">Top readers · last 5 months</span>
               </div>
             </div>
+            <button className="leaderboard-view-all" onClick={handleOpenPopup}>
+              View All <ExternalLink size={14} />
+            </button>
           </div>
 
-          {/* Bottom Half Seeded Book of the Day Panel */}
-          <div className="book-of-the-day-showcase-panel">
-            <div className="feed-title-header">
-              <Calendar size={16} />
-              <h3>Book of the Day</h3>
-            </div>
-            {stats.bookOfTheDay ? (
-              <div className="showcase-content-box" onClick={() => openDetails(stats.bookOfTheDay)}>
-                <div className="showcase-cover-card" style={{ backgroundColor: stats.bookOfTheDay.coverColor || "var(--brand-dark)" }}>
-                  {stats.bookOfTheDay.coverUrl ? <img src={stats.bookOfTheDay.coverUrl} alt={stats.bookOfTheDay.title} /> : stats.bookOfTheDay.title[0]}
+          <div className="leaderboard-body">
+            {stats.leaderboard && stats.leaderboard.length > 0 ? (
+              <>
+                <div className="leaderboard-hero">
+                  <div className="podium-strip">
+                    <PodiumStandee entry={stats.leaderboard[1]} position={2} />
+                    <PodiumStandee entry={stats.leaderboard[0]} position={1} />
+                    <PodiumStandee entry={stats.leaderboard[2]} position={3} />
+                  </div>
                 </div>
-                <div className="showcase-text-summary">
-                  <h4>{stats.bookOfTheDay.title}</h4>
-                  <p className="author">{stats.bookOfTheDay.author}</p>
-                  <span className="badge-owner-tag">Lender: {stats.bookOfTheDay.ownerName}</span>
-                  {stats.bookOfTheDay.description && (
-                    <p className="clamped-desc-snippet">{stats.bookOfTheDay.description}</p>
+                {stats.leaderboard.slice(3).length > 0 && (
+                  <div className="leaderboard-rest">
+                    {stats.leaderboard.slice(3).map((entry) => (
+                      <LeaderboardRow key={entry.userId} entry={entry} />
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="empty-logs-placeholder">
+                <Milestone size={32} />
+                <p>No books have been returned in the last 5 months yet.</p>
+              </div>
+            )}
+          </div>
+
+          {}
+          {showLeaderboardPopup && (
+            <div className="leaderboard-popup-overlay" onClick={handleClosePopup}>
+              <div className="leaderboard-popup" onClick={(e) => e.stopPropagation()}>
+                <div className="leaderboard-popup-header">
+                  <Trophy size={18} />
+                  <h3>Full Leaderboard</h3>
+                  <button className="leaderboard-popup-close" onClick={handleClosePopup}>×</button>
+                </div>
+                <div className="leaderboard-popup-body">
+                  {loadingLeaderboard ? (
+                    <div className="empty-logs-placeholder"><p>Loading...</p></div>
+                  ) : (
+                    <>
+                      <div className="leaderboard-hero">
+                        <div className="podium-strip">
+                          <PodiumStandee entry={allLeaderboard?.[1]} position={2} />
+                          <PodiumStandee entry={allLeaderboard?.[0]} position={1} />
+                          <PodiumStandee entry={allLeaderboard?.[2]} position={3} />
+                        </div>
+                      </div>
+                      <div className="leaderboard-rest">
+                        {(allLeaderboard ?? []).slice(3).map((entry) => (
+                          <LeaderboardRow key={entry.userId} entry={entry} />
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
-            ) : (
-              <p className="empty-logs-placeholder">No active catalog items listed to choose from today.</p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </section>
     </div>
