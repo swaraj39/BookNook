@@ -365,8 +365,8 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-      // fetch("https://booknook-gfb8.onrender.com/api/quote/today")
-      fetch(`http://localhost:8080/api/quote/today`)
+      fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+      // fetch(`http://localhost:8080/api/quote/today`)
         .then((response) => response.ok ? response.json() : null)
         .then((quote) => {
           if (quote) setDailyThought(quote);
@@ -516,8 +516,8 @@ export default function App() {
   async function handleLogout() {
     setShowProfileDropdown(false);
     try {
-      // await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
-      await fetch("http://localhost:8080/api/auth/logout", {
+      await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
+      // await fetch("http://localhost:8080/api/auth/logout", {
         method: "POST",
         credentials: "include",
       });
@@ -804,6 +804,7 @@ if (!isAuthenticated) {
 }
 return (
   <div className="app-shell">
+    {/* Top Header Bar */}
     <aside className="sidebar">
       <button className="brand" onClick={() => navigateTo("dashboard")} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" }}>
         <img className="brand-mark" src={logo} alt="Book Nook Logo" />
@@ -812,14 +813,15 @@ return (
           <p>BA Reading Community</p>
         </div>
       </button>
-      <div className="nav-scroll-wrap">
+
+      {/* Desktop Navigation (Hidden on Mobile via CSS) */}
+      <div className="nav-scroll-wrap desktop-nav-only">
         <button className={`nav-scroll-btn left ${canScrollLeft ? "" : "hidden"}`} onClick={() => scrollNav(-1)} aria-label="Scroll left">
           <ChevronLeft size={18} />
         </button>
         <nav className="nav" ref={navRef} onScroll={checkNavScroll}>
           {navSections.map((section) => (
             <div key={section.label} className="nav-section">
-              <div className="nav-label">{section.label}</div>
               {section.items.map(([id, label, Icon, badge]) => (
                 <button key={id} className={`nav-item ${view === id ? "active" : ""}`} onClick={() => navigateTo(id)}>
                   <div className="nav-item-content">
@@ -836,16 +838,14 @@ return (
           <ChevronRight size={18} />
         </button>
       </div>
+
+      {/* Actions (Dark Mode + Profile) */}
       <div className="top-nav-actions">
         <button className="btn icon-only" onClick={() => setDarkMode(!darkMode)} title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
           {darkMode ? <Sun size={18} /> : <Moon size={18} />}
         </button>
         {me && (
-          <div
-            ref={profileDropdownRef}
-            className="profile-dropdown-container"
-            style={{ position: "relative" }}
-          >
+          <div ref={profileDropdownRef} className="profile-dropdown-container" style={{ position: "relative" }}>
             <button className="user-profile-trigger" onClick={() => setShowProfileDropdown(!showProfileDropdown)}>
               <div className="user-avatar-small">
                 {me.avatarInitials || initials(me.fullName)}
@@ -861,20 +861,28 @@ return (
         )}
       </div>
     </aside>
+
+    {/* Dedicated Mobile Bottom Tab Bar */}
+    <nav className="mobile-bottom-nav">
+      {navSections.flatMap(s => s.items).map(([id, label, Icon, badge]) => (
+        <button key={id} className={`mobile-bottom-nav-item ${view === id ? "active" : ""}`} onClick={() => navigateTo(id)}>
+          <div className="mobile-bottom-nav-item-content">
+            <Icon size={20} />
+            <span>{label}</span>
+          </div>
+          {badge > 0 && <span className="nav-badge mobile-nav-badge">{badge}</span>}
+        </button>
+      ))}
+    </nav>
+
+    {/* Main Content Area */}
     <main className="main">
       {view === "dashboard" && stats && (
-        <Dashboard
-          stats={stats}
-          me={me}
-          dailyThought={dailyThought}
-          openDetails={openDetails}
-          onNavigate={navigateTo}
-        />
+        <Dashboard stats={stats} me={me} dailyThought={dailyThought} openDetails={openDetails} onNavigate={navigateTo} />
       )}
       {view !== "home" && view !== "catalog" && view !== "dashboard" && view !== "guide" && (
         <section className="topbar">
           <div className="page-title">
-            { }
             <h2>BA Reading Community Tracker</h2>
             <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
           </div>
@@ -883,63 +891,21 @@ return (
           </div>
         </section>
       )}
-      {
-      }
-      {view === "home" && (
-        <HomePage
-          stats={stats}
-          dailyThought={dailyThought}
-          navigateTo={navigateTo}
-          setFilters={setFilters}
-          setBookModal={setBookModal}
-        />
-      )}
-      {view === "catalog" && (
-        <Catalog
-          page={booksPage}
-          genres={genres}
-          filters={filters}
-          setFilters={setFilters}
-          searchTerm={searchTerm}
-          setSearchTerm={setSearchTerm}
-          loading={catalogLoading}
-          me={me}
-          openDetails={openDetails}
-          setRequestModal={setRequestModal}
-          setBookModal={setBookModal}
-          returnBook={returnBook}
-          importBooks={importBooks}
-          importing={importing}
-          onRefresh={loadCatalogFromApi}
-        />
-      )}
+      {view === "home" && <HomePage stats={stats} dailyThought={dailyThought} navigateTo={navigateTo} setFilters={setFilters} setBookModal={setBookModal} />}
+      {view === "catalog" && <Catalog page={booksPage} genres={genres} filters={filters} setFilters={setFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} loading={catalogLoading} me={me} openDetails={openDetails} setRequestModal={setRequestModal} setBookModal={setBookModal} returnBook={returnBook} importBooks={importBooks} importing={importing} onRefresh={loadCatalogFromApi} />}
       {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onRefresh={() => loadRequests(requestsPage.page)} />}
       {view === "myBooks" && <MyBooks page={myBooksPage} onPageChange={loadMyBooks} setBookModal={setBookModal} deleteBook={deleteBook} openDetails={openDetails} onRefresh={() => loadMyBooks(myBooksPage.page)} />}
       {view === "borrowed" && <Borrowed page={borrowedPage} onPageChange={loadBorrowed} returnBook={returnBook} openDetails={openDetails} onRefresh={() => loadBorrowed(borrowedPage.page)} />}
       {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={() => loadHistory(historyPage.page)} />}
       {view === "guide" && <Guide />}
       {view === "detail" && selectedBook && (
-        <Details
-          book={selectedBook}
-          historyPage={bookHistoryPage}
-          onPageChange={changeBookHistoryPage}
-          me={me}
-          navigateBack={navigateBack}
-          navigateTo={navigateTo}
-          setBookModal={setBookModal}
-          setRequestModal={setRequestModal}
-          returnBook={returnBook}
-        />
+        <Details book={selectedBook} historyPage={bookHistoryPage} onPageChange={changeBookHistoryPage} me={me} navigateBack={navigateBack} navigateTo={navigateTo} setBookModal={setBookModal} setRequestModal={setRequestModal} returnBook={returnBook} />
       )}
     </main>
     {pageLoading && <PageLoader isDashboard={pageLoading === "dashboard"} />}
     {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
     {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
-    <ConfirmDialog
-      message={confirm?.message}
-      onConfirm={() => resolveConfirm(true)}
-      onCancel={() => resolveConfirm(false)}
-    />
+    <ConfirmDialog message={confirm?.message} onConfirm={() => resolveConfirm(true)} onCancel={() => resolveConfirm(false)} />
     {detailsLoading && (
       <div className="details-loader-overlay">
         <div className="details-loader-box">
