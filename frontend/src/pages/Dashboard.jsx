@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { label, dateText } from "../utils/helpers";
-import { BookOpen, Milestone, Sparkles, Trophy, ExternalLink, Crown } from "lucide-react";
+import { BookOpen, Milestone, Sparkles, Trophy, ExternalLink, Crown, Feather } from "lucide-react";
 
 export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) {
   const [showLeaderboardPopup, setShowLeaderboardPopup] = useState(false);
   const [allLeaderboard, setAllLeaderboard] = useState(null);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
-
+  const FEATHER_SIZE = { 1: 18, 2: 15, 3: 14 };
+  const LAUREL_SIZE = { 1: 60, 2: 46, 3: 40 };
   const chartMax = Math.max(...(stats.chartData || []).map(d => Math.max(d.userCount, d.globalAvg, 4)), 1);
 
   async function handleOpenPopup() {
@@ -35,30 +36,59 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
   }
 
   function PodiumStandee({ entry, position }) {
-    if (!entry) return <div className={`podium-column pos-${position}`} />;
-    return (
-      <div className={`podium-column pos-${position}`}>
-        <div className="podium-avatar-wrap">
-          {position === 1 && <Crown size={20} className="podium-crown" />}
-          <div
-            className="podium-avatar"
-            style={{ backgroundColor: entry.avatarUrl ? "transparent" : "var(--brand)" }}
-          >
-            {entry.avatarUrl ? (
-              <img src={entry.avatarUrl} alt={entry.fullName} />
-            ) : (
-              entry.avatarInitials || entry.fullName?.[0] || "?"
-            )}
-          </div>
-          <span className="podium-rank-chip">{position}</span>
+  if (!entry) return <div className={`podium-column pos-${position}`} />;
+  return (
+    <div className={`podium-column pos-${position}`}>
+      <div className="podium-avatar-wrap">
+        <div className="podium-laurel-wrap">
+          <Laurel size={LAUREL_SIZE[position]} className="podium-laurel podium-laurel-left" />
+          <Laurel size={LAUREL_SIZE[position]} className="podium-laurel podium-laurel-right" />
         </div>
-        <span className="podium-name">{(entry.fullName || "Unknown").split(" ")[0]}</span>
-        <span className="podium-count-big">{booksLabel(entry.booksRead)}</span>
-        <div className={`pedestal pedestal-${position}`}>{position}</div>
+        {position === 1 && <Crown size={20} className="podium-crown" />}
+        <div
+          className="podium-avatar"
+          style={{ backgroundColor: entry.avatarUrl ? "transparent" : "var(--brand)" }}
+        >
+          {entry.avatarUrl ? (
+            <img src={entry.avatarUrl} alt={entry.fullName} />
+          ) : (
+            entry.avatarInitials || entry.fullName?.[0] || "?"
+          )}
+        </div>
+        <span className="podium-rank-chip">{position}</span>
       </div>
-    );
-  }
-
+      <span className="podium-name">{(entry.fullName || "Unknown").split(" ")[0]}</span>
+      <span className="podium-count-big">{booksLabel(entry.booksRead)}</span>
+      <div className={`pedestal pedestal-${position}`}>{position}</div>
+    </div>
+  );
+}
+function Laurel({ size = 40, className, style }) {
+  return (
+    <svg
+      width={size}
+      height={size * 1.7}
+      viewBox="0 0 60 100"
+      fill="none"
+      className={className}
+      style={style}
+    >
+      <path
+        d="M32 98 C10 88, 2 62, 6 40 C9 24, 18 10, 30 2"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+      />
+      <path d="M28 8 C24 4, 16 3, 12 8 C16 11, 24 12, 28 8Z" fill="currentColor" transform="rotate(20 20 8)" />
+      <path d="M24 20 C19 15, 10 14, 6 19 C10 23, 19 24, 24 20Z" fill="currentColor" transform="rotate(15 15 20)" />
+      <path d="M19 33 C13 29, 4 29, 0 34 C4 38, 14 38, 19 33Z" fill="currentColor" transform="rotate(8 10 33)" />
+      <path d="M15 47 C9 44, 0 45, -3 50 C1 54, 11 53, 15 47Z" fill="currentColor" transform="rotate(0 6 47)" />
+      <path d="M13 61 C7 59, -2 61, -5 66 C-1 70, 9 68, 13 61Z" fill="currentColor" transform="rotate(-10 4 61)" />
+      <path d="M14 75 C8 74, -1 76, -4 81 C0 84, 10 83, 14 75Z" fill="currentColor" transform="rotate(-20 5 75)" />
+      <path d="M19 87 C14 86, 6 89, 3 93 C7 96, 16 94, 19 87Z" fill="currentColor" transform="rotate(-30 11 87)" />
+    </svg>
+  );
+}
   function LeaderboardRow({ entry }) {
     return (
       <div className="leaderboard-row">
@@ -76,7 +106,7 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
 
   return (
     <div className="dashboard-layout">
-      {}
+      { }
       <header className="dashboard-welcome-banner">
         <div className="welcome-message-node">
           <h1>Welcome, {me?.fullName || "Reader"}</h1>
@@ -93,7 +123,7 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
           </div>
         )}
       </header>
-      {}
+      { }
       <section className="analytics-block-grid">
         <div className="stats-cards-quad">
           <article className="metrics-pill-card">
@@ -113,7 +143,7 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
             <strong>{stats?.totalBooksRead || 0}</strong>
           </article>
         </div>
-        {}
+        { }
         <div className="analytics-graph-container">
           <h4>Reading Frequency Matrix</h4>
           <p className="graph-sub">Your monthly velocity vs team average (dashed line)</p>
@@ -136,9 +166,9 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
           </div>
         </div>
       </section>
-      {}
+      { }
       <section className="dashboard-split-feed-row">
-        {}
+        { }
         <div className="latest-readings-scroller-box">
           <div className="feed-title-header">
             <BookOpen size={18} />
@@ -171,7 +201,7 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
             )}
           </div>
         </div>
-        {}
+        { }
         <div className="leaderboard-panel">
           <div className="leaderboard-header-row">
             <div className="leaderboard-header-left">
@@ -212,7 +242,7 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
             )}
           </div>
 
-          {}
+          { }
           {showLeaderboardPopup && (
             <div className="leaderboard-popup-overlay" onClick={handleClosePopup}>
               <div className="leaderboard-popup" onClick={(e) => e.stopPropagation()}>

@@ -3199,11 +3199,39 @@ th:last-child {
 .pos-1 .podium-count-big { color: #ffd54a; font-size: 13px; }
 .pos-2 .podium-count-big { color: #e2e8f0; }
 .pos-3 .podium-count-big { color: #f3d5b5; }
+.podium-laurel-wrap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.podium-laurel-left {
+  transform: translateX(-40%);
+}
+.podium-laurel-right {
+  transform: translateX(40%) scaleX(-1);
+}
 
+.podium-laurel {
+  filter: drop-shadow(0 0 5px var(--laurel-glow)) drop-shadow(0 0 10px var(--laurel-glow));
+}
+.pos-1 .podium-laurel { color: #ffc400; --laurel-glow: rgba(255, 196, 0, 0.65); }
+.pos-2 .podium-laurel { color: #cbd5e1; --laurel-glow: rgba(203, 213, 225, 0.5); }
+.pos-3 .podium-laurel { color: #d19a66; --laurel-glow: rgba(209, 154, 102, 0.5); }
+
+[data-theme="light"] .pos-1 .podium-laurel { color: #b8860b; }
+[data-theme="light"] .pos-2 .podium-laurel { color: #64748b; }
+[data-theme="light"] .pos-3 .podium-laurel { color: #a0764a; }
 .pedestal {
   margin-top: 10px;
-  width: 100%;
-  border-radius: 50% 50% 6px 6px / 24px 24px 6px 6px;
+  width: 95%;
+  /* border-radius: 50% 50% 6px 6px / 24px 24px 6px 6px; */
+  border-radius: 9px;
   background: rgba(255, 255, 255, 0.22);
   display: flex;
   align-items: flex-end;
@@ -3215,15 +3243,15 @@ th:last-child {
 }
 .pedestal-1 {
   height: 170px;
-  background: rgba(255, 141, 10, 0.3);
+  background: rgba(201, 107, 0, 0.877);
   font-size: 50px;
   color: #ff9100;
 }
 .pedestal-2 {
   height: 130px;
   font-size: 35px;
-  background: rgba(94, 164, 250, 0.3);
-  color: #4e9dff;
+  background: rgba(10, 116, 245, 0.555);
+  color: #d6e9ff;
 }
 .pedestal-3 {
   height: 80px;
@@ -3947,7 +3975,7 @@ th:last-child {
   --leaderboard-text: #3b2f1f;
   --leaderboard-text-secondary: #6b5d4d;
   --leaderboard-podium: #e8e2d8;
-  --leaderboard-hero-bg: linear-gradient(160deg, hsl(40, 100%, 81%), #ffcd83);
+  --leaderboard-hero-bg: linear-gradient(160deg, hsl(0, 0%, 100%), #ffffff);
 }
 [data-theme='dark'] {
   --ink: #F3ECDD;
@@ -3968,7 +3996,7 @@ th:last-child {
   --sidebar-bg: rgba(20, 16, 11, 0.88);
   --card-bg: rgba(35, 29, 21, 0.9);
   --input-bg: rgba(23, 20, 15, 0.92);
-  --leaderboard-hero-bg: linear-gradient(160deg, #3b2f1f, #241a10);
+  --leaderboard-hero-bg: rgba(35, 29, 21, 0.92);
 }
 [data-theme='light'] body {
   background:
