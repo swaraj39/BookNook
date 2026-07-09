@@ -319,7 +319,7 @@ export default function App() {
   // Same idea as booksPage above: the full list is fetched once per view/
   // refresh, and paging just re-slices it in memory - no extra API calls.
   const requestsPage = useMemo(
-    () => paginateList(allRequests, requestsPageIndex),
+    () => paginateList(allRequests.filter(r => r.status === "pending"), requestsPageIndex),
     [allRequests, requestsPageIndex]
   );
   const myBooksPage = useMemo(
@@ -331,7 +331,7 @@ export default function App() {
     [allBorrowed, borrowedPageIndex]
   );
   const historyPage = useMemo(
-    () => paginateList(allHistory, historyPageIndex),
+    () => paginateList(allHistory.filter(r => ["active", "returned", "rejected"].includes(r.status)), historyPageIndex),
     [allHistory, historyPageIndex]
   );
   const bookHistoryPage = useMemo(
@@ -365,8 +365,8 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-      fetch("https://booknook-gfb8.onrender.com/api/quote/today")
-      // fetch(`http://localhost:8080/api/quote/today`)
+      // fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+      fetch(`http://localhost:8080/api/quote/today`)
         .then((response) => response.ok ? response.json() : null)
         .then((quote) => {
           if (quote) setDailyThought(quote);
@@ -516,8 +516,8 @@ export default function App() {
   async function handleLogout() {
     setShowProfileDropdown(false);
     try {
-      await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
-      // await fetch("http://localhost:8080/api/auth/logout", {
+      // await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
+      await fetch("http://localhost:8080/api/auth/logout", {
         method: "POST",
         credentials: "include",
       });

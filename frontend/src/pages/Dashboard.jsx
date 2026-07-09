@@ -196,9 +196,9 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
                     <PodiumStandee entry={stats.leaderboard[2]} position={3} />
                   </div>
                 </div>
-                {stats.leaderboard.slice(3).length > 0 && (
+                {stats.leaderboard.slice(3, 5).length > 0 && (
                   <div className="leaderboard-rest">
-                    {stats.leaderboard.slice(3).map((entry) => (
+                    {stats.leaderboard.slice(3, 5).map((entry) => (
                       <LeaderboardRow key={entry.userId} entry={entry} />
                     ))}
                   </div>
@@ -225,20 +225,11 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
                   {loadingLeaderboard ? (
                     <div className="empty-logs-placeholder"><p>Loading...</p></div>
                   ) : (
-                    <>
-                      <div className="leaderboard-hero">
-                        <div className="podium-strip">
-                          <PodiumStandee entry={allLeaderboard?.[1]} position={2} />
-                          <PodiumStandee entry={allLeaderboard?.[0]} position={1} />
-                          <PodiumStandee entry={allLeaderboard?.[2]} position={3} />
-                        </div>
-                      </div>
-                      <div className="leaderboard-rest">
-                        {(allLeaderboard ?? []).slice(3).map((entry) => (
-                          <LeaderboardRow key={entry.userId} entry={entry} />
-                        ))}
-                      </div>
-                    </>
+                    <div className="leaderboard-rest all-rows">
+                      {(allLeaderboard ?? []).map((entry) => (
+                        <LeaderboardRow key={entry.userId} entry={entry} />
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>

@@ -821,7 +821,13 @@ button { cursor: pointer; }
 .panel-head h3 { margin: 0; font-size: 19px; }
 .my-library-toggle {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0 16px 15px;
+  width: auto;
+  max-width: 100%;
+  
 }
 .table-wrap {
   width: 100%;
@@ -2270,7 +2276,7 @@ th:last-child {
   justify-content: left;
   overflow-x: auto;
   max-width: 1240px;
-  margin: 0 auto 16px;
+  margin: 10px auto 16px;
   margin-left: 0;
 }
 .catalog-capsules::-webkit-scrollbar {
@@ -2322,6 +2328,7 @@ th:last-child {
 /* Ensure the capsules don't push the panel width */
 .request-container .catalog-capsules {
   max-width: calc(100vw - 40px);
+  padding: 0 18px;
 }
 
 .book-info-compact {
@@ -3055,6 +3062,7 @@ th:last-child {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  
 }
 
 /* ---- Hero podium: dedicated dark background so the white
@@ -3068,7 +3076,8 @@ th:last-child {
   align-items: center;
   margin-bottom: 10px;
   flex-shrink: 0;
-  background: linear-gradient(160deg, #3b2f1f, #241a10);
+  margin-top: px;
+  background: var(--leaderboard-hero-bg);
 }
 
 /* Text colors used elsewhere on the page (outside the hero),
@@ -3077,12 +3086,20 @@ th:last-child {
 [data-theme="light"] .leaderboard-name,
 [data-theme="light"] .leaderboard-rank,
 [data-theme="light"] .leaderboard-books {
-  color: #3b2f1f;
+  color: #6e4919;
 }
 
 [data-theme="light"] .leaderboard-subtitle {
   color: #6b5d4d;
 }
+
+[data-theme="light"] .podium-name {
+  color: #3b2f1f;
+  text-shadow: none;
+}
+[data-theme="light"] .pos-1 .podium-count-big { color: #8b6914; }
+[data-theme="light"] .pos-2 .podium-count-big { color: #64748b; }
+[data-theme="light"] .pos-3 .podium-count-big { color: #a0764a; }
 
 .podium-strip {
   display: grid;
@@ -3103,11 +3120,11 @@ th:last-child {
 .podium-avatar-wrap { position: relative; }
 .podium-crown {
   position: absolute;
-  top: -25px;
+  top: -21px;
   left: 50%;
   transform: translateX(-50%);
-  color: #ffd54a;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.3));
+  color: #ffc400;
+  filter: drop-shadow(0 2px 3px rgba(255, 255, 255, 0.3));
 }
 .podium-avatar {
   width: 42px;
@@ -3198,18 +3215,20 @@ th:last-child {
 }
 .pedestal-1 {
   height: 170px;
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(206, 143, 71, 0.3);
   font-size: 50px;
   color: #ffa200;
 }
 .pedestal-2 {
   height: 130px;
   font-size: 35px;
-  color: #cbd5e1;
+  background: rgba(162, 197, 240, 0.3);
+  color: #a2c5f0;
 }
 .pedestal-3 {
   height: 80px;
   font-size: 25px;
+  background: rgba(209, 154, 102, 0.3);
   color: #d19a66;
 }
 
@@ -3928,6 +3947,7 @@ th:last-child {
   --leaderboard-text: #3b2f1f;
   --leaderboard-text-secondary: #6b5d4d;
   --leaderboard-podium: #e8e2d8;
+  --leaderboard-hero-bg: linear-gradient(160deg, #f0e8d8, #e2d6c4);
 }
 [data-theme='dark'] {
   --ink: #F3ECDD;
@@ -3948,6 +3968,7 @@ th:last-child {
   --sidebar-bg: rgba(20, 16, 11, 0.88);
   --card-bg: rgba(35, 29, 21, 0.9);
   --input-bg: rgba(23, 20, 15, 0.92);
+  --leaderboard-hero-bg: linear-gradient(160deg, #3b2f1f, #241a10);
 }
 [data-theme='light'] body {
   background:
@@ -4952,4 +4973,3 @@ tbody tr:hover,
 .history-row.returned { border-left: 6px solid #64748b !important; } /* Muted Grey */
 .history-row.converted_to_loan { border-left: 6px solid var(--brand) !important; } /* Active Blue */
 .history-row.overdue { border-left: 6px solid var(--danger) !important; } /* Danger Red */
-

@@ -11,7 +11,7 @@ export function Pagination({ page, totalPages, totalElements, onPageChange }) {
   return (
     <div className="pagination two-block-pagination">
       <div className="pagination-info">
-        {totalElements} total items · Page {currentPage + 1} of {total}
+         Page {currentPage + 1} of {total}
       </div>
 
       <div className="pagination-controls">
