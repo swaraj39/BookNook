@@ -7,7 +7,6 @@ import {
   LibraryBig,
   LogOut,
   Moon,
-  Plus,
   RotateCcw,
   Sun,
   Undo2,
@@ -365,8 +364,8 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-      fetch("https://booknook-gfb8.onrender.com/api/quote/today")
-      // fetch(`http://localhost:8080/api/quote/today`)
+      // fetch("https://booknook-gfb8.onrender.com/api/quote/today")
+      fetch(`http://localhost:8080/api/quote/today`)
         .then((response) => response.ok ? response.json() : null)
         .then((quote) => {
           if (quote) setDailyThought(quote);
@@ -516,8 +515,8 @@ export default function App() {
   async function handleLogout() {
     setShowProfileDropdown(false);
     try {
-      await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
-      // await fetch("http://localhost:8080/api/auth/logout", {
+      // await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
+      await fetch("http://localhost:8080/api/auth/logout", {
         method: "POST",
         credentials: "include",
       });
@@ -880,14 +879,11 @@ return (
       {view === "dashboard" && stats && (
         <Dashboard stats={stats} me={me} dailyThought={dailyThought} openDetails={openDetails} onNavigate={navigateTo} />
       )}
-      {view !== "home" && view !== "catalog" && view !== "dashboard" && (
+      {view !== "home" && view !== "catalog" && view !== "dashboard" && view !== "requests" && (
         <section className="topbar">
           <div className="page-title">
-            <h2>BA Reading Community Tracker</h2>
-            <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
-          </div>
-          <div>
-            <button className="btn primary" onClick={() => setBookModal({ ...blankBook })}><Plus size={17} /> Add book</button>
+            <h2 className="hero-gradient">Your Reading Hub</h2>
+            <p>Track your incoming loans, manage your active reads, and request your next favorite book.</p>
           </div>
         </section>
       )}
@@ -921,7 +917,7 @@ return (
           onRefresh={loadCatalogFromApi}
         />
       )}
-      {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onRefresh={loadRequestsFromApi} />}
+      {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onRefresh={loadRequestsFromApi} navigateTo={navigateTo} />}
       {(view === "myLibrary" || view === "myBooks" || view === "borrowed") && (
         <MyLibrary
           myBooksPage={myBooksPage}
