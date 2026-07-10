@@ -7,7 +7,6 @@ import {
   LibraryBig,
   LogOut,
   Moon,
-  Plus,
   RotateCcw,
   Sun,
   Undo2,
@@ -319,7 +318,7 @@ export default function App() {
   // Same idea as booksPage above: the full list is fetched once per view/
   // refresh, and paging just re-slices it in memory - no extra API calls.
   const requestsPage = useMemo(
-    () => paginateList(allRequests.filter(r => r.status === "pending"), requestsPageIndex),
+    () => paginateList(allRequests, requestsPageIndex),
     [allRequests, requestsPageIndex]
   );
   const myBooksPage = useMemo(
@@ -331,7 +330,7 @@ export default function App() {
     [allBorrowed, borrowedPageIndex]
   );
   const historyPage = useMemo(
-    () => paginateList(allHistory.filter(r => ["active", "returned", "rejected"].includes(r.status)), historyPageIndex),
+    () => paginateList(allHistory, historyPageIndex),
     [allHistory, historyPageIndex]
   );
   const bookHistoryPage = useMemo(
@@ -880,14 +879,11 @@ return (
       {view === "dashboard" && stats && (
         <Dashboard stats={stats} me={me} dailyThought={dailyThought} openDetails={openDetails} onNavigate={navigateTo} />
       )}
-      {view !== "home" && view !== "catalog" && view !== "dashboard" && (
+      {view !== "home" && view !== "catalog" && view !== "dashboard" && view !== "requests" && (
         <section className="topbar">
           <div className="page-title">
-            <h2>BA Reading Community Tracker</h2>
-            <p>Share books, discover reads across the capability, manage approvals, and track returns without spreadsheet drift.</p>
-          </div>
-          <div>
-            <button className="btn primary" onClick={() => setBookModal({ ...blankBook })}><Plus size={17} /> Add book</button>
+            <h2 className="hero-gradient">Your Reading Hub</h2>
+            <p>Track your incoming loans, manage your active reads, and request your next favorite book.</p>
           </div>
         </section>
       )}
@@ -921,7 +917,7 @@ return (
           onRefresh={loadCatalogFromApi}
         />
       )}
-      {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onRefresh={loadRequestsFromApi} />}
+      {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onRefresh={loadRequestsFromApi} navigateTo={navigateTo} />}
       {(view === "myLibrary" || view === "myBooks" || view === "borrowed") && (
         <MyLibrary
           myBooksPage={myBooksPage}
