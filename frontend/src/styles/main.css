@@ -3975,7 +3975,7 @@ th:last-child {
   --leaderboard-text: #3b2f1f;
   --leaderboard-text-secondary: #6b5d4d;
   --leaderboard-podium: #e8e2d8;
-  --leaderboard-hero-bg: linear-gradient(160deg, hsl(0, 0%, 100%), #ffffff);
+  --leaderboard-hero-bg: linear-gradient(160deg, hsla(24, 97%, 14%, 0.87), #7a4406);
 }
 [data-theme='dark'] {
   --ink: #F3ECDD;
@@ -4320,7 +4320,7 @@ tbody tr:hover,
       var(--auth-paper) 100%
     ) !important;
   }
-  
+
   [data-auth-theme="dark"] .bn-auth-image-fade {
     background: linear-gradient(
       180deg,
@@ -4905,7 +4905,7 @@ tbody tr:hover,
 }
 
 .leaderboard-popup {
-  background: var(--bg-primary, #fff);
+  background: var(--bg-primary, #ffffff);
   border-radius: 16px;
   max-width: 600px;
   width: 90%;
