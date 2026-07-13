@@ -100,14 +100,14 @@ export function Guide() {
                     <div className="flow-action-faq-row">
                         <div className="faq-action-card">
                             <div className="faq-action-header">
-                                <PlusCircle size={16} />
+                                {/* <PlusCircle size={16} /> */}
                                 <h5>How users can add a book?</h5>
                             </div>
                             <p>They can add a book by clicking the add button, and then entering the details and saving them.</p>
                         </div>
                         <div className="faq-action-card">
                             <div className="faq-action-header">
-                                <PlusCircle size={16} />
+                                {/* <PlusCircle size={16} /> */}
                                 <h5>How they can request a book?</h5>
                             </div>
                             <p>Through browse page, they can click the request button and then fill the details and request the book.</p>
