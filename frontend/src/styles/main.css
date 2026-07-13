@@ -4958,6 +4958,27 @@ tbody tr:hover,
   cursor: pointer;
 }
 
+.book-info-compact {
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+}
+
+.book-info-compact strong {
+  color: var(--brand-dark);
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.book-info-compact span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.request-row:hover .book-info-compact strong {
+  text-decoration: underline;
+}
+
 /* ---- Desktop Table Layout ---- */
 .request-desktop-view {
   display: block;
