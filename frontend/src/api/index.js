@@ -115,6 +115,10 @@ export const api = {
     request(`/borrow-requests/${id}/reject`, {
       method: "POST",
     }),
+  cancelRequest: (id) =>
+    request(`/borrow-requests/${id}/cancel`, {
+      method: "POST",
+    }),
   borrowed: (page = 0, size = 20) =>
     request(`/loans/borrowed?page=${page}&size=${size}`),
   loanHistory: (page = 0, size = 20) =>

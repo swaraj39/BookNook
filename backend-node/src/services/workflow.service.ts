@@ -339,6 +339,89 @@ export class WorkflowService {
     return this.mapTransaction(updatedTransaction);
   }
 
+  static async cancel(userId: string, transactionId: string, isAdmin: boolean) {
+    const now = new Date();
+
+    const { updatedTransaction, shouldMakeAvailable } = await prisma.$transaction(async (tx) => {
+      const transaction = await tx.bookTransaction.findUnique({
+        where: { id: transactionId },
+        include: {
+          book: { include: { owner: true, genre: true } },
+          requester: true,
+          owner: true,
+        },
+      });
+
+      if (!transaction) throw new Error("Transaction not found.");
+
+      if (transaction.requesterId !== userId && !isAdmin) {
+        throw new Error("Only the requester can cancel this request.");
+      }
+
+      if (transaction.status !== "pending") {
+        throw new Error("This request has already been processed.");
+      }
+
+      const tr = await tx.bookTransaction.update({
+        where: { id: transactionId },
+        data: {
+          status: "cancelled",
+          respondedAt: now,
+        },
+        include: {
+          book: { include: { owner: true, genre: true } },
+          requester: true,
+          owner: true,
+        },
+      });
+
+      const pendingCount = await tx.bookTransaction.count({
+        where: {
+          bookId: transaction.bookId,
+          status: "pending",
+        },
+      });
+
+      const activeCount = await tx.bookTransaction.count({
+        where: {
+          bookId: transaction.bookId,
+          status: { in: ["active", "overdue", "return_pending"] },
+        },
+      });
+
+      const isNowAvailable = pendingCount === 0 && activeCount === 0;
+
+      if (isNowAvailable) {
+        await tx.book.update({
+          where: { id: transaction.bookId },
+          data: { availabilityStatus: "available" },
+        });
+      }
+
+      await tx.bookHistory.create({
+        data: {
+          bookId: transaction.bookId,
+          actorId: userId,
+          eventType: "request_cancelled",
+          eventTitle: "Request cancelled",
+          eventMessage: `${tr.requester.fullName} cancelled their request for ${tr.book.title}.`,
+          transactionId: tr.id,
+        },
+      });
+
+      return { updatedTransaction: tr, shouldMakeAvailable: isNowAvailable };
+    }, TX_OPTIONS);
+
+    await Promise.all([
+      StatsCacheService.adjustFields({
+        availableBooks: shouldMakeAvailable ? 1 : 0
+      }),
+      ReadCacheService.invalidate(`book:${updatedTransaction.bookId}`),
+    ]);
+
+    return this.mapTransaction(updatedTransaction);
+  }
+
   static async returnBook(userId: string, transactionId: string, isAdmin: boolean) {
     const updatedTransaction = await prisma.$transaction(async (tx) => {
       const transaction = await tx.bookTransaction.findUnique({
