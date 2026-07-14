@@ -522,7 +522,7 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails,
       <div className="request-hero-card">
         <div className="hero-card-top">
           <div className="hero-card-title">
-            <h2 >Your Reading Hub</h2>
+            <h2>Your Reading Hub</h2>
             <p>Track your incoming loans, manage your active reads, and request your next favorite book.</p>
           </div>
           <div className="hero-card-actions">

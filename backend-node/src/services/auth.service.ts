@@ -6,6 +6,10 @@ import { StatsCacheService } from "./stats-cache.service";
 
 export class AuthService {
   static async register(data: any) {
+    if (!data.email?.endsWith("@bluealtair.com")) {
+      throw new Error("Only @bluealtair.com email addresses are allowed to register.");
+    }
+
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
     });

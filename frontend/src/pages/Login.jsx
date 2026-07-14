@@ -116,6 +116,10 @@ export function Login({ onLogin }) {
       setError("Please complete all required fields.");
       return;
     }
+    if (isRegister && !form.email.trim().endsWith("@bluealtair.com")) {
+      setError("Only @bluealtair.com email addresses are allowed to register.");
+      return;
+    }
     if (isRegister && !isPasswordValid) {
       setError(
         "Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number, and one special character."
