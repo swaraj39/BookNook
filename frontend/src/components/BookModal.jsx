@@ -4,10 +4,14 @@ import { FormInput } from "./common/FormInput";
 import { validateBookForm } from "../utils/helpers";
 export function BookModal({ book, genres, onClose, onSave }) {
   if (!book) return null;
-  const [form, setForm] = useState({ ...book, genreId: book.genreId || book.genre?.id || genres[0]?.id || "" });
+  const initialLoanDays = book.id ? book.defaultLoanDays : "";
+  const [form, setForm] = useState({ ...book, defaultLoanDays: initialLoanDays, genreId: book.genreId || book.genre?.id || genres[0]?.id || "" });
   const [errors, setErrors] = useState({});
   async function submit() {
-    const nextErrors = validateBookForm(form);
+    const rawDays = Number(form.defaultLoanDays);
+    const loanDays = !rawDays ? 14 : Math.min(60, Math.max(3, rawDays));
+    const normalizedForm = { ...form, defaultLoanDays: loanDays };
+    const nextErrors = validateBookForm(normalizedForm);
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       alert(Object.values(nextErrors).join("\n"));
@@ -15,8 +19,7 @@ export function BookModal({ book, genres, onClose, onSave }) {
     }
     try {
       const payload = {
-        ...form,
-        defaultLoanDays: Math.floor(Number(form.defaultLoanDays)),
+        ...normalizedForm,
         title: form.title.trim(),
         author: form.author.trim(),
         description: form.description?.trim() || "",

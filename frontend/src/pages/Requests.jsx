@@ -6,6 +6,7 @@ import { label, dateText } from "../utils/helpers";
 import {
   Check, X, Eye, Bell, Ban, RotateCcw, User, XCircle, Plus
 } from "lucide-react";
+import { color } from "framer-motion";
 
 const COVER_COLORS = [
   "#667FFF", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6",

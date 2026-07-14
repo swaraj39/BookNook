@@ -422,12 +422,14 @@ export class BookService {
     if (!payload.title?.trim()) throw new Error("Title is required.");
     if (!payload.author?.trim()) throw new Error("Author is required.");
     if (!payload.genreId) throw new Error("Genre is required.");
-    const loanDays = Number(payload.defaultLoanDays);
+    const raw = Number(payload.defaultLoanDays);
+    const loanDays = !raw ? 14 : Math.min(60, Math.max(3, raw));
     if (!Number.isInteger(loanDays) || loanDays < 3 || loanDays > 60) {
       throw new Error(
         "Default loan days must be a whole number between 3 and 60."
       );
     }
+    payload.defaultLoanDays = loanDays;
   }
   private static mapBook(book: any) {
     const myTransactions = Array.isArray(book.transactions) ? book.transactions : [];
