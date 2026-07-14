@@ -408,7 +408,7 @@ button { cursor: pointer; }
   line-height: 1.02;
 }
 .hero-gradient {
-  background: linear-gradient(135deg, #1e3a8a, #7c3aed);
+  background: linear-gradient(135deg, #ffffff, #ffffff);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -4181,7 +4181,6 @@ tbody tr:hover,
   backdrop-filter: blur(10px);
   animation: nav-loader-fade-in 0.25s ease;
   min-height: 0;
-  pointer-events: none;
 }
 [data-theme='dark'] .nav-loader-overlay {
   background: rgba(20, 16, 11, 0.86);

@@ -920,7 +920,7 @@ return (
       {view === "dashboard" && stats && (
         <Dashboard stats={stats} me={me} dailyThought={dailyThought} openDetails={openDetails} onNavigate={navigateTo} />
       )}
-      {view !== "home" && view !== "catalog" && view !== "dashboard" && view !== "requests" && (
+      {view !== "home" && view !== "catalog" && view !== "dashboard" && view !== "requests" && view !== "myLibrary" && view !== "myBooks" && view !== "borrowed" && (
         <section className="topbar">
           <div className="page-title">
             <h2 className="hero-gradient">Your Reading Hub</h2>

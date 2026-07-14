@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Plus } from "lucide-react";
 import { Panel } from "../components/common/Panel";
 import { Table } from "../components/common/Table";
 import { Pagination } from "../components/common/Pagination";
@@ -32,16 +33,27 @@ export function MyLibrary({ myBooksPage, onMyBooksPageChange, borrowedPage, onBo
   const [tab, setTab] = useState("shelf");
   const refreshFn = tab === "shelf" ? onRefreshShelf : onRefreshReading;
   
+  const blankBook = { title: "", author: "", genreId: "", condition: "good", defaultLoanDays: 14, description: "" };
+  
   return (
-    <Panel
-      title={tab === "shelf" ? "My Books" : "Currently Reading"}
-      actions={refreshFn && (
-        <RefreshButton
-          onRefresh={refreshFn}
-          title={`Refresh ${tab === "shelf" ? "shelf" : "borrow status"}`}
-        />
-      )}
-    >
+    <>
+      <section className="topbar">
+        <div className="page-title">
+          <h2 className="hero-gradient">My Shelf</h2>
+          <p>{tab === "shelf" ? "Manage the books you've shared with the community." : "Track your incoming loans and manage your active reads."}</p>
+        </div>
+        <div className="catalog-header-right-row">
+          <RefreshButton onRefresh={refreshFn} title={`Refresh ${tab === "shelf" ? "shelf" : "borrow status"}`} />
+          {tab === "shelf" && (
+            <button className="btn primary" onClick={() => setBookModal({ ...blankBook })}>
+              <Plus size={15} /> Add Book
+            </button>
+          )}
+        </div>
+      </section>
+      <Panel
+        title={tab === "shelf" ? "My Books" : "Currently Reading"}
+      >
       <div className="my-library-toggle-row">
         <div className="my-library-toggle">
           <button
@@ -150,5 +162,6 @@ export function MyLibrary({ myBooksPage, onMyBooksPageChange, borrowedPage, onBo
         )
       )}
     </Panel>
+  </>
   );
 }

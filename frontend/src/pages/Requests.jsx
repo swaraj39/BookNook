@@ -6,6 +6,7 @@ import { label, dateText } from "../utils/helpers";
 import {
   Check, X, Eye, Bell, Ban, RotateCcw, User, XCircle, Plus
 } from "lucide-react";
+import { color } from "framer-motion";
 
 const COVER_COLORS = [
   "#667FFF", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6",
@@ -521,7 +522,7 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails,
       <div className="request-hero-card">
         <div className="hero-card-top">
           <div className="hero-card-title">
-            <h2>Your Reading Hub</h2>
+            <h2 >Your Reading Hub</h2>
             <p>Track your incoming loans, manage your active reads, and request your next favorite book.</p>
           </div>
           <div className="hero-card-actions">
