@@ -56,27 +56,25 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
 app.get("/api/quote/today", async (req, res) => {
+  const fallbackQuotes = [
+    { q: "A reader lives a thousand lives before he dies. The man who never reads lives only one.", a: "George R.R. Martin" },
+    { q: "The only thing you absolutely have to know is the location of the library.", a: "Albert Einstein" },
+    { q: "I have always imagined that Paradise will be a kind of library.", a: "Jorge Luis Borges" },
+    { q: "There is no friend as loyal as a book.", a: "Ernest Hemingway" },
+    { q: "A room without books is like a body without a soul.", a: "Marcus Tullius Cicero" },
+  ];
+
   try {
     const response = await fetch("https://zenquotes.io/api/today");
-
-    if (!response.ok) {
-      return res.status(response.status).json({
-        message: "ZenQuotes API failed",
-      });
+    if (response.ok) {
+      const data: any = await response.json();
+      return res.json(data[0]);
     }
-
-    const data: any = await response.json();
-
-    // Return only the first quote
-    res.json(data[0]);
-
   } catch (error) {
     logError(error, req);
-
-    res.status(getStatusCode(error)).json({
-      message: getSafeErrorMessage(error),
-    });
   }
+
+  res.json(fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)]);
 });
 app.use(errorHandler);
 app.listen(port, () => {

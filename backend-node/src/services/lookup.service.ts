@@ -42,12 +42,16 @@ export class LookupService {
       pageSize: size,
     };
   }
-  // period: "today" -> since midnight, "week" -> rolling last 7 days
-  static async leaderboard(limit?: number, period: "today" | "week" = "week") {
+  // period: "today" -> since midnight, "week" -> 7 days, "month" -> 30 days, "all" -> no filter
+  static async leaderboard(limit?: number, period: "today" | "week" | "month" | "all" = "week") {
     const now = new Date();
-    const start = period === "today"
-      ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    let start: Date;
+    switch (period) {
+      case "today": start = new Date(now.getFullYear(), now.getMonth(), now.getDate()); break;
+      case "month": start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); break;
+      case "all": start = new Date(0); break;
+      default: start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    }
     const results = await prisma.bookTransaction.groupBy({
       by: ["requesterId"],
       where: {
@@ -120,7 +124,7 @@ export class LookupService {
       userCount: booksReadThisMonth,
       globalAvg: communityAverageRead
     }];
-    const leaderboard = await LookupService.leaderboard(5, "week");
+    const leaderboard = await LookupService.leaderboard(5, "all");
     return {
       totalBooks: cachedStats.totalBooks,
       availableBooks: cachedStats.availableBooks,

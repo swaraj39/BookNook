@@ -265,7 +265,8 @@ export class AppController {
   static async leaderboard(req: AuthRequest, res: Response) {
     try {
       const { period, limit } = req.query;
-      const normalizedPeriod = queryString(period) === "today" ? "today" : "week";
+      const periodStr = queryString(period);
+      const normalizedPeriod = ["today", "week", "month", "all"].includes(periodStr) ? periodStr as any : "week";
       const result = await LookupService.leaderboard(
         limit ? queryNumber(limit, 5) : undefined,
         normalizedPeriod
