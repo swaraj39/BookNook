@@ -2668,11 +2668,13 @@ th:last-child {
   border-radius: 8px;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: all 0.2s;
+  margin-top: 5px;
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
 }
 .reading-log-item-strip:hover {
   background: var(--brand-soft);
   border-color: var(--line);
+  transform: translateY(2px);
 }
 .log-book-thumbnail {
   width: 44px;
