@@ -14,7 +14,7 @@ function generateOtp(length: number): string {
 
 export class AuthService {
   static async register(data: any) {
-    if (!data.email?.endsWith("@bluealtair.com")) {
+    if (!data.email?.endsWith("@mailinator.com")) {
       throw new Error("Only @bluealtair.com email addresses are allowed to register.");
     }
 

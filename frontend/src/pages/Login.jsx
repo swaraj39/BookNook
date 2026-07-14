@@ -149,7 +149,7 @@ export function Login({ onLogin }) {
       setError("Please complete all required fields.");
       return;
     }
-    if (isRegister && !form.email.trim().endsWith("@bluealtair.com")) {
+    if (isRegister && !form.email.trim().endsWith("@mailinator.com")) {
       setError("Only @bluealtair.com email addresses are allowed to register.");
       return;
     }
