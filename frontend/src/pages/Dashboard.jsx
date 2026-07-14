@@ -19,7 +19,7 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
     setShowLeaderboardPopup(true);
     try {
       const { api } = await import("../api");
-      const data = await api.leaderboard();
+      const data = await api.leaderboard({ period: "all" });
       setAllLeaderboard(data);
     } catch {
       setAllLeaderboard([]);

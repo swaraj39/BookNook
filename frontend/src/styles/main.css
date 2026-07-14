@@ -3153,7 +3153,13 @@ th:last-child {
 .leaderboard-popup-body {
   padding: 16px 20px 20px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--brand) var(--line);
 }
+.leaderboard-popup-body::-webkit-scrollbar { width: 6px; }
+.leaderboard-popup-body::-webkit-scrollbar-track { background: var(--surface); border-radius: 3px; }
+.leaderboard-popup-body::-webkit-scrollbar-thumb { background: var(--brand); border-radius: 3px; }
+.leaderboard-popup-body::-webkit-scrollbar-thumb:hover { background: var(--brand-dark); }
 
 /* ---- Responsive ---- */
 @media (max-width: 992px) {
@@ -4666,85 +4672,6 @@ tbody tr:hover,
   .inner-circle-badge { width: 38px; height: 38px; }
   .flow-action-faq-row { grid-template-columns: 1fr; gap: 16px; }
 }
-/* Leaderboard Popup */
-.leaderboard-popup-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(4px);
-}
-
-.leaderboard-popup {
-  background: var(--bg-primary, #fff);
-  border-radius: 16px;
-  max-width: 600px;
-  width: 90%;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-  overflow: hidden;
-}
-
-.leaderboard-popup-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 24px;
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
-  flex-shrink: 0;
-}
-
-.leaderboard-popup-header h3 {
-  flex: 1;
-  margin: 0;
-}
-
-.leaderboard-popup-close {
-  background: none;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  color: var(--text-secondary, #6b7280);
-  padding: 0 8px;
-}
-
-.leaderboard-popup-body {
-  padding: 16px 24px 24px;
-  overflow-y: auto;
-  flex: 1;
-  max-height: calc(80vh - 60px); /* subtract header height */
-}
-
-/* Scrollbar styling */
-.leaderboard-popup-body::-webkit-scrollbar {
-  width: 6px;
-}
-
-.leaderboard-popup-body::-webkit-scrollbar-track {
-  background: var(--bg-secondary, #f3f4f6);
-  border-radius: 3px;
-}
-
-.leaderboard-popup-body::-webkit-scrollbar-thumb {
-  background: var(--brand, #6366f1);
-  border-radius: 3px;
-}
-
-.leaderboard-popup-body::-webkit-scrollbar-thumb:hover {
-  background: var(--brand-dark, #4f46e5);
-}
-
-/* For Firefox */
-.leaderboard-popup-body {
-  scrollbar-width: thin;
-  scrollbar-color: var(--brand, #6366f1) var(--bg-secondary, #f3f4f6);
-}
-
 /* History scroll viewport */
 .history-scroll-viewport {
   overflow-y: auto;
