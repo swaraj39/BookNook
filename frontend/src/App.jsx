@@ -410,7 +410,10 @@ export default function App() {
   }, [isAuthenticated, view]);
   useEffect(() => {
     if (!isAuthenticated) return;
-    if (view === "catalog" || view === "home" || view === "detail") return;
+    if (view === "catalog" || view === "home" || view === "detail") {
+      setPageLoading(null);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -815,7 +818,7 @@ const navSections = [
   }
 ];
 if (authChecking) {
-  return <div>Loading...</div>;
+  return <PageLoader fullPage />;
 }
 if (!isAuthenticated) {
   return (

@@ -6,6 +6,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@500;700&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
     <title>Book Nook</title>
+    <style>
+      #root:empty::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background: #FDFBF7;
+      }
+      #root:empty::before {
+        content: "";
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        width: 32px;
+        height: 32px;
+        margin: -16px 0 0 -16px;
+        border-radius: 50%;
+        border: 3px solid #d4c5b5;
+        border-top-color: #b87333;
+        animation: bn-spin 0.7s linear infinite;
+      }
+      @keyframes bn-spin { to { transform: rotate(360deg); } }
+    </style>
   </head>
   <body>
     <div id="root"></div>
