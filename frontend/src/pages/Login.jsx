@@ -4,6 +4,8 @@ import { api } from "../api";
 import logo from "../styles/blue_altair_logo-removebg-preview.png";
 import { ForgotPassword } from "./ForgotPassword";
 
+const ALLOWED_EMAIL_DOMAIN = "@mailinator.com";
+
 /* Placeholder assets — swap these for your real book photo + animated SVGs.
    Keep the same import shape (default export usable as a CSS background or
    inline component) so swapping later is a one-line change. */
@@ -149,8 +151,8 @@ export function Login({ onLogin }) {
       setError("Please complete all required fields.");
       return;
     }
-    if (isRegister && !form.email.trim().endsWith("@mailinator.com")) {
-      setError("Only @bluealtair.com email addresses are allowed to register.");
+    if (isRegister && !form.email.trim().endsWith(ALLOWED_EMAIL_DOMAIN)) {
+      setError(`Only ${ALLOWED_EMAIL_DOMAIN} email addresses are allowed to register.`);
       return;
     }
     if (isRegister && !isPasswordValid) {
