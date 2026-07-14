@@ -36,7 +36,9 @@ async function request(path, options = {}) {
   if (
     response.status === 401 &&
     path !== "/auth/login" &&
-    path !== "/auth/register"
+    path !== "/auth/register" &&
+    path !== "/auth/signup/verify-otp" &&
+    path !== "/auth/signup/resend-otp"
   ) {
     window.dispatchEvent(new CustomEvent("auth-expired"));
   }
@@ -126,6 +128,16 @@ export const api = {
   returnBook: (id) =>
     request(`/loans/${id}/return`, {
       method: "POST",
+    }),
+  signupVerifyOtp: (email, otp) =>
+    request("/auth/signup/verify-otp", {
+      method: "POST",
+      body: JSON.stringify({ email, otp }),
+    }),
+  signupResendOtp: (email) =>
+    request("/auth/signup/resend-otp", {
+      method: "POST",
+      body: JSON.stringify({ email }),
     }),
   forgotPasswordRequest: (email) =>
     request("/auth/forgot-password/request", {

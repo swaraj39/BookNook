@@ -417,7 +417,7 @@ export default function App() {
     let cancelled = false;
     (async () => {
       try {
-        setPageLoading(view);
+        if (!cancelled) setPageLoading(view);
         switch (view) {
           case "dashboard": {
             if (stats && Date.now() - dashboardLastFetchedRef.current < DASHBOARD_CACHE_TTL) {
@@ -465,7 +465,7 @@ export default function App() {
         if (!cancelled) setPageLoading(null);
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; setPageLoading(null); };
   }, [view, isAuthenticated]);
   useEffect(() => {
     async function restoreDetailPage() {

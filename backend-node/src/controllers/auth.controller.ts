@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
-import { sendSignupEmail, sendOtpEmail } from "../utils/mail";
+import { sendSignupEmail, sendOtpEmail, sendSignupVerificationEmail } from "../utils/mail";
 import { getSafeErrorMessage, getStatusCode, isDatabaseError } from "../utils/app-error";
 import { logError } from "../middleware/error";
 
@@ -9,26 +9,17 @@ export class AuthController {
     try {
       const result = await AuthService.register(req.body);
 
-      const isProd = process.env.NODE_ENV === "production";
-
-      res.cookie("token", result.token, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? "none" : "lax",
-        path: "/",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
-
+      // Send OTP email (don't block registration response on email failure)
       let emailWarning = null;
       try {
-        await sendSignupEmail(result.user);
+        await sendSignupVerificationEmail(result.email, result.otp);
       } catch (err) {
-        console.error("Signup email failed:", err);
-        emailWarning = "Account created but welcome email could not be sent.";
+        console.error("Signup verification email failed:", err);
+        emailWarning = "Account created but verification email could not be sent.";
       }
 
       res.status(201).json({
-        user: result.user,
+        email: result.email,
         ...(emailWarning ? { warning: emailWarning } : {}),
       });
     } catch (error: any) {
@@ -45,6 +36,61 @@ export class AuthController {
         message: isDatabaseError(error)
           ? getSafeErrorMessage(error)
           : error.message || "Registration failed. Please try again.",
+      });
+    }
+  }
+
+
+  static async signupVerifyOtp(req: Request, res: Response) {
+    try {
+      const { email, otp } = req.body;
+      if (!email || !otp) { res.status(400).json({ message: "Email and OTP are required." }); return; }
+
+      const result = await AuthService.verifySignupOtp(email, otp);
+
+      const isProd = process.env.NODE_ENV === "production";
+
+      res.cookie("token", result.token, {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: isProd ? "none" : "lax",
+        path: "/",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      // Send welcome email after successful verification
+      try { await sendSignupEmail(result.user); } catch (err) {
+        console.error("Welcome email failed:", err);
+      }
+
+      res.json({ user: result.user });
+    } catch (error: any) {
+      logError(error, req);
+      res.status(isDatabaseError(error) ? getStatusCode(error) : 400).json({
+        message: isDatabaseError(error) ? getSafeErrorMessage(error) : error.message || "Invalid OTP.",
+      });
+    }
+  }
+
+
+  static async signupResendOtp(req: Request, res: Response) {
+    try {
+      const { email } = req.body;
+      if (!email) { res.status(400).json({ message: "Email is required." }); return; }
+
+      const otp = await AuthService.resendSignupOtp(email);
+
+      try {
+        await sendSignupVerificationEmail(email, otp);
+      } catch (err) {
+        console.error("Resend OTP email failed:", err);
+      }
+
+      res.json({ message: "A new OTP has been sent to your email." });
+    } catch (error: any) {
+      logError(error, req);
+      res.status(isDatabaseError(error) ? getStatusCode(error) : 400).json({
+        message: isDatabaseError(error) ? getSafeErrorMessage(error) : error.message || "Failed to resend OTP.",
       });
     }
   }

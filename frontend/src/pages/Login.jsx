@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { LogIn, UserPlus, Eye, EyeOff, Moon, Sun } from "lucide-react";
+import { LogIn, UserPlus, Eye, EyeOff, Moon, Sun, KeyRound } from "lucide-react";
 import { api } from "../api";
 import logo from "../styles/blue_altair_logo-removebg-preview.png";
 import { ForgotPassword } from "./ForgotPassword";
@@ -65,6 +65,9 @@ function AuthBackgroundDark() {
   );
 }
 
+const OTP_EXPIRY_SECONDS = 300;
+const RESEND_COOLDOWN_SECONDS = 60;
+
 export function Login({ onLogin }) {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [isRegister, setIsRegister] = useState(false);
@@ -81,10 +84,40 @@ export function Login({ onLogin }) {
     () => localStorage.getItem("bn_theme") === "dark"
   );
 
+  // OTP verification state
+  const [signupStep, setSignupStep] = useState("form");
+  const [registeredEmail, setRegisteredEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpSecondsLeft, setOtpSecondsLeft] = useState(OTP_EXPIRY_SECONDS);
+  const [resendSecondsLeft, setResendSecondsLeft] = useState(RESEND_COOLDOWN_SECONDS);
+  const [success, setSuccess] = useState("");
+
   useEffect(() => {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
   }, [darkMode]);
+
+  // OTP timers
+  useEffect(() => {
+    if (signupStep !== "otp") return;
+    setOtpSecondsLeft(OTP_EXPIRY_SECONDS);
+    setResendSecondsLeft(RESEND_COOLDOWN_SECONDS);
+    const otpTimer = setInterval(() => {
+      setOtpSecondsLeft((s) => {
+        if (s <= 1) { clearInterval(otpTimer); return 0; }
+        return s - 1;
+      });
+    }, 1000);
+    const resendTimer = setInterval(() => {
+      setResendSecondsLeft((s) => {
+        if (s <= 1) { clearInterval(resendTimer); return 0; }
+        return s - 1;
+      });
+    }, 1000);
+    return () => { clearInterval(otpTimer); clearInterval(resendTimer); };
+  }, [signupStep]);
+
+  const formatTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
   const passwordRules = {
     minLength: form.password.length >= 8,
@@ -116,6 +149,10 @@ export function Login({ onLogin }) {
       setError("Please complete all required fields.");
       return;
     }
+    if (isRegister && !form.email.trim().endsWith("@mailinator.com")) {
+      setError("Only @bluealtair.com email addresses are allowed to register.");
+      return;
+    }
     if (isRegister && !isPasswordValid) {
       setError(
         "Password must contain at least 8 characters, one uppercase letter, one lowercase letter, one number, and one special character."
@@ -125,22 +162,28 @@ export function Login({ onLogin }) {
     setLoading(true);
     setError("");
     try {
-      let result;
       if (isRegister) {
-        result = await api.register({
+        const result = await api.register({
           ...form,
           email: form.email.trim(),
           fullName: form.fullName.trim(),
         });
+        setRegisteredEmail(result.email);
+        setOtp("");
+        setSuccess("");
+        setSignupStep("otp");
       } else {
-        result = await api.login(form.email.trim(), form.password);
+        const result = await api.login(form.email.trim(), form.password);
+        onLogin(null, result.user);
       }
-      onLogin(null, result.user);
     } catch (err) {
       switch (err.message) {
         case "Incorrect email or password.":
         case "Invalid email or password":
           setError("Incorrect email or password.");
+          break;
+        case "Please verify your email first. Check your inbox for the OTP.":
+          setError("Please verify your email first. Check your inbox for the OTP.");
           break;
         case "An account with this email already exists. Please sign in instead.":
         case "Email already exists.":
@@ -164,8 +207,145 @@ export function Login({ onLogin }) {
     }
   }
 
+  async function handleOtpSubmit(e) {
+    e.preventDefault();
+    if (!otp.trim()) { setError("Please enter the OTP."); return; }
+    if (otpSecondsLeft === 0) { setError("OTP has expired. Please request a new one."); return; }
+    setLoading(true); setError(""); setSuccess("");
+    try {
+      const result = await api.signupVerifyOtp(registeredEmail, otp.trim());
+      onLogin(null, result.user);
+    } catch (err) {
+      setError(err.message || "Invalid or expired OTP.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResendOtp() {
+    if (resendSecondsLeft > 0) return;
+    setLoading(true); setError(""); setSuccess("");
+    try {
+      await api.signupResendOtp(registeredEmail);
+      setOtpSecondsLeft(OTP_EXPIRY_SECONDS);
+      setResendSecondsLeft(RESEND_COOLDOWN_SECONDS);
+      setOtp("");
+      setSuccess("A new OTP has been sent to your email.");
+    } catch (err) {
+      setError(err.message || "Failed to resend OTP.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const updateForm = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  // OTP verification screen after registration
+  if (signupStep === "otp") {
+    return (
+      <div className="bn-auth bn-auth-centered" data-auth-theme={darkMode ? "dark" : "light"}>
+        <div className="bn-auth-bg" aria-hidden="true">
+          <div className={`bn-auth-bg-layer ${!darkMode ? "active" : ""}`} />
+          <div className={`bn-auth-bg-layer ${darkMode ? "active" : ""}`} />
+        </div>
+        <button
+          type="button"
+          className="bn-theme-toggle"
+          onClick={() => setDarkMode((v) => !v)}
+          aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+          title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          <span className="bn-icon-spin" key={darkMode ? "sun" : "moon"}>
+            {darkMode ? <Sun size={19} /> : <Moon size={19} />}
+          </span>
+        </button>
+        <div className="bn-auth-card bn-auth-card-standalone">
+          <div className="bn-auth-step-header">
+            <div className="bn-auth-step-icon">
+              <KeyRound size={26} />
+            </div>
+            <h2>Verify your email</h2>
+          </div>
+          <p className="bn-auth-sub">
+            We sent a verification code to <strong>{registeredEmail}</strong>.
+            It expires in <strong style={{ color: otpSecondsLeft <= 60 ? "#B6452F" : "var(--auth-gold)" }}>{formatTime(otpSecondsLeft)}</strong>.
+          </p>
+          <form onSubmit={handleOtpSubmit} className="bn-auth-form">
+            <div className="bn-auth-field">
+              <span className="bn-auth-label" style={{ marginBottom: 8 }}>One-time code</span>
+              <div className="otp-boxes-container">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <input
+                    key={index}
+                    id={`signup-otp-box-${index}`}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="\d*"
+                    maxLength={1}
+                    className="bn-auth-input otp-box-input"
+                    value={otp[index] || ""}
+                    autoFocus={index === 0}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "");
+                      if (!val) {
+                        const otpArray = otp.split("");
+                        otpArray[index] = "";
+                        setOtp(otpArray.join(""));
+                        return;
+                      }
+                      const otpArray = otp.split("");
+                      otpArray[index] = val.slice(-1);
+                      setOtp(otpArray.join(""));
+                      if (index < 5) {
+                        const nextInput = document.getElementById(`signup-otp-box-${index + 1}`);
+                        nextInput?.focus();
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Backspace") {
+                        if (!otp[index] && index > 0) {
+                          const otpArray = otp.split("");
+                          otpArray[index - 1] = "";
+                          setOtp(otpArray.join(""));
+                          const prevInput = document.getElementById(`signup-otp-box-${index - 1}`);
+                          prevInput?.focus();
+                          e.preventDefault();
+                        }
+                      }
+                    }}
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      const pastedData = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+                      setOtp(pastedData);
+                      const targetIndex = Math.min(pastedData.length, 5);
+                      const targetInput = document.getElementById(`signup-otp-box-${targetIndex}`);
+                      targetInput?.focus();
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+            {error && <div className="bn-auth-error">{error}</div>}
+            {success && <div className="bn-auth-error bn-auth-success">{success}</div>}
+            <button type="submit" className="bn-auth-submit" disabled={loading || otp.length !== 6 || otpSecondsLeft === 0}>
+              {loading ? "Verifying..." : "Verify email"}
+            </button>
+          </form>
+          <div className="bn-auth-switch">
+            <button
+              className="bn-auth-link"
+              onClick={handleResendOtp}
+              disabled={resendSecondsLeft > 0 || loading}
+              style={{ opacity: resendSecondsLeft > 0 ? 0.5 : 1, cursor: resendSecondsLeft > 0 ? "default" : "pointer" }}
+            >
+              {resendSecondsLeft > 0 ? `Resend OTP in ${formatTime(resendSecondsLeft)}` : "Resend OTP"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bn-auth" data-auth-theme={darkMode ? "dark" : "light"}>
@@ -214,10 +394,7 @@ export function Login({ onLogin }) {
         </button>
 
         <div className="bn-auth-card">
-          {/* <div className="bn-auth-card-brand">
-            <img src={logo} alt="Book Nook logo" />
-            <span>Book Nook</span>
-          </div> */}<br></br>
+          <br></br>
           <h2>{isRegister ? "Create an account" : "Welcome back"}</h2>
           <p className="bn-auth-sub">
             {isRegister
