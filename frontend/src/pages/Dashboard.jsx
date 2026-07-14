@@ -172,7 +172,7 @@ function Laurel({ size = 40, className, style }) {
         <div className="latest-readings-scroller-box">
           <div className="feed-title-header">
             <BookOpen size={18} />
-            <h3>Your Latest Reading Logs</h3>
+            <h3>Your Latest Reading</h3>
           </div>
           <div className="history-scroll-viewport">
             {stats.latestReadings && stats.latestReadings.filter((log) => log.status !== "rejected").length > 0 ? (
