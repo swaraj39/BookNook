@@ -72,6 +72,7 @@ const CATALOG_PAGE_SIZE = 20;
 // History so paging through those lists never triggers another API call.
 const LIST_FETCH_SIZE = 1000;
 const LIST_PAGE_SIZE = 20;
+const DASHBOARD_CACHE_TTL = 30000; // 30 seconds
 function paginateList(list, pageIndex, pageSize = LIST_PAGE_SIZE) {
   const totalElements = list.length;
   const totalPages = Math.max(1, Math.ceil(totalElements / pageSize));
@@ -102,42 +103,6 @@ function matchesCapsule(book, capsule) {
     default:
       return true;
   }
-}
-function DashboardLoader() {
-  const messages = [
-  { text: "Welcome back", icon: "👋" },
-  { text: "Preparing your dashboard", icon: "⚙️" },
-  { text: "Gathering your reading stats", icon: "📊" },
-  { text: "Loading your latest activity", icon: "📚" },
-  { text: "Syncing your bookshelf", icon: "🗂️" },
-  { text: "Calculating your reading progress", icon: "📈" },
-  { text: "Curating today's picks", icon: "✨" },
-  { text: "Almost ready", icon: "⏳" },
-  { text: "Putting the final touches", icon: "🧩" },
-  { text: "Good things take a moment", icon: "🌱" },
-  { text: "Thanks for your patience", icon: "🙏" },
-  { text: "Just a few seconds more", icon: "⏱️" }
-];
-  const [index, setIndex] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => {
-      setIndex((i) => (i + 1) % messages.length);
-    }, 2000);
-    return () => clearInterval(id);
-  }, []);
-  return (
-    <div className="dashboard-loader">
-      <div className="dashboard-loader-spinner-wrap">
-        <div className="dashboard-loader-spinner" />
-        <span className="dashboard-loader-emoji">{messages[index].icon}</span>
-      </div>
-      <p key={index} className="dashboard-loader-text">
-        {messages[index].text}
-      </p>
-      {
-}
-    </div>
-  );
 }
 function HomePage({ stats, dailyThought, navigateTo, setFilters, setBookModal }) {
   return (
@@ -291,6 +256,7 @@ export default function App() {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
   const navRef = useRef(null);
+  const dashboardLastFetchedRef = useRef(0);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const [allBooks, setAllBooks] = useState([]);
@@ -401,8 +367,9 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
+      fetch("https://booknook-74lk.onrender.com/api/quote/today")
       // fetch("https://booknook-gfb8.onrender.com/api/quote/today")
-      fetch(`http://localhost:8080/api/quote/today`)
+      // fetch(`http://localhost:8080/api/quote/today`)
         .then((response) => response.ok ? response.json() : null)
         .then((quote) => {
           if (quote) setDailyThought(quote);
@@ -450,7 +417,12 @@ export default function App() {
         if (!cancelled) setPageLoading(view);
         switch (view) {
           case "dashboard": {
+            if (stats && Date.now() - dashboardLastFetchedRef.current < DASHBOARD_CACHE_TTL) {
+              if (!cancelled) setPageLoading(null);
+              break;
+            }
             const data = await api.dashboard();
+            dashboardLastFetchedRef.current = Date.now();
             if (!cancelled) setStats(data);
             break;
           }
@@ -553,7 +525,8 @@ export default function App() {
     setShowProfileDropdown(false);
     try {
       // await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
-      await fetch("http://localhost:8080/api/auth/logout", {
+      await fetch("https://booknook-74lk.onrender.com/api/auth/logout", {
+      // await fetch("http://localhost:8080/api/auth/logout", {
         method: "POST",
         credentials: "include",
       });
@@ -692,6 +665,9 @@ function loadHistory(page) {
 function changeBookHistoryPage(page) {
   setBookHistoryPageIndex(page);
 }
+function bustDashboardCache() {
+  dashboardLastFetchedRef.current = 0;
+}
 async function openDetails(book) {
   setDetailsLoading(true);
   try {
@@ -710,6 +686,7 @@ async function saveBook(payload) {
     else await api.createBook(payload);
     setBookModal(null);
     notify(bookModal?.id ? "Book updated." : "Book added.");
+    bustDashboardCache();
     await reloadCurrentView();
   } catch (error) {
     notify(error.message, "error");
@@ -720,6 +697,7 @@ async function deleteBook(id) {
     try {
       await api.deleteBook(id);
       notify("Book deleted.");
+      bustDashboardCache();
       await reloadCurrentView();
     } catch (error) {
       notify(error.message, "error");
@@ -732,6 +710,7 @@ async function sendRequest(payload) {
     await api.requestBook(payload);
     setRequestModal(null);
       notify("Borrow request sent.");
+      bustDashboardCache();
       await reloadCurrentView();
   } catch (error) {
     notify(error.message, "error");
@@ -741,6 +720,7 @@ async function approve(id) {
   try {
     await api.approve(id);
       notify("Request approved and loan started.");
+      bustDashboardCache();
       await reloadCurrentView();
   } catch (error) {
     notify(error.message, "error");
@@ -751,6 +731,7 @@ async function reject(id) {
     try {
       await api.reject(id);
       notify("Request rejected.");
+      bustDashboardCache();
       await reloadCurrentView();
     } catch (error) {
       notify(error.message, "error");
@@ -775,6 +756,7 @@ async function returnBook(id, bookTitle) {
     try {
       await api.returnBook(id);
       notify("Book marked as returned.");
+      bustDashboardCache();
       await reloadCurrentView();
     } catch (error) {
       notify(error.message, "error");
@@ -799,6 +781,7 @@ async function importBooks(file) {
     if (skipped) parts.push(`${skipped} skipped`);
     if (failed) parts.push(`${failed} failed`);
     notify(parts.join(", ") + ".", failed ? "error" : "success");
+    bustDashboardCache();
     await reloadCurrentView();
   } catch (error) {
     notify(error.message, "error");
@@ -993,7 +976,7 @@ return (
       ))}
     </nav>
 
-    {pageLoading && <PageLoader isDashboard={pageLoading === "dashboard"} />}
+    {pageLoading && <PageLoader />}
     {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
     {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
     <ConfirmDialog message={confirm?.message} onConfirm={() => resolveConfirm(true)} onCancel={() => resolveConfirm(false)} />
