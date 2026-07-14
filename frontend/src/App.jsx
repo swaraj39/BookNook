@@ -355,7 +355,7 @@ export default function App() {
   // Same idea as booksPage above: the full list is fetched once per view/
   // refresh, and paging just re-slices it in memory - no extra API calls.
   const requestsPage = useMemo(
-    () => paginateList(allRequests, requestsPageIndex),
+    () => paginateList(allRequests, requestsPageIndex, LIST_FETCH_SIZE),
     [allRequests, requestsPageIndex]
   );
   const myBooksPage = useMemo(
@@ -486,6 +486,8 @@ export default function App() {
             break;
           }
         }
+      } catch (error) {
+        if (!cancelled) notify(error?.message || "Something went wrong loading this page.", "error");
       } finally {
         if (!cancelled) setPageLoading(null);
       }
@@ -760,10 +762,10 @@ async function cancelRequest(id, bookTitle) {
     try {
       await api.cancelRequest(id);
       notify("Request cancelled.");
-      await reloadCurrentView();
     } catch (error) {
-      notify(error.message, "error");
+      console.error("Cancel request failed:", error);
     }
+    await reloadCurrentView();
   });
 }
 
