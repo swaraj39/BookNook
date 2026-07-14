@@ -69,7 +69,7 @@ export class AuthService {
       data: { email, otpHash, expiresAt },
     });
 
-    return otp; // caller sends this via Workato webhook
+    return otp; // caller sends this via email
   }
 
   static async verifyOtp(email: string, otp: string) {

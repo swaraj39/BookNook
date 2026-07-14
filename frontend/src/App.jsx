@@ -297,8 +297,45 @@ export default function App() {
   // Capsule filtering happens entirely in memory against the last fetched
   // catalogBooks list - this never triggers a network request.
   const filteredCatalogBooks = useMemo(
-    () => catalogBooks.filter((book) => matchesCapsule(book, filters.availability)),
-    [catalogBooks, filters.availability]
+    () => {
+      let books = catalogBooks;
+
+      // Capsule filter
+      books = books.filter((book) => matchesCapsule(book, filters.availability));
+
+      // Text search (title, author, owner, description)
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        books = books.filter((book) =>
+          (book.title && book.title.toLowerCase().includes(term)) ||
+          (book.author && book.author.toLowerCase().includes(term)) ||
+          (book.owner?.fullName && book.owner.fullName.toLowerCase().includes(term)) ||
+          (book.description && book.description.toLowerCase().includes(term))
+        );
+      }
+
+      // Genre filter
+      if (filters.genreId) {
+        books = books.filter((book) => (book.genreId || book.genre?.id) === filters.genreId);
+      }
+
+      // Sort
+      const sorted = [...books];
+      if (filters.sort === "newest") {
+        sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      } else if (filters.sort === "due") {
+        sorted.sort((a, b) => {
+          const aDue = a.dueAt ? new Date(a.dueAt).getTime() : Infinity;
+          const bDue = b.dueAt ? new Date(b.dueAt).getTime() : Infinity;
+          return aDue - bDue;
+        });
+      } else {
+        sorted.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+      }
+
+      return sorted;
+    },
+    [catalogBooks, filters.availability, searchTerm, filters.genreId, filters.sort]
   );
   // Client-side pagination over the filtered list, shaped the same way the
   // old server-paginated response used to look so <Catalog/> doesn't need
@@ -403,7 +440,7 @@ export default function App() {
     if (isAuthenticated && view === "catalog") {
       loadCatalogFromApi();
     }
-  }, [isAuthenticated, view, filters.search, filters.genreId, filters.sort]);
+  }, [isAuthenticated, view]);
   useEffect(() => {
     if (!isAuthenticated) return;
     if (view === "catalog" || view === "home" || view === "detail") return;
@@ -546,15 +583,7 @@ async function loadBootstrap() {
 async function loadCatalogFromApi() {
   try {
     setCatalogLoading(true);
-    const params = {
-      search: filters.search,
-      sort: filters.sort,
-      availability: "all",
-      page: 0,
-      size: CATALOG_FETCH_SIZE
-    };
-    if (filters.genreId) params.genreId = filters.genreId;
-    const result = await api.books(params);
+    const result = await api.books({ availability: "all", page: 0, size: CATALOG_FETCH_SIZE });
     setCatalogBooks(result.content || []);
   } catch (error) {
     notify(error.message, "error");
@@ -726,6 +755,18 @@ async function reject(id) {
     notify(error.message, "error");
   }
 }
+async function cancelRequest(id, bookTitle) {
+  askConfirm(`Cancel your request for "${bookTitle}"?`, async () => {
+    try {
+      await api.cancelRequest(id);
+      notify("Request cancelled.");
+      await reloadCurrentView();
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  });
+}
+
 async function returnBook(id, bookTitle) {
   askConfirm(`Return "${bookTitle}"? This will mark the book as returned.`, async () => {
     try {
@@ -914,7 +955,7 @@ return (
           onRefresh={loadCatalogFromApi}
         />
       )}
-      {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onRefresh={loadRequestsFromApi} navigateTo={navigateTo} />}
+      {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onCancelRequest={cancelRequest} onRefresh={loadRequestsFromApi} navigateTo={navigateTo} />}
       {(view === "myLibrary" || view === "myBooks" || view === "borrowed") && (
         <MyLibrary
           myBooksPage={myBooksPage}

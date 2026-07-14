@@ -234,6 +234,19 @@ export class AppController {
       return AppController.handleError(res, error);
     }
   }
+  static async cancelRequest(req: AuthRequest, res: Response) {
+    try {
+      const result = await WorkflowService.cancel(
+        req.user.id,
+        paramString(req.params.id),
+        req.user.role === "ADMIN"
+      );
+      return res.json(result);
+    } catch (error: any) {
+      return AppController.handleError(res, error);
+    }
+  }
+
   static async returnBook(req: AuthRequest, res: Response) {
     try {
       const result = await WorkflowService.returnBook(

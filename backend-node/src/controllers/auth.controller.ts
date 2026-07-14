@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
-import { callWorkatoSignupWebhook, callWorkatoForgotPasswordWebhook } from "../utils/workato";
+import { sendSignupEmail, sendOtpEmail } from "../utils/mail";
 import { getSafeErrorMessage, getStatusCode, isDatabaseError } from "../utils/app-error";
 import { logError } from "../middleware/error";
 
@@ -19,15 +19,17 @@ export class AuthController {
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
-      // Don't let webhook failures stop registration
+      let emailWarning = null;
       try {
-        await callWorkatoSignupWebhook(result.user);
+        await sendSignupEmail(result.user);
       } catch (err) {
-        console.error("Signup webhook failed:", err);
+        console.error("Signup email failed:", err);
+        emailWarning = "Account created but welcome email could not be sent.";
       }
 
       res.status(201).json({
         user: result.user,
+        ...(emailWarning ? { warning: emailWarning } : {}),
       });
     } catch (error: any) {
       logError(error, req);
@@ -81,7 +83,11 @@ export class AuthController {
       if (!email) { res.status(400).json({ message: "Email is required." }); return; }
       const otp = await AuthService.requestOtp(email);
       if (otp) {
-        await callWorkatoForgotPasswordWebhook(email, otp);
+        try {
+          await sendOtpEmail(email, otp);
+        } catch (err) {
+          console.error("OTP email failed:", err);
+        }
       }
       // Always return 200 to avoid leaking whether the email exists
       res.json({ message: "If this email exists, an OTP has been sent." });
