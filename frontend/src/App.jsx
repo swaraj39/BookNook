@@ -718,16 +718,13 @@ async function approve(id) {
   }
 }
 async function reject(id) {
-  askConfirm("Are you sure you want to reject this request?", async () => {
-    try {
-      await api.reject(id);
-      notify("Request rejected.");
-      await reloadCurrentView();
-    } catch (error) {
-      notify(error.message, "error");
-    }
-  });
-  return;
+  try {
+    await api.reject(id);
+    notify("Request rejected.");
+    await reloadCurrentView();
+  } catch (error) {
+    notify(error.message, "error");
+  }
 }
 async function returnBook(id, bookTitle) {
   askConfirm(`Return "${bookTitle}"? This will mark the book as returned.`, async () => {

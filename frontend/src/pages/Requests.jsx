@@ -110,7 +110,7 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails,
   const [confirmAction, setConfirmAction] = useState(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [bottomSheetRow, setBottomSheetRow] = useState(null);
-  const [viewAllSection, setViewAllSection] = useState(null);
+  const [viewAllSectionKey, setViewAllSectionKey] = useState(null);
   const [viewAllExpandedRowId, setViewAllExpandedRowId] = useState(null);
 
   const allItems = page.content || [];
@@ -139,7 +139,7 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails,
   function switchTab(key) {
     setActiveTab(key);
     setExpandedRowId(null);
-    setViewAllSection(null);
+    setViewAllSectionKey(null);
   }
 
   function toggleExpand(rowId) {
@@ -286,7 +286,7 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails,
           sectionKey={sectionKey}
           title={sectionLabel}
           showViewAll={totalCount > MAX_VISIBLE}
-          onViewAll={() => setViewAllSection({ title: sectionLabel, items: sectionItems, sectionKey })}
+          onViewAll={() => setViewAllSectionKey(sectionKey)}
         />
         <div className="table-responsive-wrapper">
           <table className="request-table">
@@ -356,7 +356,7 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails,
           title={sectionLabel}
           isMobile
           showViewAll={totalCount > MAX_VISIBLE}
-          onViewAll={() => setViewAllSection({ title: sectionLabel, items: sectionItems, sectionKey })}
+          onViewAll={() => setViewAllSectionKey(sectionKey)}
         />
         <div className="request-cards-stack">
           {displayItems.map((row) => (
@@ -500,10 +500,10 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails,
   }
 
   useEffect(() => {
-    if (viewAllSection) {
+    if (viewAllSectionKey) {
       document.body.style.overflow = "hidden";
       window.history.pushState({ viewAllModal: true }, "");
-      const onPopState = () => setViewAllSection(null);
+      const onPopState = () => setViewAllSectionKey(null);
       window.addEventListener("popstate", onPopState);
       return () => {
         document.body.style.overflow = "";
@@ -512,9 +512,11 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails,
     } else {
       document.body.style.overflow = "";
     }
-  }, [viewAllSection]);
+  }, [viewAllSectionKey]);
 
   const hasAnyContent = sections.section1.length > 0 || sections.section2.length > 0 || sections.section3.length > 0;
+  const viewAllItems = viewAllSectionKey ? sections[viewAllSectionKey] || [] : [];
+  const viewAllLabel = viewAllSectionKey ? (SECTION_LABELS[activeTab]?.[viewAllSectionKey] || "") : "";
 
   return (
     <div className="request-container">
@@ -600,17 +602,21 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails,
         </div>
       )}
 
-      {viewAllSection && (
-        <div className="modal-backdrop open" onClick={() => setViewAllSection(null)}>
+      {viewAllSectionKey && (
+        <div className="modal-backdrop open" onClick={() => setViewAllSectionKey(null)}>
           <div className="modal view-all-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
-              <h3>{viewAllSection.title} ({viewAllSection.items.length})</h3>
-              <button className="btn icon-only" onClick={() => setViewAllSection(null)}>
+              <h3>{viewAllLabel} ({viewAllItems.length})</h3>
+              <button className="btn icon-only" onClick={() => setViewAllSectionKey(null)}>
                 <XCircle size={20} />
               </button>
             </div>
             <div className="view-all-body">
-              {renderViewAllTable(viewAllSection.items, viewAllSection.sectionKey)}
+              {viewAllItems.length > 0 ? renderViewAllTable(viewAllItems, viewAllSectionKey) : (
+                <div style={{ padding: 48, textAlign: "center" }}>
+                  <EmptyState icon="ClipboardCheck" title="All caught up!" message="No more pending requests in this section." />
+                </div>
+              )}
             </div>
           </div>
         </div>
