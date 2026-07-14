@@ -24,6 +24,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.post("/api/auth/register", AuthController.register);
 app.post("/api/auth/login", AuthController.login);
+app.post("/api/auth/check-pending", AuthController.checkPending);
 app.post("/api/auth/logout", AuthController.logout);
 app.post("/api/auth/signup/verify-otp", AuthController.signupVerifyOtp);
 app.post("/api/auth/signup/resend-otp", AuthController.signupResendOtp);

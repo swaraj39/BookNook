@@ -3602,6 +3602,7 @@ th:last-child {
   padding: 0;
 }
 .bn-auth-link:hover { text-decoration: underline; }
+.bn-auth-link-sep { color: var(--auth-gold); margin: 0 8px; opacity: 0.4; }
 .bn-auth-error {
   background: rgba(212, 84, 65, 0.1);
   border: 1px solid rgba(212, 84, 65, 0.25);

@@ -44,6 +44,20 @@ model User {
   @@map("users")
 }
 
+model PendingUser {
+  id        String   @id @default(uuid())
+  fullName  String   @map("full_name") @db.VarChar(120)
+  email     String   @unique @db.VarChar(180)
+  team      String?  @db.VarChar(120)
+  role      String   @default("member") @db.VarChar(40)
+  password  String   @db.VarChar(255)
+  otpHash   String   @map("otp_hash") @db.VarChar(255)
+  expiresAt DateTime @map("expires_at") @db.Timestamp(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@map("pending_users")
+}
+
 model PasswordResetToken {
   id        String   @id @default(uuid())
   email     String   @db.VarChar(180)

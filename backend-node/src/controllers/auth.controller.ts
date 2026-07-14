@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
-import { sendSignupEmail, sendOtpEmail, sendSignupVerificationEmail } from "../utils/mail";
+import { callWorkatoSignupWebhook, callWorkatoForgotPasswordWebhook, callWorkatoSignupVerificationWebhook } from "../utils/workato";
 import { getSafeErrorMessage, getStatusCode, isDatabaseError } from "../utils/app-error";
 import { logError } from "../middleware/error";
 
@@ -9,18 +9,15 @@ export class AuthController {
     try {
       const result = await AuthService.register(req.body);
 
-      // Send OTP email (don't block registration response on email failure)
-      let emailWarning = null;
+      // Send OTP email via Workato (don't block registration response on email failure)
       try {
-        await sendSignupVerificationEmail(result.email, result.otp);
+        await callWorkatoSignupVerificationWebhook(result.email, result.otp);
       } catch (err) {
-        console.error("Signup verification email failed:", err);
-        emailWarning = "Account created but verification email could not be sent.";
+        console.error("Signup verification Workato webhook failed:", err);
       }
 
       res.status(201).json({
         email: result.email,
-        ...(emailWarning ? { warning: emailWarning } : {}),
       });
     } catch (error: any) {
       logError(error, req);
@@ -58,9 +55,9 @@ export class AuthController {
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
-      // Send welcome email after successful verification
-      try { await sendSignupEmail(result.user); } catch (err) {
-        console.error("Welcome email failed:", err);
+      // Send welcome email via Workato after successful verification
+      try { await callWorkatoSignupWebhook(result.user); } catch (err) {
+        console.error("Welcome Workato webhook failed:", err);
       }
 
       res.json({ user: result.user });
@@ -81,9 +78,9 @@ export class AuthController {
       const otp = await AuthService.resendSignupOtp(email);
 
       try {
-        await sendSignupVerificationEmail(email, otp);
+        await callWorkatoSignupVerificationWebhook(email, otp);
       } catch (err) {
-        console.error("Resend OTP email failed:", err);
+        console.error("Resend OTP Workato webhook failed:", err);
       }
 
       res.json({ message: "A new OTP has been sent to your email." });
@@ -95,6 +92,20 @@ export class AuthController {
     }
   }
 
+
+  static async checkPending(req: Request, res: Response) {
+    try {
+      const { email } = req.body;
+      if (!email) { res.status(400).json({ message: "Email is required." }); return; }
+      const result = await AuthService.checkPending(email);
+      res.json(result);
+    } catch (error: any) {
+      logError(error, req);
+      res.status(isDatabaseError(error) ? getStatusCode(error) : 400).json({
+        message: isDatabaseError(error) ? getSafeErrorMessage(error) : error.message,
+      });
+    }
+  }
 
   static async login(req: Request, res: Response) {
     try {
@@ -130,9 +141,9 @@ export class AuthController {
       const otp = await AuthService.requestOtp(email);
       if (otp) {
         try {
-          await sendOtpEmail(email, otp);
+          await callWorkatoForgotPasswordWebhook(email, otp);
         } catch (err) {
-          console.error("OTP email failed:", err);
+          console.error("Forgot password Workato webhook failed:", err);
         }
       }
       // Always return 200 to avoid leaking whether the email exists
