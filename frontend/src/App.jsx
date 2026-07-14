@@ -758,6 +758,18 @@ async function reject(id) {
   });
   return;
 }
+async function cancelRequest(id, bookTitle) {
+  askConfirm(`Cancel your request for "${bookTitle}"?`, async () => {
+    try {
+      await api.cancelRequest(id);
+      notify("Request cancelled.");
+      await reloadCurrentView();
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  });
+}
+
 async function returnBook(id, bookTitle) {
   askConfirm(`Return "${bookTitle}"? This will mark the book as returned.`, async () => {
     try {
@@ -946,7 +958,7 @@ return (
           onRefresh={loadCatalogFromApi}
         />
       )}
-      {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onRefresh={loadRequestsFromApi} navigateTo={navigateTo} />}
+      {view === "requests" && <Requests page={requestsPage} onPageChange={loadRequests} me={me} approve={approve} reject={reject} openDetails={openDetails} returnBook={returnBook} onCancelRequest={cancelRequest} onRefresh={loadRequestsFromApi} navigateTo={navigateTo} />}
       {(view === "myLibrary" || view === "myBooks" || view === "borrowed") && (
         <MyLibrary
           myBooksPage={myBooksPage}

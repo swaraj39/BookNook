@@ -48,6 +48,7 @@ app.get("/api/borrow-requests", authenticate, AppController.myRequests);
 app.post("/api/borrow-requests", authenticate, AppController.requestBook);
 app.post("/api/borrow-requests/:id/approve", authenticate, AppController.approveRequest);
 app.post("/api/borrow-requests/:id/reject", authenticate, AppController.rejectRequest);
+app.post("/api/borrow-requests/:id/cancel", authenticate, AppController.cancelRequest);
 app.get("/api/loans/borrowed", authenticate, AppController.borrowed);
 app.get("/api/loans/history", authenticate, AppController.loanHistory);
 app.post("/api/loans/:id/return", authenticate, AppController.returnBook);
