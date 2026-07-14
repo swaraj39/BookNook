@@ -25,6 +25,8 @@ app.use(express.json());
 app.post("/api/auth/register", AuthController.register);
 app.post("/api/auth/login", AuthController.login);
 app.post("/api/auth/logout", AuthController.logout);
+app.post("/api/auth/signup/verify-otp", AuthController.signupVerifyOtp);
+app.post("/api/auth/signup/resend-otp", AuthController.signupResendOtp);
 app.post("/api/auth/forgot-password/request", AuthController.forgotPasswordRequest);
 app.post("/api/auth/forgot-password/verify-otp", AuthController.forgotPasswordVerifyOtp);
 app.post("/api/auth/forgot-password/reset", AuthController.forgotPasswordReset);

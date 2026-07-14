@@ -138,6 +138,57 @@ export async function sendSignupEmail(user: { fullName: string; email: string })
   }
 }
 
+export async function sendSignupVerificationEmail(email: string, otp: string) {
+  const tr = getTransporter();
+  if (!tr) return;
+
+  const fromAddr = `"BookNook" <${process.env.MAIL_USERNAME}>`;
+  const expiryMinutes = parseInt(process.env.SIGNUP_OTP_EXPIRY_MINUTES || "5", 10);
+
+  try {
+    const info = await tr.sendMail({
+      from: fromAddr,
+      to: email,
+      subject: "Verify your BookNook account",
+      html: wrapBody(`
+          <tr>
+            <td align="center" style="padding:45px 35px 30px;">
+              <div style="color:#999999; font-size:12px; letter-spacing:2px; text-transform:uppercase;">
+                Email Verification
+              </div>
+
+              <h1 style="margin:18px 0 15px; color:#3a332f; font-size:34px; line-height:1.25; font-weight:normal;">
+                Verify your email
+              </h1>
+
+              <p style="margin:0 auto; color:#555555; font-size:14px; line-height:1.7; max-width:430px;">
+                Thanks for registering with BookNook. Use the OTP below to verify your email address and activate your account.
+              </p>
+
+              <div style="margin:30px 0;">
+                <span style="font-size:36px; letter-spacing:8px; font-weight:bold; color:#3a332f; background:#f6f4f1; padding:16px 32px; border-radius:6px; display:inline-block;">
+                  ${otp}
+                </span>
+              </div>
+
+              <p style="margin:0 auto; color:#555555; font-size:13px; line-height:1.7; max-width:430px;">
+                This OTP is valid for <strong>${expiryMinutes} minutes</strong>. If you did not create an account, you can safely ignore this email.
+              </p>
+
+              <p style="margin:35px 0 0; color:#555555; font-size:13px; line-height:1.6;">
+                Thanks,<br>
+                <span style="font-size:18px; color:#3a332f;">The BookNook Team</span>
+              </p>
+            </td>
+          </tr>`),
+    });
+    console.log("Verification email sent:", info.messageId);
+  } catch (error: any) {
+    console.error("Failed to send verification email:", error);
+    throw error;
+  }
+}
+
 export async function sendOtpEmail(email: string, otp: string) {
   const tr = getTransporter();
   if (!tr) return;

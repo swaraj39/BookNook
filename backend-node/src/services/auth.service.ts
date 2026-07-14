@@ -4,6 +4,14 @@ import prisma from "../config/prisma";
 import { generateToken } from "../utils/jwt";
 import { StatsCacheService } from "./stats-cache.service";
 
+const SIGNUP_OTP_LENGTH = parseInt(process.env.SIGNUP_OTP_LENGTH || "6", 10);
+const SIGNUP_OTP_EXPIRY_MINUTES = parseInt(process.env.SIGNUP_OTP_EXPIRY_MINUTES || "5", 10);
+
+function generateOtp(length: number): string {
+  const max = Math.pow(10, length);
+  return String(Math.floor(Math.random() * max)).padStart(length, "0");
+}
+
 export class AuthService {
   static async register(data: any) {
     if (!data.email?.endsWith("@bluealtair.com")) {
@@ -21,13 +29,14 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(data.password, 10);
     const role = data.email.includes("gaurav.choudhary") ? "ADMIN" : "USER";
 
-    const user = await prisma.user.create({
+    await prisma.user.create({
       data: {
         fullName: data.fullName,
         email: data.email,
         password: hashedPassword,
         team: data.team,
         role: role,
+        isVerified: false,
         status: "active",
       },
     });
@@ -35,8 +44,67 @@ export class AuthService {
     // Sync systemic cache row
     await StatsCacheService.adjustFields({ totalUsers: 1 });
 
+    // Generate and store signup OTP
+    const otp = generateOtp(SIGNUP_OTP_LENGTH);
+    const otpHash = await bcrypt.hash(otp, 10);
+    const expiresAt = new Date(Date.now() + SIGNUP_OTP_EXPIRY_MINUTES * 60 * 1000);
+
+    await prisma.emailVerificationToken.create({
+      data: { email: data.email, otpHash, expiresAt },
+    });
+
+    return { email: data.email, otp }; // caller sends this via email
+  }
+
+  static async verifySignupOtp(email: string, otp: string) {
+    const record = await prisma.emailVerificationToken.findFirst({
+      where: { email, used: false },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!record) throw new Error("Invalid or expired OTP.");
+    if (record.expiresAt < new Date()) {
+      await prisma.emailVerificationToken.delete({ where: { id: record.id } });
+      throw new Error("OTP has expired. Please request a new one.");
+    }
+
+    const isValid = await bcrypt.compare(otp, record.otpHash);
+    if (!isValid) throw new Error("Invalid OTP. Please check and try again.");
+
+    // Mark user as verified and consume the token in a transaction
+    const user = await prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { email },
+        data: { isVerified: true },
+      });
+      await tx.emailVerificationToken.update({
+        where: { id: record.id },
+        data: { used: true },
+      });
+      return updated;
+    });
+
     const token = generateToken({ email: user.email, id: user.id });
     return { token, user: this.mapUser(user) };
+  }
+
+  static async resendSignupOtp(email: string) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) throw new Error("No account found with this email.");
+    if (user.isVerified) throw new Error("This account is already verified.");
+
+    // Invalidate old tokens
+    await prisma.emailVerificationToken.deleteMany({ where: { email } });
+
+    const otp = generateOtp(SIGNUP_OTP_LENGTH);
+    const otpHash = await bcrypt.hash(otp, 10);
+    const expiresAt = new Date(Date.now() + SIGNUP_OTP_EXPIRY_MINUTES * 60 * 1000);
+
+    await prisma.emailVerificationToken.create({
+      data: { email, otpHash, expiresAt },
+    });
+
+    return otp;
   }
 
   static async login(data: any) {
@@ -46,6 +114,10 @@ export class AuthService {
 
     if (!user || !user.password) {
       throw new Error("Invalid email or password");
+    }
+
+    if (!user.isVerified) {
+      throw new Error("Please verify your email first. Check your inbox for the OTP.");
     }
 
     const isValid = await bcrypt.compare(data.password, user.password);
