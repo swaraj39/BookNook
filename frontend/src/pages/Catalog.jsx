@@ -55,7 +55,7 @@ export function Catalog({
       </div> */}
         <section className="topbar">
           <div className="page-title">
-            <h2 className="hero-gradient">Browse Books</h2>
+            <h2 className="hero-gradient">Find Your Next Read</h2>
             <p>Discover books shared by the community. Search, filter, and request your next read.</p>
           </div>
         </section>
