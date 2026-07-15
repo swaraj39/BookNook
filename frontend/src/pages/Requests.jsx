@@ -234,9 +234,9 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails,
             )}
             {isLending && isActive && (
               <>
-                <button className="btn drawer-btn btn-amber" onClick={() => handleSendReminder(row)}>
+                {/* <button className="btn drawer-btn btn-amber" onClick={() => handleSendReminder(row)}>
                   <Bell size={16} /> Send Reminder
-                </button>
+                </button> */}
                 <button className="btn drawer-btn btn-ghost" onClick={() => openDetails(row.book)}>
                   <Eye size={16} /> View Details
                 </button>
@@ -521,21 +521,19 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails,
 
   return (
     <div className="request-container">
-      <div className="request-hero-card">
-        <div className="hero-card-top">
-          <div className="hero-card-title">
-            <h2>Your Reading Hub</h2>
-            <p>Track your incoming loans, manage your active reads, and request your next favorite book.</p>
-          </div>
-          <div className="hero-card-actions">
+      <section className="topbar">
+        <div className="page-title">
+          <h2 className="hero-gradient">Borrow Requests</h2>
+          <p>Approve or reject lending requests from others and track the books you've requested.</p>
+        </div>
+        <div className="hero-card-actions">
             <RefreshButton onRefresh={() => onRefresh(page.page)} />
             <button className="btn primary" onClick={() => navigateTo("catalog")}>
               <Plus size={17} /> Request a Book
             </button>
           </div>
-        </div>
-      </div>
-      <div className="request-tabs">
+        </section>
+        <div className="request-tabs">
         {TABS.map((tab) => (
           <button
             key={tab.key}

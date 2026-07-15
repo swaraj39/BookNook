@@ -39,7 +39,7 @@ export function MyLibrary({ myBooksPage, onMyBooksPageChange, borrowedPage, onBo
     <>
       <section className="topbar">
         <div className="page-title">
-          <h2 className="hero-gradient">My Shelf</h2>
+          <h2 className="hero-gradient">{tab === "shelf" ? "My Shelf" : "Currently Reading"}</h2>
           <p>{tab === "shelf" ? "Manage the books you've shared with the community." : "Track your incoming loans and manage your active reads."}</p>
         </div>
         <div className="catalog-header-right-row">
