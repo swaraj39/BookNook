@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
-import { sendSignupEmail, sendOtpEmail, sendSignupVerificationEmail } from "../utils/mail";
+import { sendOtpEmail } from "../utils/mail";
+import { callSignupVerificationWebhook, callWelcomeWebhook } from "../utils/webhook";
 import { getSafeErrorMessage, getStatusCode, isDatabaseError } from "../utils/app-error";
 import { logError } from "../middleware/error";
 
@@ -9,18 +10,17 @@ export class AuthController {
     try {
       const result = await AuthService.register(req.body);
 
-      // Send OTP email (don't block registration response on email failure)
-      let emailWarning = null;
-      try {
-        await sendSignupVerificationEmail(result.email, result.otp);
-      } catch (err) {
-        console.error("Signup verification email failed:", err);
-        emailWarning = "Account created but verification email could not be sent.";
-      }
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+      const magicLinkUrl = `${frontendUrl}/verify?token=${result.magicLinkToken}`;
+
+      await callSignupVerificationWebhook({
+        email: result.email,
+        otp: result.otp,
+        magic_link: magicLinkUrl,
+      });
 
       res.status(201).json({
         email: result.email,
-        ...(emailWarning ? { warning: emailWarning } : {}),
       });
     } catch (error: any) {
       logError(error, req);
@@ -58,10 +58,10 @@ export class AuthController {
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
-      // Send welcome email after successful verification
-      try { await sendSignupEmail(result.user); } catch (err) {
-        console.error("Welcome email failed:", err);
-      }
+      await callWelcomeWebhook({
+        email: result.user.email,
+        fullName: result.user.fullName,
+      });
 
       res.json({ user: result.user });
     } catch (error: any) {
@@ -78,19 +78,54 @@ export class AuthController {
       const { email } = req.body;
       if (!email) { res.status(400).json({ message: "Email is required." }); return; }
 
-      const otp = await AuthService.resendSignupOtp(email);
+      const result = await AuthService.resendSignupOtp(email);
 
-      try {
-        await sendSignupVerificationEmail(email, otp);
-      } catch (err) {
-        console.error("Resend OTP email failed:", err);
-      }
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+      const magicLinkUrl = `${frontendUrl}/verify?token=${result.magicLinkToken}`;
+
+      await callSignupVerificationWebhook({
+        email,
+        otp: result.otp,
+        magic_link: magicLinkUrl,
+      });
 
       res.json({ message: "A new OTP has been sent to your email." });
     } catch (error: any) {
       logError(error, req);
       res.status(isDatabaseError(error) ? getStatusCode(error) : 400).json({
         message: isDatabaseError(error) ? getSafeErrorMessage(error) : error.message || "Failed to resend OTP.",
+      });
+    }
+  }
+
+
+  static async signupVerifyMagicLink(req: Request, res: Response) {
+    try {
+      const { token } = req.body;
+      if (!token) { res.status(400).json({ message: "Verification token is required." }); return; }
+
+      const result = await AuthService.verifyMagicLink(token);
+
+      const isProd = process.env.NODE_ENV === "production";
+
+      res.cookie("token", result.token, {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: isProd ? "none" : "lax",
+        path: "/",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      await callWelcomeWebhook({
+        email: result.user.email,
+        fullName: result.user.fullName,
+      });
+
+      res.json({ user: result.user });
+    } catch (error: any) {
+      logError(error, req);
+      res.status(isDatabaseError(error) ? getStatusCode(error) : 400).json({
+        message: isDatabaseError(error) ? getSafeErrorMessage(error) : error.message || "Verification failed.",
       });
     }
   }

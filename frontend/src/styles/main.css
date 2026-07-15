@@ -5593,3 +5593,70 @@ tbody tr:hover,
   }
 }
 
+.verify-magic-link-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  background: var(--bg, #f6f4f1);
+}
+
+.verify-card {
+  background: var(--panel, #fff);
+  border: 1px solid var(--line, #e0ddd8);
+  border-radius: 12px;
+  padding: 48px 40px;
+  text-align: center;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: var(--shadow-lg, 0 4px 24px rgba(0,0,0,0.08));
+}
+
+.verify-card h2 {
+  margin: 16px 0 8px;
+  font-size: 24px;
+  color: var(--text, #3a332f);
+}
+
+.verify-card p {
+  color: var(--muted, #777);
+  font-size: 14px;
+  margin: 0;
+}
+
+.verify-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--line, #e0ddd8);
+  border-top-color: var(--accent, #00a889);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 20px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.verify-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent, #00a889);
+  color: #fff;
+  font-size: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.verify-icon-error {
+  background: #B6452F;
+}
+
+.verify-card .btn {
+  margin-top: 24px;
+}
+

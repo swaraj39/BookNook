@@ -37,7 +37,8 @@ async function request(path, options = {}) {
     path !== "/auth/login" &&
     path !== "/auth/register" &&
     path !== "/auth/signup/verify-otp" &&
-    path !== "/auth/signup/resend-otp"
+    path !== "/auth/signup/resend-otp" &&
+    path !== "/auth/signup/verify-magic-link"
   ) {
     window.dispatchEvent(new CustomEvent("auth-expired"));
   }
@@ -137,6 +138,11 @@ export const api = {
     request("/auth/signup/resend-otp", {
       method: "POST",
       body: JSON.stringify({ email }),
+    }),
+  verifyMagicLink: (token) =>
+    request("/auth/signup/verify-magic-link", {
+      method: "POST",
+      body: JSON.stringify({ token }),
     }),
   forgotPasswordRequest: (email) =>
     request("/auth/forgot-password/request", {

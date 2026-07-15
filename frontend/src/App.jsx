@@ -26,6 +26,7 @@ import { BookModal } from "./components/BookModal";
 import { RequestModal } from "./components/RequestModal";
 import { ToastContainer } from "./components/common/Toast";
 import { Login } from "./pages/Login";
+import { VerifyMagicLink } from "./pages/VerifyMagicLink";
 import { Catalog } from "./pages/Catalog";
 import { Dashboard } from "./pages/Dashboard";
 import { Requests } from "./pages/Requests";
@@ -834,6 +835,18 @@ if (authChecking) {
   return <div>Loading...</div>;
 }
 if (!isAuthenticated) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const hasVerifyToken = urlParams.has("token");
+
+  if (hasVerifyToken) {
+    return (
+      <>
+        <VerifyMagicLink onLogin={handleLogin} />
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+      </>
+    );
+  }
+
   return (
     <>
       <Login onLogin={handleLogin} />

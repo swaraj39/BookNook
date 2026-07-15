@@ -6,10 +6,15 @@ import { StatsCacheService } from "./stats-cache.service";
 
 const SIGNUP_OTP_LENGTH = parseInt(process.env.SIGNUP_OTP_LENGTH || "6", 10);
 const SIGNUP_OTP_EXPIRY_MINUTES = parseInt(process.env.SIGNUP_OTP_EXPIRY_MINUTES || "5", 10);
+const MAGIC_LINK_EXPIRY_DAYS = 7;
 
 function generateOtp(length: number): string {
   const max = Math.pow(10, length);
   return String(Math.floor(Math.random() * max)).padStart(length, "0");
+}
+
+function generateMagicLinkToken(): string {
+  return crypto.randomBytes(48).toString("hex");
 }
 
 export class AuthService {
@@ -44,16 +49,20 @@ export class AuthService {
     // Sync systemic cache row
     await StatsCacheService.adjustFields({ totalUsers: 1 });
 
-    // Generate and store signup OTP
+    // Generate and store signup OTP + magic link token
     const otp = generateOtp(SIGNUP_OTP_LENGTH);
     const otpHash = await bcrypt.hash(otp, 10);
     const expiresAt = new Date(Date.now() + SIGNUP_OTP_EXPIRY_MINUTES * 60 * 1000);
 
+    const magicLinkToken = generateMagicLinkToken();
+    const magicLinkHash = await bcrypt.hash(magicLinkToken, 10);
+    const magicLinkExpiresAt = new Date(Date.now() + MAGIC_LINK_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+
     await prisma.emailVerificationToken.create({
-      data: { email: data.email, otpHash, expiresAt },
+      data: { email: data.email, otpHash, expiresAt, magicLinkHash, magicLinkExpiresAt },
     });
 
-    return { email: data.email, otp }; // caller sends this via email
+    return { email: data.email, otp, magicLinkToken };
   }
 
   static async verifySignupOtp(email: string, otp: string) {
@@ -100,11 +109,54 @@ export class AuthService {
     const otpHash = await bcrypt.hash(otp, 10);
     const expiresAt = new Date(Date.now() + SIGNUP_OTP_EXPIRY_MINUTES * 60 * 1000);
 
+    const magicLinkToken = generateMagicLinkToken();
+    const magicLinkHash = await bcrypt.hash(magicLinkToken, 10);
+    const magicLinkExpiresAt = new Date(Date.now() + MAGIC_LINK_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+
     await prisma.emailVerificationToken.create({
-      data: { email, otpHash, expiresAt },
+      data: { email, otpHash, expiresAt, magicLinkHash, magicLinkExpiresAt },
     });
 
-    return otp;
+    return { otp, magicLinkToken };
+  }
+
+  static async verifyMagicLink(token: string) {
+    const records = await prisma.emailVerificationToken.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+
+    let matchedRecord: typeof records[0] | null = null;
+    for (const record of records) {
+      if (record.magicLinkHash && (await bcrypt.compare(token, record.magicLinkHash))) {
+        matchedRecord = record;
+        break;
+      }
+    }
+
+    if (!matchedRecord) throw new Error("Invalid or expired verification link.");
+
+    if (matchedRecord.used) {
+      throw new Error("Your account is already verified. Please log in instead.");
+    }
+
+    if (!matchedRecord.magicLinkExpiresAt || matchedRecord.magicLinkExpiresAt < new Date()) {
+      throw new Error("This verification link has expired. Please register again.");
+    }
+
+    const user = await prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { email: matchedRecord.email },
+        data: { isVerified: true },
+      });
+      await tx.emailVerificationToken.update({
+        where: { id: matchedRecord.id },
+        data: { used: true },
+      });
+      return updated;
+    });
+
+    const jwtToken = generateToken({ email: user.email, id: user.id });
+    return { token: jwtToken, user: this.mapUser(user) };
   }
 
   static async login(data: any) {
