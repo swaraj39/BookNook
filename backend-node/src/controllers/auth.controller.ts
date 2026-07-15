@@ -10,7 +10,7 @@ export class AuthController {
       const result = await AuthService.register(req.body);
 
       const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-      const magicLinkUrl = `${frontendUrl}/verify?token=${result.magicLinkToken}`;
+      const magicLinkUrl = `${frontendUrl}?token=${result.magicLinkToken}`;
 
       await callSignupVerificationWebhook({
         email: result.email,
@@ -80,7 +80,7 @@ export class AuthController {
       const result = await AuthService.resendSignupOtp(email);
 
       const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-      const magicLinkUrl = `${frontendUrl}/verify?token=${result.magicLinkToken}`;
+      const magicLinkUrl = `${frontendUrl}?token=${result.magicLinkToken}`;
 
       await callSignupVerificationWebhook({
         email,
