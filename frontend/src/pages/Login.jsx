@@ -181,8 +181,10 @@ export function Login({ onLogin }) {
     } catch (err) {
       switch (err.message) {
         case "Incorrect email or password.":
-        case "Invalid email or password":
           setError("Incorrect email or password.");
+          break;
+        case "No account found with this email. What are you waiting for? Sign up now!":
+          setError("No account found with this email. What are you waiting for? Sign up now!");
           break;
         case "Please verify your email first. Check your inbox for the OTP.":
           setError("Please verify your email first. Check your inbox for the OTP.");

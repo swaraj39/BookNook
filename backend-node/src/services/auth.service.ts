@@ -166,7 +166,7 @@ export class AuthService {
     });
 
     if (!user || !user.password) {
-      throw new Error("Invalid email or password");
+      throw new Error("No account found with this email. What are you waiting for? Sign up now!");
     }
 
     if (!user.isVerified) {
@@ -175,7 +175,7 @@ export class AuthService {
 
     const isValid = await bcrypt.compare(data.password, user.password);
     if (!isValid) {
-      throw new Error("Invalid email or password");
+      throw new Error("Incorrect email or password.");
     }
 
     const token = generateToken({ email: user.email, id: user.id });

@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
-import { sendOtpEmail } from "../utils/mail";
-import { callSignupVerificationWebhook, callWelcomeWebhook } from "../utils/webhook";
+import { callSignupVerificationWebhook, callWelcomeWebhook, callForgotPasswordWebhook } from "../utils/webhook";
 import { getSafeErrorMessage, getStatusCode, isDatabaseError } from "../utils/app-error";
 import { logError } from "../middleware/error";
 
@@ -164,11 +163,7 @@ export class AuthController {
       if (!email) { res.status(400).json({ message: "Email is required." }); return; }
       const otp = await AuthService.requestOtp(email);
       if (otp) {
-        try {
-          await sendOtpEmail(email, otp);
-        } catch (err) {
-          console.error("OTP email failed:", err);
-        }
+        await callForgotPasswordWebhook({ email, otp });
       }
       // Always return 200 to avoid leaking whether the email exists
       res.json({ message: "If this email exists, an OTP has been sent." });
