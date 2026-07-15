@@ -60,10 +60,12 @@ export function Guide() {
 
             <div className="guide-flow-viewport">
                 <div className="guide-flow-inner">
-                    <h2 className="guide-flow-page-title">Application Lifecycle Journey</h2>
-                    <p className="guide-flow-subtitle">
-                        Interactive roadmap tracking how core functionalities operate from entry to shelf access.
-                    </p>
+                    <section className="topbar">
+                        <div className="page-title">
+                            <h2 className="hero-gradient">Application Guide</h2>
+                            <p>Learn how to navigate BookNook — from browsing and requesting books to managing your shelf.</p>
+                        </div>
+                    </section>
 
                     {/* Core Vertical Timeline Container */}
                     <div className="vertical-timeline-container">
