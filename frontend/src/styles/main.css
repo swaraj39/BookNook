@@ -408,7 +408,7 @@ button { cursor: pointer; }
   line-height: 1.02;
 }
 .hero-gradient {
-  background: linear-gradient(135deg, #ffffff, #ffffff);
+  background: linear-gradient(135deg, #908f8f, #ffffff);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;

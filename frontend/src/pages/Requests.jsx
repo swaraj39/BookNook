@@ -234,9 +234,9 @@ export function Requests({ page, onPageChange, me, approve, reject, openDetails,
             )}
             {isLending && isActive && (
               <>
-                <button className="btn drawer-btn btn-amber" onClick={() => handleSendReminder(row)}>
+                {/* <button className="btn drawer-btn btn-amber" onClick={() => handleSendReminder(row)}>
                   <Bell size={16} /> Send Reminder
-                </button>
+                </button> */}
                 <button className="btn drawer-btn btn-ghost" onClick={() => openDetails(row.book)}>
                   <Eye size={16} /> View Details
                 </button>
