@@ -57,12 +57,14 @@ model PasswordResetToken {
 }
 
 model EmailVerificationToken {
-  id        String   @id @default(uuid())
-  email     String   @db.VarChar(180)
-  otpHash   String   @map("otp_hash") @db.VarChar(255)
-  expiresAt DateTime @map("expires_at") @db.Timestamp(6)
-  used      Boolean  @default(false)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  id                 String    @id @default(uuid())
+  email              String    @db.VarChar(180)
+  otpHash            String    @map("otp_hash") @db.VarChar(255)
+  expiresAt          DateTime  @map("expires_at") @db.Timestamp(6)
+  magicLinkHash      String?   @map("magic_link_hash") @db.VarChar(255)
+  magicLinkExpiresAt DateTime? @map("magic_link_expires_at") @db.Timestamp(6)
+  used               Boolean   @default(false)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
 
   @@index([email])
   @@map("email_verification_tokens")

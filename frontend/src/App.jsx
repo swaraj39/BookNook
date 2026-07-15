@@ -26,6 +26,7 @@ import { BookModal } from "./components/BookModal";
 import { RequestModal } from "./components/RequestModal";
 import { ToastContainer } from "./components/common/Toast";
 import { Login } from "./pages/Login";
+import { VerifyMagicLink } from "./pages/VerifyMagicLink";
 import { Catalog } from "./pages/Catalog";
 import { Dashboard } from "./pages/Dashboard";
 import { Requests } from "./pages/Requests";
@@ -321,7 +322,7 @@ export default function App() {
   // Same idea as booksPage above: the full list is fetched once per view/
   // refresh, and paging just re-slices it in memory - no extra API calls.
   const requestsPage = useMemo(
-    () => paginateList(allRequests, requestsPageIndex),
+    () => paginateList(allRequests, requestsPageIndex, LIST_FETCH_SIZE),
     [allRequests, requestsPageIndex]
   );
   const myBooksPage = useMemo(
@@ -461,6 +462,8 @@ export default function App() {
             break;
           }
         }
+      } catch (error) {
+        if (!cancelled) notify(error?.message || "Something went wrong loading this page.", "error");
       } finally {
         if (!cancelled) setPageLoading(null);
       }
@@ -730,27 +733,23 @@ async function approve(id) {
   }
 }
 async function reject(id) {
-  askConfirm("Are you sure you want to reject this request?", async () => {
-    try {
-      await api.reject(id);
-      notify("Request rejected.");
-      bustDashboardCache();
-      await reloadCurrentView();
-    } catch (error) {
-      notify(error.message, "error");
-    }
-  });
-  return;
+  try {
+    await api.reject(id);
+    notify("Request rejected.");
+    await reloadCurrentView();
+  } catch (error) {
+    notify(error.message, "error");
+  }
 }
 async function cancelRequest(id, bookTitle) {
   askConfirm(`Cancel your request for "${bookTitle}"?`, async () => {
     try {
       await api.cancelRequest(id);
       notify("Request cancelled.");
-      await reloadCurrentView();
     } catch (error) {
-      notify(error.message, "error");
+      console.error("Cancel request failed:", error);
     }
+    await reloadCurrentView();
   });
 }
 
@@ -821,6 +820,18 @@ if (authChecking) {
   return <PageLoader fullPage />;
 }
 if (!isAuthenticated) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const hasVerifyToken = urlParams.has("token");
+
+  if (hasVerifyToken) {
+    return (
+      <>
+        <VerifyMagicLink onLogin={handleLogin} />
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+      </>
+    );
+  }
+
   return (
     <>
       <Login onLogin={handleLogin} />

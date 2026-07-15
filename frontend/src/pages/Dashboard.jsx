@@ -1,6 +1,63 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { label, dateText } from "../utils/helpers";
 import { BookOpen, Milestone, Sparkles, Trophy, ExternalLink, Crown, Feather } from "lucide-react";
+
+function AnimatedCounter({ value, duration = 800 }) {
+  const [count, setCount] = useState(0);
+  const frameRef = useRef(null);
+  useEffect(() => {
+    setCount(0);
+    const start = performance.now();
+    function tick(now) {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.floor(value * eased));
+      if (progress < 1) frameRef.current = requestAnimationFrame(tick);
+    }
+    frameRef.current = requestAnimationFrame(tick);
+    return () => { if (frameRef.current) cancelAnimationFrame(frameRef.current); };
+  }, [value, duration]);
+  return <span className="rfc-counter">{count}</span>;
+}
+
+function ReadingTooltip({ data, visible }) {
+  if (!visible) return null;
+  const diff = data.userCount - data.globalAvg;
+  const pctAbove = data.globalAvg > 0 ? Math.round((diff / data.globalAvg) * 100) : 0;
+  return (
+    <div className="rfc-tooltip visible">
+      <div className="rfc-tooltip-row"><span>Month</span><span>{data.month}</span></div>
+      <div className="rfc-tooltip-row"><span>Books Read</span><strong>{data.userCount}</strong></div>
+      <div className="rfc-tooltip-row"><span>Team Avg</span><span>{data.globalAvg}</span></div>
+      <div className="rfc-tooltip-divider" />
+      <div className={`rfc-tooltip-row ${diff >= 0 ? "positive" : "negative"}`}>
+        <span>Difference</span>
+        <span>{diff >= 0 ? "+" : ""}{diff}</span>
+      </div>
+      <div className={`rfc-tooltip-row ${diff >= 0 ? "positive" : "negative"}`}>
+        <span>vs Average</span>
+        <span>{pctAbove >= 0 ? "+" : ""}{pctAbove}%</span>
+      </div>
+    </div>
+  );
+}
+
+function AchievementBadge({ totalBooksRead, aboveAvg }) {
+  let badge = null;
+  if (totalBooksRead >= 100) badge = { icon: "\uD83C\uDFC5", label: "Century Reader" };
+  else if (totalBooksRead >= 50) badge = { icon: "\uD83C\uDFC5", label: "Half Century" };
+  else if (totalBooksRead >= 25) badge = { icon: "\u2B50", label: "Silver Reader" };
+  else if (totalBooksRead >= 10) badge = { icon: "\u2B50", label: "Bronze Reader" };
+  else if (aboveAvg) badge = { icon: "\uD83D\uDCC8", label: "Above Team Avg" };
+  if (!badge) return null;
+  return (
+    <span className="rfc-badge">
+      <span className="rfc-badge-icon">{badge.icon}</span>
+      {badge.label}
+    </span>
+  );
+}
 
 export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) {
   const [showLeaderboardPopup, setShowLeaderboardPopup] = useState(false);
@@ -8,7 +65,17 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) 
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
   const FEATHER_SIZE = { 1: 18, 2: 15, 3: 14 };
   const LAUREL_SIZE = { 1: 60, 2: 46, 3: 40 };
-  const chartMax = Math.max(...(stats.chartData || []).map(d => Math.max(d.userCount, d.globalAvg, 4)), 1);
+  const [tooltipVisible, setTooltipVisible] = useState(false);
+  const isTouchDevice = typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+  const chartEntry = stats?.chartData?.[0] || {};
+  const month = chartEntry.month || "---";
+  const booksReadThisMonth = stats?.booksReadThisMonth ?? 0;
+  const communityAverageRead = stats?.communityAverageRead ?? 0;
+  const totalBooksRead = stats?.totalBooksRead ?? 0;
+  const denom = Math.max(booksReadThisMonth, communityAverageRead, 10);
+  const pillarPct = Math.min((booksReadThisMonth / denom) * 100, 100);
+  const avgPct = Math.min((communityAverageRead / denom) * 100, 100);
+  const diff = booksReadThisMonth - communityAverageRead;
 
   async function handleOpenPopup() {
     if (allLeaderboard) {
@@ -144,26 +211,53 @@ function Laurel({ size = 40, className, style }) {
           </article>
         </div>
         { }
-        <div className="analytics-graph-container">
-          <h4>Reading Frequency Matrix</h4>
-          <p className="graph-sub">Your monthly velocity vs team average (dashed line)</p>
-          <div className="bar-graph-view-port">
-            {stats.chartData?.map((dataPoint, idx) => {
-              const userPct = (dataPoint.userCount / chartMax) * 100;
-              const globalPct = (dataPoint.globalAvg / chartMax) * 100;
-              return (
-                <div key={idx} className="graph-column-strip">
-                  <div className="bar-track-container">
-                    <div className="user-count-fill-bar" style={{ height: `${userPct}%` }}>
-                      <span className="bar-floating-lbl">{dataPoint.userCount}</span>
-                    </div>
-                    <div className="global-avg-dot-marker" style={{ bottom: `${globalPct}%` }} title={`Team Avg: ${dataPoint.globalAvg}`} />
-                  </div>
-                  <span className="column-month-lbl">{dataPoint.month}</span>
-                </div>
-              );
-            })}
+        <div className="reading-frequency-card">
+          <div className="rfc-header" style={{ display: "flex", justifyContent: "center" }}>
+            <h4>Reading Frequency</h4>
           </div>
+          {booksReadThisMonth > 0 ? (
+            <div className="rfc-body">
+              <div className="rfc-value-display" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <AnimatedCounter value={booksReadThisMonth} />
+                <span className="rfc-value-label">Books Read</span>
+              </div>
+              <div className="rfc-visual-area">
+                <div
+                  className="rfc-pillar-group"
+                  tabIndex={0}
+                  role="img"
+                  aria-label={`${month}: ${booksReadThisMonth} books read, team average ${communityAverageRead}`}
+                  onMouseEnter={() => !isTouchDevice && setTooltipVisible(true)}
+                  onMouseLeave={() => !isTouchDevice && setTooltipVisible(false)}
+                  onClick={() => setTooltipVisible(v => !v)}
+                >
+                  <div className="rfc-pillar-track">
+                    <div className="rfc-pillar-fill" style={{ height: `${pillarPct}%` }} />
+                    <div className="rfc-avg-marker" style={{ bottom: `${avgPct}%` }}>
+                      <div className="rfc-avg-line" />
+                      <span className="rfc-avg-label">Avg {communityAverageRead}</span>
+                    </div>
+                  </div>
+                  <span className="rfc-month-label">{month}</span>
+                  <ReadingTooltip
+                    data={{ month, userCount: booksReadThisMonth, globalAvg: communityAverageRead }}
+                    visible={tooltipVisible}
+                  />
+                </div>
+              </div>
+              <div className="rfc-footer">
+                <AchievementBadge totalBooksRead={totalBooksRead} aboveAvg={diff >= 0} />
+              </div>
+            </div>
+          ) : (
+            <div className="rfc-empty">
+              <div className="rfc-empty-icon">
+                <BookOpen size={40} />
+              </div>
+              <p className="rfc-empty-title">No reading activity yet</p>
+              <p className="rfc-empty-sub">Start reading to build your monthly progress.</p>
+            </div>
+          )}
         </div>
       </section>
       { }
