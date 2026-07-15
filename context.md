@@ -60,6 +60,7 @@ graph TD
 | **ORM** | Prisma | Data Access | Type-safe queries, excellent introspection for existing schemas. | Sequelize, TypeORM |
 | **Auth** | JWT / Bcrypt | Security | Stateless scalability, industry standard hashing. | Session-based Auth |
 | **Icons** | Lucide React | Visuals | Lightweight, clean aesthetics. | FontAwesome, Heroicons |
+| **Email/Webhook** | Workato | Notifications | OTP delivery, welcome emails via webhooks. | SMTP/Nodemailer (retired) |
 
 ---
 
@@ -71,18 +72,18 @@ BookNook/
 ├── backend-node/       # New Node.js implementation (Active)
 │   ├── prisma/         # Database schema and generated client
 │   ├── src/
-│   │   ├── config/     # App configuration (Prisma client, etc.)
+│   │   ├── config/     # App configuration (Prisma client, Redis)
 │   │   ├── controllers/# Express route handlers
 │   │   ├── middleware/ # Auth, Error, Validation
-│   │   ├── services/   # Business logic (Workflow engine)
-│   │   ├── utils/      # JWT, Crypto helpers
+│   │   ├── services/   # Business logic (Workflow engine, Auth, Book, Lookup, Cache)
+│   │   ├── utils/      # JWT, Webhook helpers, Error utilities
 │   │   └── index.ts    # Server entry point
 │   └── .env            # Environment secrets
 ├── frontend/           # React application
 │   ├── src/
 │   │   ├── api/        # Axios/Fetch wrappers
-│   │   ├── components/ # Reusable UI components
-│   │   ├── pages/      # View components
+│   │   ├── components/ # Reusable UI components (BookCard, Profile, common/)
+│   │   ├── pages/      # View components (Dashboard, Catalog, Requests, MyLibrary, Guide, etc.)
 │   │   └── styles/     # Global and component CSS
 │   └── index.html      # Entry point
 └── docker-compose.yml  # Infrastructure orchestration
@@ -134,11 +135,16 @@ erDiagram
 | Endpoint | Method | Auth | Purpose |
 | :--- | :--- | :--- | :--- |
 | `/api/auth/login` | POST | No | Authenticate and get JWT |
+| `/api/auth/register` | POST | No | Register new user (validates `@bluealtair.com` domain) |
+| `/api/auth/forgot-password/request` | POST | No | Request password reset OTP (via Workato webhook) |
+| `/api/auth/forgot-password/verify-otp` | POST | No | Verify password reset OTP |
+| `/api/auth/forgot-password/reset` | POST | No | Reset password with verified OTP |
 | `/api/books` | GET | Yes | Get catalog with filters |
 | `/api/borrow-requests` | POST | Yes | Create a new request |
 | `/api/loans/:id/return`| POST | Yes | Mark a book as returned |
 
 *   **Error Handling:** Returns `{ "message": "error description" }` with appropriate status codes (400, 401, 403, 404, 409).
+*   **Login Errors:** User not found → `"No account found with this email. What are you waiting for? Sign up now!"` (401). Wrong password → `"Incorrect email or password."` (401).
 
 ---
 
@@ -162,6 +168,10 @@ erDiagram
 *   `DATABASE_URL`: Prisma connection string.
 *   `JWT_SECRET`: Secret for signing tokens.
 *   `PORT`: Backend port (default 8080).
+*   `FRONTEND_URL`: Frontend origin for magic links (default `http://localhost:5173`).
+*   `WORKATO_SIGNUP_VERIFICATION_WEBHOOK_URL`: Webhook for signup OTP emails.
+*   `WORKATO_SIGNUP_WEBHOOK_URL`: Webhook for welcome emails.
+*   `WORKATO_FORGOT_PASSWORD_WEBHOOK_URL`: Webhook for password reset OTP emails.
 
 ---
 
@@ -187,6 +197,9 @@ erDiagram
 *   Read `prisma/schema.prisma` before modifying database interactions.
 *   Ensure every state change in `WorkflowService` creates a corresponding `BookHistory` record.
 *   Verify that `ownerId` or `requesterId` checks are performed before allowing updates to requests/loans.
+*   Use the `ALLOWED_EMAIL_DOMAIN` variable (currently `@bluealtair.com`) for signup email domain checks — never hardcode it.
+*   Use `callForgotPasswordWebhook` from `webhook.ts` for forgot-password OTP delivery (Workato-based, not SMTP).
+*   Use `hero-gradient` class with CSS variables (`--brand`/`--brand-dark`) for page headings so they adapt to light/dark mode.
 
 ### Never
 *   Directly modify the database without using Prisma Client.
