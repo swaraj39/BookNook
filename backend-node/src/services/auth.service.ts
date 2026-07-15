@@ -4,6 +4,7 @@ import prisma from "../config/prisma";
 import { generateToken } from "../utils/jwt";
 import { StatsCacheService } from "./stats-cache.service";
 
+const ALLOWED_EMAIL_DOMAIN = "@bluealtair.com";
 const SIGNUP_OTP_LENGTH = parseInt(process.env.SIGNUP_OTP_LENGTH || "6", 10);
 const SIGNUP_OTP_EXPIRY_MINUTES = parseInt(process.env.SIGNUP_OTP_EXPIRY_MINUTES || "5", 10);
 const MAGIC_LINK_EXPIRY_DAYS = 7;
@@ -19,8 +20,8 @@ function generateMagicLinkToken(): string {
 
 export class AuthService {
   static async register(data: any) {
-    if (!data.email?.endsWith("@mailinator.com")) {
-      throw new Error("Only @bluealtair.com email addresses are allowed to register.");
+    if (!data.email?.endsWith(ALLOWED_EMAIL_DOMAIN)) {
+      throw new Error(`Only ${ALLOWED_EMAIL_DOMAIN} email addresses are allowed to register.`);
     }
 
     const existingUser = await prisma.user.findUnique({

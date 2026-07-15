@@ -4,7 +4,7 @@ import { api } from "../api";
 import logo from "../styles/blue_altair_logo-removebg-preview.png";
 import { ForgotPassword } from "./ForgotPassword";
 
-const ALLOWED_EMAIL_DOMAIN = "@mailinator.com";
+const ALLOWED_EMAIL_DOMAIN = "@bluealtair.com";
 
 /* Placeholder assets — swap these for your real book photo + animated SVGs.
    Keep the same import shape (default export usable as a CSS background or
