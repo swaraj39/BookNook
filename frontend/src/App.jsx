@@ -362,15 +362,13 @@ export default function App() {
   }, [view, stats, checkNavScroll]);
   const [confirm, setConfirm] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
-  const API_URL = import.meta.env.VITE_API_URL;
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-      // fetch("https://booknook-74lk.onrender.com/api/quote/today")
-      fetch("https://booknook-gfb8.onrender.com/api/quote/today")
-      // fetch(`http://localhost:8080/api/quote/today`)
+      fetch(`${API_URL}/quote/today`)
         .then((response) => response.ok ? response.json() : null)
         .then((quote) => {
           if (quote) setDailyThought(quote);
@@ -530,9 +528,7 @@ export default function App() {
   async function handleLogout() {
     setShowProfileDropdown(false);
     try {
-      await fetch("https://booknook-gfb8.onrender.com/api/auth/logout", {
-      // await fetch("https://booknook-74lk.onrender.com/api/auth/logout", {
-      // await fetch("http://localhost:8080/api/auth/logout", {
+      await fetch(`${API_URL}/auth/logout`, {
         method: "POST",
         credentials: "include",
       });
