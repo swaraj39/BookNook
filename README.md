@@ -1,11 +1,11 @@
 # Book Nook
 
-Full-stack reading community app built from the original HTML prototype.
+Full-stack reading community app — borrow and lend books within your team.
 
 ## Stack
 
 - Frontend: React + Vite
-- Backend: Spring Boot + Spring Data JPA + Flyway
+- Backend: Node.js + Express + Prisma
 - Database: PostgreSQL
 
 ## Run Locally
@@ -16,26 +16,15 @@ Full-stack reading community app built from the original HTML prototype.
 docker compose up -d postgres
 ```
 
-Or create a PostgreSQL database manually:
-
-```sql
-CREATE DATABASE booknook;
-```
-
-2. Start backend without installing Maven locally:
+2. Start backend:
 
 ```bash
-docker compose up backend
+cd backend-node
+npm install
+npm run dev
 ```
 
 Default backend URL: `http://localhost:8080`
-
-If you have Maven installed locally, you can also run:
-
-```bash
-cd backend
-mvn spring-boot:run
-```
 
 3. Start frontend:
 
@@ -47,18 +36,21 @@ npm run dev
 
 Default frontend URL: `http://localhost:5173`
 
-## Database Config
+## Environment Variables
 
-Backend reads these environment variables, with defaults:
+Backend (`backend-node/.env`):
 
-```text
-BOOKNOOK_DB_URL=jdbc:postgresql://localhost:5432/booknook
-BOOKNOOK_DB_USER=postgres
-BOOKNOOK_DB_PASSWORD=postgres
-```
+| Variable | Default |
+|---|---|
+| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/booknook` |
+| `JWT_SECRET` | *(required)* |
+| `PORT` | `8080` |
+| `FRONTEND_URL` | `http://localhost:5173` |
 
-For this prototype, the current user is resolved by email:
+Frontend (`frontend/.env`):
 
-```text
-BOOKNOOK_CURRENT_USER_EMAIL=gaurav.choudhary@booknook.com
-```
+| Variable | Default |
+|---|---|
+| `VITE_API_URL` | `http://localhost:8080/api` |
+
+If `VITE_API_URL` is not set, the app falls back to `http://localhost:8080/api`.
