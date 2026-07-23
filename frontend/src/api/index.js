@@ -39,6 +39,7 @@ async function request(path, options = {}) {
     path !== "/auth/signup/resend-otp" &&
     path !== "/auth/signup/verify-magic-link"
   ) {
+    localStorage.removeItem("bn_token");
     window.dispatchEvent(new CustomEvent("auth-expired"));
   }
   const text = await response.text();
@@ -168,6 +169,7 @@ export const api = {
       },
     });
     if (response.status === 401) {
+      localStorage.removeItem("bn_token");
       window.dispatchEvent(new CustomEvent("auth-expired"));
       throw new Error("Your session has expired. Please sign in again.");
     }

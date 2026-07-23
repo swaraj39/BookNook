@@ -176,7 +176,7 @@ export function Login({ onLogin }) {
         setSignupStep("otp");
       } else {
         const result = await api.login(form.email.trim(), form.password);
-        onLogin(null, result.user);
+        onLogin(result.token, result.user);
       }
     } catch (err) {
       switch (err.message) {
@@ -218,7 +218,7 @@ export function Login({ onLogin }) {
     setLoading(true); setError(""); setSuccess("");
     try {
       const result = await api.signupVerifyOtp(registeredEmail, otp.trim());
-      onLogin(null, result.user);
+      onLogin(result.token, result.user);
     } catch (err) {
       setError(err.message || "Invalid or expired OTP.");
     } finally {

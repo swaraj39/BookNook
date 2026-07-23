@@ -17,7 +17,11 @@ export const authenticate = async (
   next: NextFunction
 ) => {
   try {
-    const token = req.cookies?.token;
+    const authHeader = req.headers.authorization;
+    const bearerToken = authHeader?.startsWith("Bearer ")
+      ? authHeader.slice(7)
+      : undefined;
+    const token = req.cookies?.token || bearerToken;
 
     if (!token) {
       return res.status(401).json({ message: "Unauthorized" });

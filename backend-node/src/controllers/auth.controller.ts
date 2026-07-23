@@ -62,7 +62,7 @@ export class AuthController {
         fullName: result.user.fullName,
       });
 
-      res.json({ user: result.user });
+      res.json({ user: result.user, token: result.token });
     } catch (error: any) {
       logError(error, req);
       res.status(isDatabaseError(error) ? getStatusCode(error) : 400).json({
@@ -120,7 +120,7 @@ export class AuthController {
         fullName: result.user.fullName,
       });
 
-      res.json({ user: result.user });
+      res.json({ user: result.user, token: result.token });
     } catch (error: any) {
       logError(error, req);
       res.status(isDatabaseError(error) ? getStatusCode(error) : 400).json({
@@ -146,6 +146,7 @@ export class AuthController {
 
       res.json({
         user: result.user,
+        token: result.token,
       });
     } catch (error: any) {
       logError(error, req);

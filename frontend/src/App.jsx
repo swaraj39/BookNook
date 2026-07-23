@@ -535,6 +535,7 @@ export default function App() {
     } catch (error) {
       console.error("Logout failed:", error);
     }
+    localStorage.removeItem("bn_token");
     setIsAuthenticated(false);
     setMe(null);
     setSelectedBook(null);

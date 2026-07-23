@@ -26,7 +26,7 @@ export function VerifyMagicLink({ onLogin }) {
         window.history.replaceState({}, "", window.location.pathname);
         setStatus("success");
         setTimeout(() => {
-          onLoginRef.current(null, result.user);
+          onLoginRef.current(result.token, result.user);
         }, 1500);
       } catch (err) {
         if (cancelled) return;
