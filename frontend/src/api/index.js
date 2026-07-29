@@ -102,6 +102,13 @@ export const api = {
     request(`/books/${id}`, {
       method: "DELETE",
     }),
+  users: (page = 0, size = 20) =>
+    request(`/users?page=${page}&size=${size}`),
+  updateUser: (id, payload) =>
+    request(`/users/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
   requests: (page = 0, size = 20) =>
     request(`/borrow-requests?page=${page}&size=${size}`),
   requestBook: (payload) =>

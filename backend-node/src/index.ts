@@ -45,6 +45,8 @@ app.post("/api/books", authenticate, AppController.createBook);
 app.post("/api/books/import", authenticate, AppController.importBooks);
 app.patch("/api/books/:id", authenticate, AppController.updateBook);
 app.delete("/api/books/:id", authenticate, AppController.deleteBook);
+app.get("/api/users", authenticate, AppController.listUsers);
+app.patch("/api/users/:id", authenticate, AppController.updateUser);
 
 // Workflow routes
 app.get("/api/borrow-requests", authenticate, AppController.myRequests);

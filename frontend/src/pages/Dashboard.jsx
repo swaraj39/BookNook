@@ -59,7 +59,7 @@ function AchievementBadge({ totalBooksRead, aboveAvg }) {
   );
 }
 
-export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate }) {
+export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate, setFilters }) {
   const [showLeaderboardPopup, setShowLeaderboardPopup] = useState(false);
   const [allLeaderboard, setAllLeaderboard] = useState(null);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
@@ -193,11 +193,20 @@ function Laurel({ size = 40, className, style }) {
       { }
       <section className="analytics-block-grid">
         <div className="stats-cards-quad">
-          <article className="metrics-pill-card">
+          <article
+            className="metrics-pill-card clickable"
+            onClick={() => {
+              setFilters((prev) => ({ ...prev, availability: "available", page: 0 }));
+              onNavigate("catalog");
+            }}
+          >
             <label>Available Books</label>
-            <strong>{stats?.totalBooks || 0}</strong>
+            <strong>{stats?.availableBooks || 0}</strong>
           </article>
-          <article className="metrics-pill-card">
+          <article
+            className="metrics-pill-card clickable"
+            onClick={() => onNavigate("borrowed")}
+          >
             <label>Books Reading</label>
             <strong>{stats?.activeBorrowed || 0}</strong>
           </article>

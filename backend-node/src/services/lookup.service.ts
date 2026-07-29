@@ -82,7 +82,7 @@ export class LookupService {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const cachedStats = await StatsCacheService.getStats();
-    const [pendingRequests, activeBorrowed, booksReadThisMonth, totalBooksRead] = await Promise.all([
+    const [pendingRequests, activeBorrowed, booksReadThisMonth, totalBooksRead, ownAvailableBooks] = await Promise.all([
       prisma.bookTransaction.count({ where: { ownerId: userId, status: "pending" } }),
       prisma.bookTransaction.count({
         where: { requesterId: userId, status: { in: ["active", "overdue"] } },
@@ -92,6 +92,9 @@ export class LookupService {
       }),
       prisma.bookTransaction.count({
         where: { requesterId: userId, status: "returned" },
+      }),
+      prisma.book.count({
+        where: { visibilityStatus: "visible", availabilityStatus: "available", ownerId: userId },
       }),
     ]);
     const rawLatestReadings = await prisma.bookTransaction.findMany({
@@ -127,7 +130,7 @@ export class LookupService {
     const leaderboard = await LookupService.leaderboard(5, "all");
     return {
       totalBooks: cachedStats.totalBooks,
-      availableBooks: cachedStats.availableBooks,
+      availableBooks: Math.max(0, cachedStats.availableBooks - ownAvailableBooks),
       totalUsers: cachedStats.totalUsers,
       communityAverageRead,
       pendingRequests,

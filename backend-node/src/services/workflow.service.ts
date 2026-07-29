@@ -156,7 +156,10 @@ export class WorkflowService {
       return tr;
     }, TX_OPTIONS);
 
-    await ReadCacheService.invalidate(`book:${payload.bookId}`);
+    await Promise.all([
+      StatsCacheService.adjustFields({ availableBooks: -1 }),
+      ReadCacheService.invalidate(`book:${payload.bookId}`),
+    ]);
     return this.mapTransaction(transaction);
   }
 
@@ -243,10 +246,7 @@ export class WorkflowService {
       return tr;
     }, TX_OPTIONS);
 
-    await Promise.all([
-      StatsCacheService.adjustFields({ availableBooks: -1 }),
-      ReadCacheService.invalidate(`book:${updatedTransaction.bookId}`),
-    ]);
+    await ReadCacheService.invalidate(`book:${updatedTransaction.bookId}`);
 
     return this.mapTransaction(updatedTransaction);
   }

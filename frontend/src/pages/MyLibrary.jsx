@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { Panel } from "../components/common/Panel";
 import { Table } from "../components/common/Table";
@@ -29,8 +29,11 @@ function ReturnButton({ loan, returnBook }) {
   );
 }
 
-export function MyLibrary({ myBooksPage, onMyBooksPageChange, borrowedPage, onBorrowedPageChange, setBookModal, deleteBook, returnBook, openDetails, onRefreshShelf, onRefreshReading }) {
-  const [tab, setTab] = useState("shelf");
+export function MyLibrary({ myBooksPage, onMyBooksPageChange, borrowedPage, onBorrowedPageChange, setBookModal, deleteBook, returnBook, openDetails, onRefreshShelf, onRefreshReading, initialTab = "shelf" }) {
+  const [tab, setTab] = useState(initialTab);
+  useEffect(() => {
+    setTab(initialTab);
+  }, [initialTab]);
   const refreshFn = tab === "shelf" ? onRefreshShelf : onRefreshReading;
   
   const blankBook = { title: "", author: "", genreId: "", condition: "good", defaultLoanDays: 14, description: "" };

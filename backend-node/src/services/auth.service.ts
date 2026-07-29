@@ -173,6 +173,10 @@ export class AuthService {
       throw new Error("Please verify your email first. Check your inbox for the OTP.");
     }
 
+    if (user.status !== "active") {
+      throw new Error("Your account has been deactivated. Contact an admin.");
+    }
+
     const isValid = await bcrypt.compare(data.password, user.password);
     if (!isValid) {
       throw new Error("Incorrect email or password.");

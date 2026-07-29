@@ -218,7 +218,7 @@ button { cursor: pointer; }
 .nav-item-content {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: clamp(4px, 0.8vw, 12px);
 }
 .nav-item:hover {
   background: var(--brand-soft);
@@ -672,6 +672,10 @@ button { cursor: pointer; }
 .chip.converted_to_loan { color: #045741; background: #a0face; }
 .chip.overdue, .chip.rejected, .chip.expired { color: #991b1b; background: #fee2e2; }
 .chip.returned { color: #315b58; background: #e2f6f2; }
+.chip.chip-role-admin { color: #92400e; background: #fff3d8; }
+.chip.chip-role-user { color: #1565c0; background: #e3f2fd; }
+.chip.chip-status-active { color: #065f46; background: #dff6ec; }
+.chip.chip-status-inactive { color: #991b1b; background: #fee2e2; }
 .book-body {
   display: flex;
   flex: 1;
@@ -1478,7 +1482,7 @@ th:last-child {
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
-  margin-right: 24px;
+  margin-right: clamp(8px, 2vw, 24px);
 }
 .nav-scroll-wrap {
   display: flex;
@@ -1498,7 +1502,7 @@ th:last-child {
   flex: 1;
   overflow-x: auto;
   overflow-y: hidden;
-  padding-right: 200px;
+  padding-right: 12px;
   scrollbar-width: none;
 }
 .nav::-webkit-scrollbar {
@@ -1533,21 +1537,27 @@ th:last-child {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 6px;
+  gap: clamp(2px, 0.4vw, 6px);
 }
 .nav-label { display: none; }
 .nav-item {
   width: auto;
   min-height: 42px;
-  padding: 9px 13px;
+  padding: 9px clamp(8px, 1vw, 13px);
   border: 1px solid transparent;
   border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  font-size: clamp(13px, 1.05vw, 16px);
   font-weight: 700;
   white-space: nowrap;
   transition: all 0.2s ease;
+}
+.nav-item-content svg {
+  width: clamp(15px, 1.1vw, 18px);
+  height: clamp(15px, 1.1vw, 18px);
+  flex-shrink: 0;
 }
 .nav-item.active {
   color: var(--brand-dark);
@@ -1558,18 +1568,15 @@ th:last-child {
   background: rgba(99, 102, 241, 0.3);
 }
 .top-nav-actions {
-  position: absolute;
-  right: 0;
-  top: 0;
-  height: 100%;
+  position: relative;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  background: var(--panel);
+  background: var(--surface);
   padding: 0 20px 0 16px;
   border-radius: 9px;
-  background: var(--surface);
   border-left: none;
   box-shadow: none;
   z-index: 180;
@@ -2552,6 +2559,9 @@ th:last-child {
   box-shadow: var(--shadow-sm);
   height: 100%;
   min-height: 96px;
+}
+.metrics-pill-card.clickable {
+  cursor: pointer;
 }
 .metrics-pill-card label {
   font-size: 11px;

@@ -13,6 +13,7 @@ import {
   Search,
   Globe,
   User as UserIcon,
+  Users as UsersIcon,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -23,6 +24,7 @@ import { api } from "./api";
 import { Profile } from "./components/Profile";
 import { Stats } from "./components/Stats";
 import { BookModal } from "./components/BookModal";
+import { UserModal } from "./components/UserModal";
 import { RequestModal } from "./components/RequestModal";
 import { ToastContainer } from "./components/common/Toast";
 import { Login } from "./pages/Login";
@@ -32,13 +34,14 @@ import { Dashboard } from "./pages/Dashboard";
 import { Requests } from "./pages/Requests";
 import { MyLibrary } from "./pages/MyLibrary";
 import { LoanHistory } from "./pages/LoanHistory";
+import { Users } from "./pages/Users";
 import { Guide } from './pages/Guide';
 import { Details } from "./pages/Details";
 import { initials } from "./utils/helpers";
 import { ConfirmDialog } from "./components/common/ConfirmDialog";
 import { PageLoader } from "./components/common/PageLoader";
 import logo from "./styles/blue_altair_logo-removebg-preview.png";
-const VALID_VIEWS = new Set(["dashboard", "home", "catalog", "requests", "myBooks", "borrowed", "myLibrary", "history", "detail", "guide"]);
+const VALID_VIEWS = new Set(["dashboard", "home", "catalog", "requests", "myBooks", "borrowed", "myLibrary", "history", "detail", "guide", "users"]);
 function getStoredView() {
   const storedView = localStorage.getItem("bn_view") || "dashboard";
   const mapped = storedView === "myBooks" || storedView === "borrowed" ? "myLibrary" : storedView;
@@ -231,6 +234,7 @@ export default function App() {
   }
   const [darkMode, setDarkMode] = useState(localStorage.getItem("bn_theme") === "dark");
   const [me, setMe] = useState(null);
+  const isAdmin = me?.role === "ADMIN";
   const [stats, setStats] = useState(null);
   const [genres, setGenres] = useState([]);
   const [catalogBooks, setCatalogBooks] = useState([]);
@@ -242,6 +246,8 @@ export default function App() {
   const [borrowedPageIndex, setBorrowedPageIndex] = useState(0);
   const [allHistory, setAllHistory] = useState([]);
   const [historyPageIndex, setHistoryPageIndex] = useState(0);
+  const [allUsers, setAllUsers] = useState([]);
+  const [usersPageIndex, setUsersPageIndex] = useState(0);
   const [allBookHistory, setAllBookHistory] = useState([]);
   const [bookHistoryPageIndex, setBookHistoryPageIndex] = useState(0);
   const [selectedBook, setSelectedBook] = useState(null);
@@ -249,6 +255,7 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [bookModal, setBookModal] = useState(null);
   const [requestModal, setRequestModal] = useState(null);
+  const [userModal, setUserModal] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [pageLoading, setPageLoading] = useState(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -341,6 +348,10 @@ export default function App() {
     () => paginateList(allBookHistory, bookHistoryPageIndex),
     [allBookHistory, bookHistoryPageIndex]
   );
+  const usersPage = useMemo(
+    () => paginateList(allUsers, usersPageIndex),
+    [allUsers, usersPageIndex]
+  );
   const checkNavScroll = useCallback(() => {
     const el = navRef.current;
     if (el) {
@@ -355,11 +366,25 @@ export default function App() {
   useEffect(() => {
     checkNavScroll();
     const el = navRef.current;
-    if (el) {
-      el.addEventListener("scroll", checkNavScroll);
-      return () => el.removeEventListener("scroll", checkNavScroll);
-    }
-  }, [view, stats, checkNavScroll]);
+    if (!el) return;
+    el.addEventListener("scroll", checkNavScroll);
+    // Content (nav items) can change width without the nav element's own
+    // box resizing - e.g. the admin-only "Users" item appearing once `me`
+    // loads. A MutationObserver reacts to that directly, rather than
+    // relying on guessing every state value that might add/remove items.
+    const mutationObserver = new MutationObserver(checkNavScroll);
+    mutationObserver.observe(el, { childList: true, subtree: true });
+    // The nav's own box can also resize independently of its content -
+    // e.g. the browser window being resized - which the MutationObserver
+    // above won't catch.
+    const resizeObserver = new ResizeObserver(checkNavScroll);
+    resizeObserver.observe(el);
+    return () => {
+      el.removeEventListener("scroll", checkNavScroll);
+      mutationObserver.disconnect();
+      resizeObserver.disconnect();
+    };
+  }, [view, stats, isAdmin, checkNavScroll]);
   const [confirm, setConfirm] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
@@ -456,6 +481,14 @@ export default function App() {
             if (!cancelled) {
               setAllHistory(data.content || []);
               setHistoryPageIndex(0);
+            }
+            break;
+          }
+          case "users": {
+            const data = await api.users(0, LIST_FETCH_SIZE);
+            if (!cancelled) {
+              setAllUsers(data.content || []);
+              setUsersPageIndex(0);
             }
             break;
           }
@@ -602,6 +635,14 @@ async function loadHistoryFromApi() {
     notify(error.message, "error");
   }
 }
+async function loadUsersFromApi() {
+  try {
+    const data = await api.users(0, LIST_FETCH_SIZE);
+    setAllUsers(data.content || []);
+  } catch (error) {
+    notify(error.message, "error");
+  }
+}
 async function loadBookHistoryFromApi(id) {
   try {
     const data = await api.bookHistory(id, 0, LIST_FETCH_SIZE);
@@ -638,6 +679,10 @@ async function reloadCurrentView() {
         await loadHistoryFromApi();
         break;
       }
+      case "users": {
+        await loadUsersFromApi();
+        break;
+      }
     }
   } finally {
     setPageLoading(null);
@@ -664,6 +709,9 @@ function loadBorrowed(page) {
 }
 function loadHistory(page) {
   setHistoryPageIndex(page);
+}
+function loadUsers(page) {
+  setUsersPageIndex(page);
 }
 function changeBookHistoryPage(page) {
   setBookHistoryPageIndex(page);
@@ -693,6 +741,33 @@ async function saveBook(payload) {
     await reloadCurrentView();
   } catch (error) {
     notify(error.message, "error");
+  }
+}
+async function saveUser(payload) {
+  try {
+    await api.updateUser(userModal.id, payload);
+    setUserModal(null);
+    notify("User updated.");
+    await reloadCurrentView();
+  } catch (error) {
+    notify(error.message, "error");
+  }
+}
+async function toggleUserStatus(user) {
+  const nextStatus = user.status === "active" ? "inactive" : "active";
+  async function applyStatusChange() {
+    try {
+      await api.updateUser(user.id, { status: nextStatus });
+      notify(nextStatus === "active" ? "User activated." : "User deactivated.");
+      await reloadCurrentView();
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  }
+  if (nextStatus === "inactive") {
+    askConfirm(`Deactivate ${user.fullName}? They will be immediately signed out and unable to log back in.`, applyStatusChange);
+  } else {
+    await applyStatusChange();
   }
 }
 async function deleteBook(id) {
@@ -811,7 +886,13 @@ const navSections = [
       ["history", "History", History],
       ["guide", "Guide", Info]
     ]
-  }
+  },
+  ...(isAdmin ? [{
+    label: "Admin",
+    items: [
+      ["users", "Users", UsersIcon]
+    ]
+  }] : [])
 ];
 if (authChecking) {
   return <PageLoader fullPage />;
@@ -912,7 +993,7 @@ return (
     {/* Main Content Area */}
     <main className="main">
       {view === "dashboard" && stats && (
-        <Dashboard stats={stats} me={me} dailyThought={dailyThought} openDetails={openDetails} onNavigate={navigateTo} />
+        <Dashboard stats={stats} me={me} dailyThought={dailyThought} openDetails={openDetails} onNavigate={navigateTo} setFilters={setFilters} />
       )}
 
       {view === "home" && (
@@ -956,9 +1037,11 @@ return (
           openDetails={openDetails}
           onRefreshShelf={loadMyBooksFromApi}
           onRefreshReading={loadBorrowedFromApi}
+          initialTab={view === "borrowed" ? "reading" : "shelf"}
         />
       )}
       {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={loadHistoryFromApi} />}
+      {view === "users" && <Users page={usersPage} onPageChange={loadUsers} me={me} onEditUser={setUserModal} onToggleStatus={toggleUserStatus} onRefresh={loadUsersFromApi} />}
       {view === "detail" && selectedBook && (
         <Details book={selectedBook} historyPage={bookHistoryPage} onPageChange={changeBookHistoryPage} me={me} navigateBack={navigateBack} navigateTo={navigateTo} setBookModal={setBookModal} setRequestModal={setRequestModal} returnBook={returnBook} />
       )}
@@ -980,6 +1063,7 @@ return (
 
     {pageLoading && <PageLoader />}
     {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
+    {userModal && <UserModal user={userModal} onClose={() => setUserModal(null)} onSave={saveUser} />}
     {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
     <ConfirmDialog message={confirm?.message} onConfirm={() => resolveConfirm(true)} onCancel={() => resolveConfirm(false)} />
     {detailsLoading && (

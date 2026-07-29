@@ -3,6 +3,7 @@ import { AuthRequest } from "../middleware/auth";
 import { BookService } from "../services/book.service";
 import { WorkflowService } from "../services/workflow.service";
 import { LookupService } from "../services/lookup.service";
+import { UserService } from "../services/users.service";
 import prisma from "../config/prisma";
 import { getSafeErrorMessage, getStatusCode } from "../utils/app-error";
 import { logError } from "../middleware/error";
@@ -157,6 +158,32 @@ export class AppController {
         req.user.role === "ADMIN"
       );
       return res.status(204).send();
+    } catch (error: any) {
+      return AppController.handleError(res, error);
+    }
+  }
+  static async listUsers(req: AuthRequest, res: Response) {
+    try {
+      const { page, size } = req.query;
+      const result = await UserService.list(
+        req.user.role === "ADMIN",
+        queryNumber(page, 0),
+        queryNumber(size, 20)
+      );
+      return res.json(result);
+    } catch (error: any) {
+      return AppController.handleError(res, error);
+    }
+  }
+  static async updateUser(req: AuthRequest, res: Response) {
+    try {
+      const result = await UserService.update(
+        req.user.id,
+        paramString(req.params.id),
+        req.body,
+        req.user.role === "ADMIN"
+      );
+      return res.json(result);
     } catch (error: any) {
       return AppController.handleError(res, error);
     }
