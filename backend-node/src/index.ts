@@ -59,7 +59,7 @@ app.get("/api/loans/history", authenticate, AppController.loanHistory);
 app.post("/api/loans/:id/return", authenticate, AppController.returnBook);
 app.get("/api/all/books", authenticate, AppController.exportBooks);
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok" });
+  res.json({ status: "ok", buildMarker: "diag-20260729-1" });
 });
 app.get("/api/quote/today", async (req, res) => {
   const fallbackQuotes = [

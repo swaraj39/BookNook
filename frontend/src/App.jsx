@@ -1040,7 +1040,7 @@ return (
           initialTab={view === "borrowed" ? "reading" : "shelf"}
         />
       )}
-      {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={loadHistoryFromApi} />}
+      {view === "history" && <LoanHistory page={historyPage} onPageChange={loadHistory} onRefresh={loadHistoryFromApi} openDetails={openDetails} />}
       {view === "users" && <Users page={usersPage} onPageChange={loadUsers} me={me} onEditUser={setUserModal} onToggleStatus={toggleUserStatus} onRefresh={loadUsersFromApi} />}
       {view === "detail" && selectedBook && (
         <Details book={selectedBook} historyPage={bookHistoryPage} onPageChange={changeBookHistoryPage} me={me} navigateBack={navigateBack} navigateTo={navigateTo} setBookModal={setBookModal} setRequestModal={setRequestModal} returnBook={returnBook} />

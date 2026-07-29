@@ -4,7 +4,7 @@ import { Table } from "../components/common/Table";
 import { Pagination } from "../components/common/Pagination";
 import { RefreshButton } from "../components/common/RefreshButton";
 import { label, dateText } from "../utils/helpers";
-export function LoanHistory({ page, onPageChange, onRefresh }) {
+export function LoanHistory({ page, onPageChange, onRefresh, openDetails }) {
   return (
     <Panel title="Borrowing History" actions={onRefresh && <RefreshButton onRefresh={() => onRefresh(page.page)} title="Refresh history" />}>
       <div className="table-responsive-wrapper">
