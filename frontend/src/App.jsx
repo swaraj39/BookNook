@@ -265,6 +265,7 @@ export default function App() {
   const profileDropdownRef = useRef(null);
   const navRef = useRef(null);
   const dashboardLastFetchedRef = useRef(0);
+  const dailyQuoteDateRef = useRef("");
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const [allBooks, setAllBooks] = useState([]);
@@ -393,15 +394,24 @@ export default function App() {
     localStorage.setItem("bn_theme", darkMode ? "dark" : "light");
   }, [darkMode]);
   useEffect(() => {
-      fetch(`${API_URL}/quote/today`)
-        .then((response) => response.ok ? response.json() : null)
-        .then((quote) => {
-          if (quote) setDailyThought(quote);
-        })
-        .catch((error) => {
-          console.error("Failed to fetch daily quote:", error);
-        });
-    }, []);
+    if (!isAuthenticated) return;
+    const today = new Date().toISOString().slice(0, 10);
+    if (dailyQuoteDateRef.current === today) return;
+    let cancelled = false;
+    fetch(`${API_URL}/quote/today`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((quote) => {
+        if (cancelled) return;
+        if (quote) {
+          setDailyThought(quote);
+          dailyQuoteDateRef.current = today;
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) console.error("Failed to fetch daily quote:", error);
+      });
+    return () => { cancelled = true; };
+  }, [isAuthenticated, API_URL]);
   useEffect(() => {
     function handleClickOutside(event) {
       if (

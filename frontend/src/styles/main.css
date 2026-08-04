@@ -653,6 +653,40 @@ button { cursor: pointer; }
 }
 .book-card h3 { margin: 0; font-size: 18px; line-height: 1.2; word-break: break-word; }
 .author { margin: 7px 0 12px; color: var(--muted); font-size: 13px; }
+.book-card-info {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  align-self: stretch;
+  overflow: hidden;
+  gap: 4px;
+}
+.book-card-info .flex-between {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  align-items: stretch;
+}
+.book-card-info .author {
+  flex: 0 0 17px;
+  min-height: 0;
+  margin: 0;
+  line-height: 1.2;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.book-card-info .chips { flex: 0 0 auto; min-height: 0; overflow: hidden; }
+.book-card-info .flex-between h3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
   display: inline-flex;

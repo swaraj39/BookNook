@@ -31,12 +31,12 @@ export function BookCard({ book, me, openDetails, setRequestModal, setBookModal,
         <div className="cover-art" style={{ background: book.coverColor || "#16756f" }}>
           {book.coverUrl ? <img src={book.coverUrl} alt={book.title} /> : book.genre?.name}
         </div>
-        <div>
+        <div className="book-card-info">
           <div className="flex-between">
-            <h3>{book.title}</h3>
+            <h3 title={book.title}>{book.title}</h3>
             
           </div>
-          <div className="author">{book.author}</div>
+          <div className="author" title={book.author}>{book.author}</div>
           <div className="chips">
             <span className={`chip ${book.availabilityStatus}`}>{label(book.availabilityStatus)}</span>
             {borrowedByMe && <span className="chip returned">Borrowed by you</span>}
