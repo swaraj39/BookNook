@@ -1072,7 +1072,7 @@ return (
     </nav>
 
     {pageLoading && <PageLoader />}
-    {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} />}
+    {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} onNotify={notify} />}
     {userModal && <UserModal user={userModal} onClose={() => setUserModal(null)} onSave={saveUser} />}
     {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
     <ConfirmDialog message={confirm?.message} onConfirm={() => resolveConfirm(true)} onCancel={() => resolveConfirm(false)} />

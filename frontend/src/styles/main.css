@@ -662,6 +662,7 @@ button { cursor: pointer; }
   overflow: hidden;
   gap: 4px;
 }
+
 .book-card-info .flex-between {
   flex: 1 1 auto;
   min-height: 0;
@@ -1158,6 +1159,21 @@ th:last-child {
   color: #ef4444;
   font-weight: 400;
   margin-top: 2px;
+}
+/* Character-limited fields */
+.char-control.textarea {
+  min-height: 46px;
+}
+.field .char-counter {
+  margin: 0 0 0 auto;
+  color: var(--muted);
+}
+.field.char-over-limit .char-control {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12);
+}
+.field.char-over-limit .char-counter {
+  color: #ef4444;
 }
 /* Footer */
 .modal-foot {

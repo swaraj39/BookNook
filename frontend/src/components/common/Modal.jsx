@@ -1,7 +1,13 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 export function Modal({ title, onClose, onSubmit, children }) {
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prevOverflow; };
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();

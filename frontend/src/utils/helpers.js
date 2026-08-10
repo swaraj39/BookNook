@@ -8,6 +8,16 @@ export function dateText(value) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
 }
+export const CHAR_LIMITS = {
+  title: 100,
+  author: 100,
+  description: 1000,
+};
+export function findExceededCharFields(form) {
+  return Object.entries(CHAR_LIMITS)
+    .filter(([field, max]) => typeof form?.[field] === "string" && form[field].length > max)
+    .map(([field]) => field);
+}
 export function validateBookForm(form) {
   const errors = {};
   if (!form.title?.trim()) errors.title = "Title is required.";

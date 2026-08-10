@@ -98,6 +98,13 @@ export function Dashboard({ stats, me, dailyThought, openDetails, onNavigate, se
     setShowLeaderboardPopup(false);
   }
 
+  useEffect(() => {
+    if (!showLeaderboardPopup) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prevOverflow; };
+  }, [showLeaderboardPopup]);
+
   function booksLabel(count) {
     return `${count} book${count !== 1 ? "s" : ""}`;
   }
@@ -278,9 +285,10 @@ function Laurel({ size = 40, className, style }) {
             <h3>Your Latest Reading</h3>
           </div>
           <div className="history-scroll-viewport">
-            {stats.latestReadings && stats.latestReadings.filter((log) => log.status !== "rejected").length > 0 ? (
+            {stats.latestReadings && stats.latestReadings.filter((log) => log.status === "returned").length > 0 ? (
               stats.latestReadings
-                .filter((log) => log.status !== "rejected")
+                .filter((log) => log.status === "returned")
+                .slice(0, 10)
                 .map((log) => (
                   <div key={log.id} className="reading-log-item-strip" onClick={() => openDetails(log.book)}>
                     <div className="log-book-thumbnail" style={{ backgroundColor: log.book.coverColor || "var(--brand)" }}>
