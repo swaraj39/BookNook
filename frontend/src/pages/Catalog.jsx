@@ -22,7 +22,7 @@ function SpinnerInline() {
   );
 }
 export function Catalog({
-  page, genres, filters, setFilters, searchTerm, setSearchTerm,
+  page, genres, filters, setFilters, searchTerm, setSearchTerm, statusCounts,
   loading, me, openDetails, setRequestModal, setBookModal, returnBook, importBooks, importing, onRefresh
 }) {
   const fileInputRef = useRef(null);
@@ -112,7 +112,7 @@ export function Catalog({
               className={`catalog-capsule ${filters.availability === c.value ? "active" : ""}`}
               onClick={() => setCapsule(c.value)}
             >
-              {c.label}
+              {c.label} ({statusCounts?.[c.value] ?? 0})
             </button>
           ))}
         </div>
