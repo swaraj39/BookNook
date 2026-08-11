@@ -89,24 +89,18 @@ function paginateList(list, pageIndex, pageSize = LIST_PAGE_SIZE) {
     page: safePage
   };
 }
+// Single source of truth for how a book maps to one of the status buckets
+// shown in the catalog capsules. Every book lands in exactly one bucket, so
+// the per-tab counts always sum to the "All" count.
+function bookStatusBucket(book) {
+  if (book.availabilityStatus === "available") return "available";
+  if (book.isBorrowedByMe) return "borrowed_by_me";
+  if (book.availabilityStatus === "request_pending" && book.isPendingByMe) return "request_pending";
+  return "unavailable";
+}
 function matchesCapsule(book, capsule) {
-  switch (capsule) {
-    case "available":
-      return book.availabilityStatus === "available";
-    case "request_pending":
-      return book.availabilityStatus === "request_pending" && !!book.isPendingByMe;
-    case "borrowed_by_me":
-      return !!book.isBorrowedByMe;
-    case "unavailable":
-      return (
-        (book.availabilityStatus === "borrowed" || book.availabilityStatus === "request_pending") &&
-        !book.isBorrowedByMe &&
-        !book.isPendingByMe
-      );
-    case "all":
-    default:
-      return true;
-  }
+  if (capsule === "all") return true;
+  return bookStatusBucket(book) === capsule;
 }
 function HomePage({ stats, dailyThought, navigateTo, setFilters, setBookModal }) {
   return (
@@ -270,13 +264,17 @@ export default function App() {
   const [canScrollRight, setCanScrollRight] = useState(false);
   const [allBooks, setAllBooks] = useState([]);
   // Capsule filtering happens entirely in memory against the last fetched
-  // catalogBooks list - this never triggers a network request.
-  const filteredCatalogBooks = useMemo(
+  // catalogBooks list - this never triggers a network request. The flow is:
+  //
+  //   catalogBooks -> (search + genre + sort) -> baseCatalogBooks
+  //                        |---> catalogStatusCounts (status-independent)
+  //                        +---> (selected status capsule) -> filteredCatalogBooks
+  //
+  // Counts are always derived from the base (non-status) filtered dataset, so
+  // selecting a status tab never changes the other tabs' counts.
+  const baseCatalogBooks = useMemo(
     () => {
       let books = catalogBooks;
-
-      // Capsule filter
-      books = books.filter((book) => matchesCapsule(book, filters.availability));
 
       // Text search (title, author, owner, description)
       if (searchTerm) {
@@ -310,7 +308,31 @@ export default function App() {
 
       return sorted;
     },
-    [catalogBooks, filters.availability, searchTerm, filters.genreId, filters.sort]
+    [catalogBooks, searchTerm, filters.genreId, filters.sort]
+  );
+  // Status counts come from the base dataset only. The selected capsule is
+  // intentionally excluded from these dependencies.
+  const catalogStatusCounts = useMemo(() => {
+    const counts = {
+      all: baseCatalogBooks.length,
+      available: 0,
+      request_pending: 0,
+      borrowed_by_me: 0,
+      unavailable: 0,
+    };
+    for (const book of baseCatalogBooks) {
+      counts[bookStatusBucket(book)] += 1;
+    }
+    return counts;
+  }, [baseCatalogBooks]);
+  // The selected status capsule only narrows the base dataset into what gets
+  // displayed - it never feeds back into catalogStatusCounts above.
+  const filteredCatalogBooks = useMemo(
+    () => {
+      if (filters.availability === "all") return baseCatalogBooks;
+      return baseCatalogBooks.filter((book) => matchesCapsule(book, filters.availability));
+    },
+    [baseCatalogBooks, filters.availability]
   );
   // Client-side pagination over the filtered list, shaped the same way the
   // old server-paginated response used to look so <Catalog/> doesn't need
@@ -1023,6 +1045,7 @@ return (
           setFilters={setFilters}
           searchTerm={searchTerm}
           setSearchTerm={setSearchTerm}
+          statusCounts={catalogStatusCounts}
           loading={catalogLoading}
           me={me}
           openDetails={openDetails}

@@ -68,14 +68,23 @@ export class BookService {
     }
     const orderBy: any =
       sort === "newest" ? { createdAt: "desc" } : { title: "asc" };
+    const include: any = {
+      owner: true,
+      genre: true,
+    };
+    // mapBook derives isBorrowedByMe / isPendingByMe from the current user's
+    // own transactions, so load just those relations for each catalog book.
+    if (userId) {
+      include.transactions = {
+        where: { requesterId: userId },
+        select: { status: true },
+      };
+    }
     const [totalElements, books] = await Promise.all([
       prisma.book.count({ where }),
       prisma.book.findMany({
         where,
-        include: {
-          owner: true,
-          genre: true,
-        },
+        include,
         orderBy,
         skip: currentPage * pageSize,
         take: pageSize,
