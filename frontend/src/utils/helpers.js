@@ -9,9 +9,9 @@ export function dateText(value) {
   return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
 }
 export const CHAR_LIMITS = {
-  title: 100,
-  author: 100,
-  description: 1000,
+  title: 200,
+  author: 200,
+  description: 2000,
 };
 export function findExceededCharFields(form) {
   return Object.entries(CHAR_LIMITS)
