@@ -2377,6 +2377,9 @@ th:last-child {
   background: var(--brand-soft);
   color: var(--brand-dark);
 }
+.availability-select {
+  display: none;
+}
 .btn[disabled],
 .btn:disabled {
   opacity: 0.38 !important;
@@ -4845,19 +4848,17 @@ tbody tr:hover,
     border-radius: 8px !important;
   }
 
-  /* Horizontal responsive touch capsule ribbon alignment tracks */
+  /* Availability filter: swap capsule ribbon for a familiar dropdown on mobile */
   .catalog-capsules {
-    display: flex !important;
-    width: 100% !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    gap: 8px !important;
-    padding: 4px 2px 10px 2px !important;
-    -webkit-overflow-scrolling: touch !important;
-    scrollbar-width: none !important;
+    display: none !important;
   }
-  .catalog-capsules::-webkit-scrollbar { display: none !important; }
-  .catalog-capsule { flex-shrink: 0 !important; font-size: 13px !important; }
+  .availability-select {
+    display: block !important;
+    width: 100% !important;
+    min-height: 42px !important;
+    margin: 0 0 14px !important;
+    font-size: 13.5px !important;
+  }
 
   /* 5. Guide Process Layout Fixes */
   .timeline-backbone-line { left: 36px; transform: none; }

@@ -34,6 +34,13 @@ export function Catalog({
     { label: "Borrowed by me", value: "borrowed_by_me" },
     { label: "Unavailable", value: "unavailable" },
   ];
+  const availabilityOptions = [
+    { label: "All availability", value: "all" },
+    { label: "Available", value: "available" },
+    { label: "Request Pending", value: "request_pending" },
+    { label: "Borrowed by me", value: "borrowed_by_me" },
+    { label: "Unavailable", value: "unavailable" },
+  ];
   function setCapsule(value) {
     setFilters({ ...filters, availability: value, page: 0 });
   }
@@ -116,6 +123,13 @@ export function Catalog({
             </button>
           ))}
         </div>
+        <select className="select availability-select" value={filters.availability} onChange={(e) => setFilters({ ...filters, availability: e.target.value, page: 0 })}>
+          {availabilityOptions.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label} ({statusCounts?.[o.value] ?? 0})
+            </option>
+          ))}
+        </select>
         <div className="catalog">
           {loading ? (
             Array.from({ length: 6 }).map((_, i) => <BookCardSkeleton key={i} />)

@@ -2,6 +2,7 @@ const WEBHOOK_URLS = {
   signupVerification: process.env.WORKATO_SIGNUP_VERIFICATION_WEBHOOK_URL || "",
   signupWelcome: process.env.WORKATO_SIGNUP_WEBHOOK_URL || "",
   forgotPassword: process.env.WORKATO_FORGOT_PASSWORD_WEBHOOK_URL || "",
+  reminder: process.env.WORKATO_REMINDER_WEBHOOK_URL || "",
 };
 
 export async function callSignupVerificationWebhook(payload: {
@@ -83,5 +84,33 @@ export async function callWelcomeWebhook(payload: {
     }
   } catch (error) {
     console.error("Welcome webhook failed:", error);
+  }
+}
+
+export async function callReminderWebhook(payload: {
+  mail_id: string;
+  days: number;
+  name: string;
+}): Promise<void> {
+  const url = WEBHOOK_URLS.reminder;
+  if (!url) {
+    console.warn("WORKATO_REMINDER_WEBHOOK_URL not set — skipping webhook.");
+    return;
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      console.warn(`Reminder webhook returned ${response.status}`);
+    } else {
+      console.log("Reminder webhook sent successfully for", payload.mail_id);
+    }
+  } catch (error) {
+    console.error("Reminder webhook failed:", error);
   }
 }

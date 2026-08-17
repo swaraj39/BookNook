@@ -2,11 +2,13 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import dotenv from "dotenv";
+import cron from "node-cron";
 import { AuthController } from "./controllers/auth.controller";
 import { AppController } from "./controllers/app.controller";
 import { authenticate } from "./middleware/auth";
 import { errorHandler, logError } from "./middleware/error";
 import { getSafeErrorMessage, getStatusCode } from "./utils/app-error";
+import { ReminderService } from "./services/reminder.service";
 dotenv.config();
 const app = express();
 const port = process.env.PORT || 8080;
@@ -83,6 +85,16 @@ app.get("/api/quote/today", async (req, res) => {
   res.json(fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)]);
 });
 app.use(errorHandler);
+
+cron.schedule("0 11 * * *", async () => {
+  console.log("Running re-engagement reminder job...");
+  try {
+    await ReminderService.processReminders();
+  } catch (error) {
+    console.error("Re-engagement reminder job failed:", error);
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
