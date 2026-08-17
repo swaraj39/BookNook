@@ -74,6 +74,10 @@ export function getSafeErrorMessage(error: any): string {
 }
 
 export function getStatusCode(error: any): number {
+  if (typeof error?.statusCode === "number") {
+    return error.statusCode;
+  }
+
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     switch (error.code) {
       case "P1001":

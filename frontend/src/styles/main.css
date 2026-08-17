@@ -5680,3 +5680,391 @@ tbody tr:hover,
   margin-top: 24px;
 }
 
+/* =========================
+   REQUEST REVIEW PAGE (Slack approval link)
+   ========================= */
+.review-page {
+  position: relative;
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
+  padding: 28px 24px;
+  background:
+    radial-gradient(circle at 12% 6%, rgba(22, 117, 111, 0.08), transparent 34%),
+    radial-gradient(circle at 90% 10%, rgba(166, 106, 24, 0.07), transparent 30%),
+    radial-gradient(circle at 50% 112%, rgba(102, 127, 255, 0.06), transparent 42%),
+    var(--bg);
+}
+.review-card {
+  position: relative;
+  margin: auto;
+  background: var(--panel, #fff);
+  border: 1px solid var(--line, #e0ddd8);
+  border-radius: 18px;
+  padding: 30px 36px;
+  max-width: 660px;
+  width: 100%;
+  box-shadow:
+    0 1px 2px rgba(30, 41, 59, 0.05),
+    0 18px 44px -14px rgba(30, 41, 59, 0.18);
+  text-align: left;
+}
+.review-card p {
+  margin: 0;
+}
+.review-card .btn {
+  margin-top: 0;
+}
+
+.review-head {
+  margin-bottom: 20px;
+}
+.review-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.review-title {
+  margin: 0 0 7px;
+  font-size: clamp(24px, 3.4vw, 30px);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+.review-sub {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.review-book {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card-bg, #fff);
+}
+.review-book .cover-art {
+  flex-shrink: 0;
+  width: 92px;
+  height: 128px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 10px 22px -8px rgba(30, 41, 59, 0.4);
+}
+.review-book-info {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.review-book-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  word-break: break-word;
+}
+.review-book-author {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.review-details {
+  margin-bottom: 20px;
+}
+.review-section-label {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.review-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.review-detail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card-bg, #fff);
+}
+.review-detail-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+}
+.review-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(145deg, #123c3a, var(--brand));
+  font-size: 12px;
+  font-weight: 900;
+}
+.review-detail-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.review-detail-value {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.review-detail-unit {
+  color: var(--muted);
+  font-weight: 600;
+}
+.review-detail-label {
+  margin-top: 1px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.review-note {
+  margin-bottom: 18px;
+  padding: 12px 14px 13px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--brand);
+  border-radius: 12px;
+  background: var(--bg);
+}
+.review-note-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.review-note-text {
+  margin: 8px 0 0;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.review-error {
+  margin-bottom: 20px;
+  padding: 10px 12px;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  background: rgba(254, 127, 127, 0.1);
+  color: var(--danger);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.review-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.review-prompt {
+  color: var(--muted);
+  font-size: 14px;
+}
+.review-actions-buttons {
+  display: flex;
+  gap: 12px;
+}
+.review-approve {
+  flex: 1.4;
+  min-height: 44px;
+  font-size: 15px;
+}
+.review-reject {
+  flex: 1;
+  min-height: 44px;
+  font-size: 15px;
+  background: var(--card-bg) !important;
+  border-color: rgba(239, 68, 68, 0.45) !important;
+  color: var(--danger) !important;
+}
+.review-reject:hover:not([disabled]) {
+  background: rgba(239, 68, 68, 0.08) !important;
+  border-color: var(--danger) !important;
+}
+
+.review-card-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 40px 32px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+.review-card-loading .verify-spinner {
+  margin: 0;
+  width: 36px;
+  height: 36px;
+  border-width: 3px;
+}
+
+.review-card-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 36px;
+  text-align: center;
+}
+.review-state-icon {
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  margin-bottom: 18px;
+  border-radius: 50%;
+}
+.review-state-icon--handled {
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+}
+.review-state-icon--expired {
+  background: rgba(245, 158, 11, 0.14);
+  color: var(--accent);
+}
+.review-state-icon--error {
+  background: rgba(254, 127, 127, 0.14);
+  color: var(--danger);
+}
+.review-title-state {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.review-state-message {
+  max-width: 420px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.review-state-btn {
+  min-height: 42px;
+  margin-top: 24px;
+}
+
+@media (max-width: 640px) {
+  .review-page { padding: 24px 16px; }
+  .review-card { padding: 32px 22px; border-radius: 16px; }
+  .review-book { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .review-detail-grid { grid-template-columns: 1fr; gap: 10px; }
+  .review-actions-buttons { flex-direction: column-reverse; }
+  .review-actions-buttons .btn { width: 100%; flex: none; }
+  .review-card-state { padding: 40px 24px; }
+}
+
+@media (max-height: 800px) {
+  .review-page { padding: 18px 24px; }
+  .review-card { padding: 24px 32px; }
+  .review-head { margin-bottom: 16px; }
+  .review-pill { margin-bottom: 10px; }
+  .review-title { font-size: 24px; }
+  .review-book { margin-bottom: 16px; padding: 14px; gap: 16px; }
+  .review-details { margin-bottom: 16px; }
+  .review-note { margin-bottom: 14px; padding: 11px 13px 12px; }
+  .review-actions { padding-top: 14px; gap: 10px; }
+  .review-approve, .review-reject { min-height: 42px; }
+  .review-state-icon { width: 54px; height: 54px; margin-bottom: 14px; }
+  .review-card-state { padding: 30px 28px; }
+}
+
+/* =========================
+   SLACK SHARE MODAL (after creating a request)
+   ========================= */
+.slack-share-modal { width: min(560px, 100%); }
+.slack-share-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  overflow-y: auto;
+}
+.slack-share-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.slack-share-message {
+  min-height: 220px;
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.55;
+  resize: none;
+}
+.slack-share-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.slack-share-divider {
+  height: 1px;
+  background: var(--border, rgba(128, 128, 128, 0.25));
+  margin: 2px 0;
+}
+.slack-share-link-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.slack-share-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--brand);
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+.slack-share-link:hover { text-decoration: underline; }
+.slack-share-link-row .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+

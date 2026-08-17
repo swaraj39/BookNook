@@ -52,6 +52,7 @@ app.patch("/api/users/:id", authenticate, AppController.updateUser);
 
 // Workflow routes
 app.get("/api/borrow-requests", authenticate, AppController.myRequests);
+app.get("/api/borrow-requests/review", authenticate, AppController.reviewRequest);
 app.post("/api/borrow-requests", authenticate, AppController.requestBook);
 app.post("/api/borrow-requests/:id/approve", authenticate, AppController.approveRequest);
 app.post("/api/borrow-requests/:id/reject", authenticate, AppController.rejectRequest);

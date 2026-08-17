@@ -1,6 +1,7 @@
 import prisma from "../config/prisma";
 import { StatsCacheService } from "./stats-cache.service";
 import { ReadCacheService } from "./read-cache.service";
+import { generateToken, verifyTokenDetailed } from "../utils/jwt";
 
 const TX_OPTIONS = {
   maxWait: 10000,
@@ -160,7 +161,86 @@ export class WorkflowService {
       StatsCacheService.adjustFields({ availableBooks: -1 }),
       ReadCacheService.invalidate(`book:${payload.bookId}`),
     ]);
-    return this.mapTransaction(transaction);
+
+    const reviewToken = generateToken(
+      { type: "book_request_review", requestId: transaction.id },
+      "7d"
+    );
+
+    return { ...this.mapTransaction(transaction), reviewToken };
+  }
+
+  static async reviewRequest(userId: string, token: string) {
+    const { payload: decoded, reason } = verifyTokenDetailed(token);
+
+    if (reason === "expired") {
+      const error: any = new Error(
+        "This review link has expired. Links are valid for 7 days from when the request was created."
+      );
+      error.statusCode = 410;
+      throw error;
+    }
+
+    if (reason === "invalid" || !decoded || decoded.type !== "book_request_review" || !decoded.requestId) {
+      const error: any = new Error(
+        "This review link isn't valid. Please copy the full link from the message."
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const transaction = await prisma.bookTransaction.findUnique({
+      where: { id: decoded.requestId },
+      include: {
+        book: { include: { owner: true, genre: true } },
+        requester: true,
+        owner: true,
+      },
+    });
+
+    if (!transaction) {
+      const error: any = new Error("This request no longer exists.");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (transaction.ownerId !== userId) {
+      const error: any = new Error("Only the book's owner can review this request.");
+      error.statusCode = 403;
+      throw error;
+    }
+
+    if (transaction.status !== "pending") {
+      const error: any = new Error("This request has already been handled.");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    return {
+      id: transaction.id,
+      status: transaction.status,
+      requestedLoanDays: transaction.requestedLoanDays,
+      borrowerNote: transaction.borrowerNote,
+      requestedAt: transaction.requestedAt,
+      book: transaction.book
+        ? {
+            id: transaction.book.id,
+            title: transaction.book.title,
+            author: transaction.book.author ?? null,
+            coverUrl: transaction.book.coverUrl,
+            coverColor: transaction.book.coverColor,
+          }
+        : null,
+      requester: transaction.requester
+        ? {
+            id: transaction.requester.id,
+            fullName: transaction.requester.fullName,
+            email: transaction.requester.email,
+            avatarUrl: transaction.requester.avatarUrl,
+            avatarInitials: transaction.requester.avatarInitials,
+          }
+        : null,
+    };
   }
 
   static async approve(userId: string, transactionId: string, isAdmin: boolean) {

@@ -210,6 +210,18 @@ export class AppController {
       return AppController.handleError(res, error);
     }
   }
+  static async reviewRequest(req: AuthRequest, res: Response) {
+    try {
+      const token = queryString(req.query.token);
+      if (!token) {
+        return res.status(400).json({ message: "Missing review token." });
+      }
+      const result = await WorkflowService.reviewRequest(req.user.id, token);
+      return res.json(result);
+    } catch (error: any) {
+      return AppController.handleError(res, error);
+    }
+  }
   static async approveRequest(req: AuthRequest, res: Response) {
     try {
       const result = await WorkflowService.approve(

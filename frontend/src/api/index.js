@@ -116,6 +116,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  reviewRequest: (token) =>
+    request(`/borrow-requests/review?token=${encodeURIComponent(token)}`),
   approve: (id) =>
     request(`/borrow-requests/${id}/approve`, {
       method: "POST",

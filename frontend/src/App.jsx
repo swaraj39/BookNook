@@ -26,9 +26,11 @@ import { Stats } from "./components/Stats";
 import { BookModal } from "./components/BookModal";
 import { UserModal } from "./components/UserModal";
 import { RequestModal } from "./components/RequestModal";
+import { SlackShareModal } from "./components/SlackShareModal";
 import { ToastContainer } from "./components/common/Toast";
 import { Login } from "./pages/Login";
 import { VerifyMagicLink } from "./pages/VerifyMagicLink";
+import { ReviewRequest } from "./pages/ReviewRequest";
 import { Catalog } from "./pages/Catalog";
 import { Dashboard } from "./pages/Dashboard";
 import { Requests } from "./pages/Requests";
@@ -155,6 +157,9 @@ export default function App() {
   const [authChecking, setAuthChecking] = useState(true);
   const initialView = getStoredView();
   const [view, setView] = useState(initialView);
+  const [reviewToken, setReviewToken] = useState(
+    () => new URLSearchParams(window.location.search).get("review") || null
+  );
   const [navStack, setNavStack] = useState(() => getStoredNavStack(initialView));
   const [selectedBookId, setSelectedBookId] = useState(localStorage.getItem("bn_selectedBookId") || null);
   useEffect(() => {
@@ -249,6 +254,7 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [bookModal, setBookModal] = useState(null);
   const [requestModal, setRequestModal] = useState(null);
+  const [slackShareModal, setSlackShareModal] = useState(null);
   const [userModal, setUserModal] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [pageLoading, setPageLoading] = useState(null);
@@ -612,6 +618,16 @@ export default function App() {
     localStorage.removeItem("bn_selectedBookId");
     notify("Logged out successfully.");
 }
+function finishReview() {
+  setReviewToken(null);
+  const url = new URL(window.location.href);
+  url.searchParams.delete("review");
+  window.history.replaceState({}, "", url.toString());
+  setSelectedBook(null);
+  setSelectedBookId(null);
+  setNavStack(["dashboard"]);
+  setView("dashboard");
+}
 async function loadBootstrap() {
   try {
     const [user, genreList] = await Promise.all([api.me(), api.genres()]);
@@ -817,11 +833,14 @@ async function deleteBook(id) {
 }
 async function sendRequest(payload) {
   try {
-    await api.requestBook(payload);
+    const result = await api.requestBook(payload);
     setRequestModal(null);
       notify("Borrow request sent.");
       bustDashboardCache();
       await reloadCurrentView();
+      if (result?.reviewToken) {
+        setSlackShareModal(result);
+      }
   } catch (error) {
     notify(error.message, "error");
   }
@@ -928,6 +947,22 @@ const navSections = [
 ];
 if (authChecking) {
   return <PageLoader fullPage />;
+}
+if (reviewToken) {
+  if (!isAuthenticated) {
+    return (
+      <>
+        <Login onLogin={handleLogin} />
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+      </>
+    );
+  }
+  return (
+    <>
+      <ReviewRequest token={reviewToken} notify={notify} onDone={finishReview} />
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+    </>
+  );
 }
 if (!isAuthenticated) {
   const urlParams = new URLSearchParams(window.location.search);
@@ -1098,6 +1133,7 @@ return (
     {bookModal && <BookModal book={bookModal} genres={genres} onClose={() => setBookModal(null)} onSave={saveBook} onNotify={notify} />}
     {userModal && <UserModal user={userModal} onClose={() => setUserModal(null)} onSave={saveUser} />}
     {requestModal && <RequestModal book={requestModal} onClose={() => setRequestModal(null)} onSave={sendRequest} />}
+    {slackShareModal && <SlackShareModal request={slackShareModal} onClose={() => setSlackShareModal(null)} />}
     <ConfirmDialog message={confirm?.message} onConfirm={() => resolveConfirm(true)} onCancel={() => resolveConfirm(false)} />
     {detailsLoading && (
       <div className="details-loader-overlay">
