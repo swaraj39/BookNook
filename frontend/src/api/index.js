@@ -30,6 +30,10 @@ async function request(path, options = {}) {
     ...options,
     credentials: "include",
     headers,
+  }).catch(() => {
+    throw new Error(
+      "Unable to reach the server. Please check your connection and try again."
+    );
   });
   if (
     response.status === 401 &&
@@ -49,7 +53,8 @@ async function request(path, options = {}) {
       const body = text ? JSON.parse(text) : {};
       message = body.message || message;
     } catch {
-      message = text || message;
+      // Non-JSON bodies (e.g. HTML error pages) must never surface verbatim.
+      message = "Something went wrong. Please try again in a moment.";
     }
     throw new Error(friendlyErrorMessage(message));
   }
@@ -83,6 +88,24 @@ export const api = {
   book: (id) => request(`/books/${id}`),
   bookHistory: (id, page = 0, size = 20) =>
     request(`/books/${id}/history?page=${page}&size=${size}`),
+  bookReviews: (bookId, params = {}) => {
+    const query = new URLSearchParams(params);
+    return request(`/books/${bookId}/reviews?${query}`);
+  },
+  createReview: (bookId, comment, rating) =>
+    request(`/books/${bookId}/reviews`, {
+      method: "POST",
+      body: JSON.stringify({ comment, rating }),
+    }),
+  updateReview: (reviewId, comment, rating) =>
+    request(`/reviews/${reviewId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ comment, rating }),
+    }),
+  deleteReview: (reviewId) =>
+    request(`/reviews/${reviewId}`, {
+      method: "DELETE",
+    }),
   createBook: (payload) =>
     request("/books", {
       method: "POST",
@@ -189,7 +212,7 @@ export const api = {
         const body = text ? JSON.parse(text) : {};
         message = body.message || message;
       } catch {
-        message = text || message;
+        message = "Failed to export books. Please try again in a moment.";
       }
       throw new Error(friendlyErrorMessage(message));
     }

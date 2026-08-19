@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { label, dateText } from "../utils/helpers";
+import { Reviews } from "../components/Reviews";
 
 function SpinnerInline() {
   return (
@@ -43,14 +44,17 @@ export function Details({
   navigateBack,
   setBookModal,
   setRequestModal,
-  returnBook
+  returnBook,
+  notify,
+  askConfirm
 }) {
   const isAdmin = me.role === "ADMIN";
   const ownedByMe = book.owner.id === me.id;
   const borrowedByMe = book.activeLoanId && book.activeLoanBorrowerId === me.id;
 
   return (
-    <div className="detail-layout">
+    <>
+      <div className="detail-layout">
       <div className="detail-cover">
         <div className="detail-book" style={{ background: book.coverColor || "#17313b" }}>
           {book.coverUrl ? <img src={book.coverUrl} alt={book.title} /> : book.title}
@@ -69,8 +73,6 @@ export function Details({
         <div className="chips">
           <span className={`chip ${book.availabilityStatus}`}>{label(book.availabilityStatus)}</span>
         </div>
-
-        <p>{book.description}</p>
 
         <div className="mini-meta">
           <span><strong>Owner:</strong> {book.owner.fullName}</span>
@@ -97,6 +99,16 @@ export function Details({
           {borrowedByMe && <ReturnButtonDetails book={book} returnBook={returnBook} />}
         </div>
       </div>
-    </div>
+      </div>
+
+      {book.description && (
+        <section className="panel detail-description">
+          <h3>About this book</h3>
+          <p>{book.description}</p>
+        </section>
+      )}
+
+      <Reviews bookId={book.id} me={me} notify={notify} askConfirm={askConfirm} />
+    </>
   );
 }

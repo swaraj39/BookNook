@@ -180,7 +180,7 @@ model Review {
   bookId          String   @map("book_id")
   transactionId   String?  @map("transaction_id")
   reviewerId      String   @map("reviewer_id")
-  rating          Int?
+  rating          Float?   @db.DoublePrecision
   comment         String?  @db.Text
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)

@@ -4,6 +4,7 @@ import { BookService } from "../services/book.service";
 import { WorkflowService } from "../services/workflow.service";
 import { LookupService } from "../services/lookup.service";
 import { UserService } from "../services/users.service";
+import { ReviewService } from "../services/review.service";
 import prisma from "../config/prisma";
 import { getSafeErrorMessage, getStatusCode } from "../utils/app-error";
 import { logError } from "../middleware/error";
@@ -340,4 +341,61 @@ export class AppController {
     } catch (error: any) {
       return AppController.handleError(res, error);
     }
-  }}
+  }
+
+  static async bookReviews(req: AuthRequest, res: Response) {
+    try {
+      const { sort, offset, limit } = req.query;
+      const result = await ReviewService.list(
+        paramString(req.params.id),
+        queryString(sort),
+        queryNumber(offset, 0),
+        queryNumber(limit, 5)
+      );
+      return res.json(result);
+    } catch (error: any) {
+      return AppController.handleError(res, error);
+    }
+  }
+
+  static async createReview(req: AuthRequest, res: Response) {
+    try {
+      const result = await ReviewService.create(
+        req.user.id,
+        paramString(req.params.id),
+        req.body?.comment,
+        req.body?.rating
+      );
+      return res.status(201).json(result);
+    } catch (error: any) {
+      return AppController.handleError(res, error);
+    }
+  }
+
+  static async updateReview(req: AuthRequest, res: Response) {
+    try {
+      const result = await ReviewService.update(
+        req.user.id,
+        paramString(req.params.id),
+        req.body?.comment,
+        req.body?.rating
+      );
+      return res.json(result);
+    } catch (error: any) {
+      return AppController.handleError(res, error);
+    }
+  }
+
+  static async deleteReview(req: AuthRequest, res: Response) {
+    try {
+      await ReviewService.delete(
+        req.user.id,
+        paramString(req.params.id),
+        req.user.role === "ADMIN"
+      );
+      return res.status(204).send();
+    } catch (error: any) {
+      return AppController.handleError(res, error);
+    }
+  }
+}

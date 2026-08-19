@@ -43,6 +43,10 @@ app.get("/api/books", authenticate, AppController.catalog);
 app.get("/api/books/mine", authenticate, AppController.myBooks);
 app.get("/api/books/:id", authenticate, AppController.getBook);
 app.get("/api/books/:id/history", authenticate, AppController.bookHistory);
+app.get("/api/books/:id/reviews", authenticate, AppController.bookReviews);
+app.post("/api/books/:id/reviews", authenticate, AppController.createReview);
+app.patch("/api/reviews/:id", authenticate, AppController.updateReview);
+app.delete("/api/reviews/:id", authenticate, AppController.deleteReview);
 app.post("/api/books", authenticate, AppController.createBook);
 app.post("/api/books/import", authenticate, AppController.importBooks);
 app.patch("/api/books/:id", authenticate, AppController.updateBook);
@@ -84,6 +88,10 @@ app.get("/api/quote/today", async (req, res) => {
   }
 
   res.json(fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)]);
+});
+// JSON 404 for unmatched routes (Express's default is an HTML error page)
+app.use((req, res) => {
+  res.status(404).json({ message: "Route not found" });
 });
 app.use(errorHandler);
 
