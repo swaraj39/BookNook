@@ -9,7 +9,8 @@
     "build": "tsc",
     "prisma:generate": "prisma generate",
     "typecheck": "tsc --noEmit",
-    "test:reminder": "ts-node-dev --transpile-only scripts/test-reminder.ts"
+    "test:reminder": "ts-node-dev --transpile-only scripts/test-reminder.ts",
+    "user-activity": "ts-node-dev --transpile-only scripts/user-activity.ts"
   },
   "keywords": [],
   "author": "",

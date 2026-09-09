@@ -95,7 +95,7 @@ app.use((req, res) => {
 });
 app.use(errorHandler);
 
-cron.schedule("45 11 * * *", async () => {
+cron.schedule("10 12 * * *", async () => {
   console.log("Running re-engagement reminder job...");
   try {
     await ReminderService.processReminders();
