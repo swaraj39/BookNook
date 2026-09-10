@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import cron from "node-cron";
 import { AuthController } from "./controllers/auth.controller";
 import { AppController } from "./controllers/app.controller";
+import { HelpdeskController } from "./controllers/helpdesk.controller";
 import { authenticate } from "./middleware/auth";
 import { errorHandler, logError } from "./middleware/error";
 import { getSafeErrorMessage, getStatusCode } from "./utils/app-error";
@@ -65,6 +66,7 @@ app.get("/api/loans/borrowed", authenticate, AppController.borrowed);
 app.get("/api/loans/history", authenticate, AppController.loanHistory);
 app.post("/api/loans/:id/return", authenticate, AppController.returnBook);
 app.get("/api/all/books", authenticate, AppController.exportBooks);
+app.post("/api/helpdesk", authenticate, HelpdeskController.submit);
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
@@ -95,7 +97,7 @@ app.use((req, res) => {
 });
 app.use(errorHandler);
 
-cron.schedule("05 12 * * *", async () => {
+cron.schedule("11 12 * * *", async () => {
   console.log("Running re-engagement reminder job...");
   try {
     await ReminderService.processReminders();

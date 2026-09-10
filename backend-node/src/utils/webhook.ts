@@ -3,6 +3,7 @@ const WEBHOOK_URLS = {
   signupWelcome: process.env.WORKATO_SIGNUP_WEBHOOK_URL || "",
   forgotPassword: process.env.WORKATO_FORGOT_PASSWORD_WEBHOOK_URL || "",
   reminder: process.env.WORKATO_REMINDER_WEBHOOK_URL || "",
+  helpdesk: process.env.WORKATO_HELPDESK_WEBHOOK_URL || "",
 };
 
 export async function callSignupVerificationWebhook(payload: {
@@ -112,5 +113,33 @@ export async function callReminderWebhook(payload: {
     }
   } catch (error) {
     console.error("Reminder webhook failed:", error);
+  }
+}
+
+export async function callHelpdeskWebhook(payload: {
+  name: string;
+  email: string;
+  message: string;
+}): Promise<void> {
+  const url = WEBHOOK_URLS.helpdesk;
+  if (!url) {
+    console.warn("WORKATO_HELPDESK_WEBHOOK_URL not set — skipping webhook.");
+    return;
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      console.warn(`Helpdesk webhook returned ${response.status}`);
+    } else {
+      console.log("Helpdesk webhook sent successfully for", payload.email);
+    }
+  } catch (error) {
+    console.error("Helpdesk webhook failed:", error);
   }
 }

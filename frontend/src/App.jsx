@@ -42,6 +42,7 @@ import { Details } from "./pages/Details";
 import { initials } from "./utils/helpers";
 import { ConfirmDialog } from "./components/common/ConfirmDialog";
 import { PageLoader } from "./components/common/PageLoader";
+import { HelpdeskWidget } from "./components/HelpdeskWidget";
 import logo from "./styles/blue_altair_logo-removebg-preview.png";
 const VALID_VIEWS = new Set(["dashboard", "home", "catalog", "requests", "myBooks", "borrowed", "myLibrary", "history", "detail", "guide", "users"]);
 function getStoredView() {
@@ -1146,6 +1147,7 @@ return (
       </div>
     )}
     <ToastContainer toasts={toasts} onRemove={removeToast} />
+    <HelpdeskWidget notify={notify} me={me} />
   </div>
 );
 }
